@@ -410,7 +410,7 @@ class UtilityController extends Controller
         $databasebackup = \App\Models\DatabaseBackup::find($id);
         $file           = public_path('backup/' . $databasebackup->file);
         $databasebackup->delete();
-        
+
         if (file_exists($file)) {
             unlink($file);
         }
