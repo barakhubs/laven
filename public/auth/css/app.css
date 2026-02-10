@@ -1,0 +1,190 @@
+body{
+  background: #e9f2f7;
+  color: #000;
+  font-family: 'Poppins', sans-serif;
+  min-height: 100vh;
+  position:relative;
+}
+
+body::before{
+  content: "";
+  background: #d3e6f5;
+  position: fixed;
+  top: -200px;
+  left: -250px;
+  height: 500px;
+  width: 500px;
+  border-radius: 50%;
+}
+
+body::after{
+  content: "";
+  background: #dbd9f1;
+  position: fixed;
+  bottom: -300px;
+  right: -300px;
+  height: 500px;
+  width: 500px;
+  border-radius: 50%;
+  z-index:-1;
+}
+
+@media (max-width:768px){
+  body::before{
+    top: -100px;
+    left: -100px;
+    height: 300px;
+    width: 300px;
+  }
+  
+  body::after{
+    bottom: -100px;
+    right: -100px;
+    height: 300px;
+    width: 300px;
+  }
+}
+
+.logo{
+	max-width: 150px;
+	border-radius: 15px;
+	transform: translateX(-50%);
+	margin-left: 50%;
+}
+
+.custom-control-label {
+    margin-bottom: 0;
+    margin-top: 1px;
+	-webkit-touch-callout: none;
+    -webkit-user-select: none;
+     -khtml-user-select: none;
+       -moz-user-select: none;
+        -ms-user-select: none; 
+            user-select: none; 
+}
+ 
+.card-signin {
+  border: 0;
+  border-radius: 5px;
+  background: #FFFFFF;
+  box-shadow: 1px 3px 25px #dfdfdf;
+}
+
+.card-signin .card-header {
+  font-weight: 300;
+  font-size: 1.5rem;
+  border-top-left-radius: 5px;
+  border-top-right-radius: 5px;
+  background: #FFFFFF;
+}
+
+.login-form-head {
+    text-align: center;
+    background: #ffffff;
+    padding: 30px 15px;
+    border-bottom: 1px solid #e8e8e8;
+}
+
+.login-form-head h4 {
+    letter-spacing: 0;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: #000;
+    margin: 0;
+}
+
+.card-signin .card-body {
+  padding: 1rem 2rem;
+}
+
+.form-signin {
+  font-family: 'Poppins', sans-serif;
+  width: 100%;
+  text-align: center;
+}
+
+.form-signin .btn {
+  font-size: 14px;
+  letter-spacing: .1rem;
+  padding: 12px 20px;
+  transition: all 0.2s;
+}
+
+.form-signin .form-control {
+	padding: 12px 20px;
+	text-align: center;
+	border-left: 2px solid #4f39f6;
+	height: auto;
+}
+
+.form-signin .form-control:focus {
+  border: 1px 1px 1px 2px;
+  border-color: #4f39f6;
+  box-shadow: none;
+}
+
+
+.form-signup {
+  font-family: 'Poppins', sans-serif;
+  width: 100%;
+}
+
+.form-signup .btn {
+  font-size: 14px;
+  letter-spacing: .1rem;
+  padding: 12px 20px;
+  transition: all 0.2s;
+}
+
+.form-signup .form-control {
+    padding: 12px 20px;
+    height: auto;
+}
+
+.form-signup .form-control:focus {
+  border: 1px solid #2d7bff;
+  box-shadow: none;
+}
+
+select.form-control {
+    padding: 12px 20px;
+    height: 51px !important;
+}
+
+
+.custom-control-label:before {
+  background: #CCCCCC;
+	border-radius: 50% !important;
+}
+
+.custom-control {
+   display: inline-block;
+}
+
+.btn-register{
+	text-align: center;
+  display: block;
+  color: #000000;
+	font-size: 16px !important;
+}
+
+.btn-register:hover{
+	color: #000000;
+}
+
+.alert-success {
+  color: #363636;
+  background-color: #d3ffdd;
+  border-color: #2cba4d;
+}
+
+.btn-primary {
+  color: #fff;
+  background-color: #4f39f6;
+  border-color: #4f39f6;
+}
+
+.btn-primary:hover {
+  background-color: #432dd7;
+  border-color: #432dd7;
+}
