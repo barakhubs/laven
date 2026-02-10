@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use App\Models\InterestPosting;
@@ -58,13 +59,62 @@ class InterestController extends Controller
         $users    = [];
 
         foreach ($accounts as $account) {
-            DB::select("SELECT ((SELECT IFNULL(SUM(amount),0) FROM transactions WHERE dr_cr = 'cr' AND member_id = $account->member_id AND savings_account_id = $account->id AND status = 2 AND trans_date < '$start_date') - (SELECT IFNULL(SUM(amount),0) FROM transactions WHERE dr_cr = 'dr' AND member_id = $account->member_id AND savings_account_id = $account->id AND status != 1 AND trans_date < '$start_date')) into @openingBalance");
-
-            $transactions = DB::select("SELECT '$start_date' trans_date , $account->member_id as 'member_id', 0 as 'debit', 0 as 'credit', @openingBalance as 'balance'
-            UNION ALL
-            SELECT date(trans_date), member_id, debit, credit, @openingBalance := @openingBalance + (credit - debit) as balance FROM
-            (SELECT date(transactions.trans_date) as trans_date, type, transactions.member_id, SUM(IF(transactions.dr_cr='dr',transactions.amount,0)) as debit, SUM(IF(transactions.dr_cr='cr',transactions.amount,0)) as credit FROM `transactions` JOIN savings_accounts ON savings_account_id = savings_accounts.id WHERE savings_accounts.id = $account->id AND transactions.member_id = $account->member_id AND transactions.status = 2 AND date(transactions.trans_date) >= '$start_date' AND date(transactions.trans_date) <= '$end_date' GROUP BY DATE(trans_date))
-            as all_transaction");
+            // PostgreSQL-compatible query using window functions for running balance
+            $transactions = DB::select("
+                WITH opening_balance AS (
+                    SELECT COALESCE(
+                        (SELECT SUM(amount) FROM transactions WHERE dr_cr = 'cr' AND member_id = ? AND savings_account_id = ? AND status = 2 AND trans_date < ?), 0
+                    ) - COALESCE(
+                        (SELECT SUM(amount) FROM transactions WHERE dr_cr = 'dr' AND member_id = ? AND savings_account_id = ? AND status != 1 AND trans_date < ?), 0
+                    ) AS balance
+                ),
+                daily_transactions AS (
+                    SELECT
+                        ?::date as trans_date,
+                        ?::bigint as member_id,
+                        0::numeric as debit,
+                        0::numeric as credit,
+                        (SELECT balance FROM opening_balance) as running_total
+                    UNION ALL
+                    SELECT
+                        date(trans_date) as trans_date,
+                        member_id,
+                        SUM(CASE WHEN dr_cr = 'dr' THEN amount ELSE 0 END) as debit,
+                        SUM(CASE WHEN dr_cr = 'cr' THEN amount ELSE 0 END) as credit,
+                        0 as running_total
+                    FROM transactions
+                    JOIN savings_accounts ON savings_account_id = savings_accounts.id
+                    WHERE savings_accounts.id = ?
+                        AND transactions.member_id = ?
+                        AND transactions.status = 2
+                        AND date(trans_date) >= ?
+                        AND date(trans_date) <= ?
+                    GROUP BY date(trans_date), member_id
+                    ORDER BY trans_date
+                )
+                SELECT
+                    trans_date,
+                    member_id,
+                    debit,
+                    credit,
+                    SUM(credit - debit) OVER (ORDER BY trans_date ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) +
+                    (SELECT balance FROM opening_balance) as balance
+                FROM daily_transactions
+                ORDER BY trans_date
+            ", [
+                $account->member_id,
+                $account->id,
+                $start_date,
+                $account->member_id,
+                $account->id,
+                $start_date,
+                $start_date,
+                $account->member_id,
+                $account->id,
+                $account->member_id,
+                $start_date,
+                $end_date
+            ]);
 
             $accountBalance = $transactions[count($transactions) - 1]->balance;
 
@@ -153,5 +203,4 @@ class InterestController extends Controller
         }
         return response()->json(['result' => false]);
     }
-
 }

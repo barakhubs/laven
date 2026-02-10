@@ -4,6 +4,8 @@
 /public/hot
 /public/storage
 /public/uploads
+/public/backup
+/public/public
 /storage/*.key
 /vendor
 .env

@@ -13,20 +13,23 @@ use DB;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 
-class UtilityController extends Controller {
+class UtilityController extends Controller
+{
     /**
      * Show the Settings Page.
      *
      * @return Response
      */
 
-    public function __construct() {
+    public function __construct()
+    {
         header('Cache-Control: no-cache');
         header('Pragma: no-cache');
         date_default_timezone_set(get_option('timezone', 'Asia/Dhaka'));
     }
 
-    public function settings(Request $request, $store = '') {
+    public function settings(Request $request, $store = '')
+    {
         if ($store == '') {
             return view('backend.administration.general_settings.settings');
         } else {
@@ -66,7 +69,8 @@ class UtilityController extends Controller {
         }
     }
 
-    public function upload_logo(Request $request) {
+    public function upload_logo(Request $request)
+    {
         $this->validate($request, [
             'logo' => 'required|image|mimes:jpeg,png,jpg|max:8192',
         ]);
@@ -96,11 +100,11 @@ class UtilityController extends Controller {
             } else {
                 return response()->json(['result' => 'success', 'action' => 'update', 'message' => _lang('Logo Upload successfully')]);
             }
-
         }
     }
 
-    public function upload_file($file_name, Request $request) {
+    public function upload_file($file_name, Request $request)
+    {
 
         if ($request->hasFile($file_name)) {
             $file            = $request->file($file_name);
@@ -123,7 +127,8 @@ class UtilityController extends Controller {
         }
     }
 
-    public function system_settings(Request $request, $view = '') {
+    public function system_settings(Request $request, $view = '')
+    {
         if ($request->isMethod('get')) {
             return view("backend.administration.general_settings.$view");
         } else if ($request->isMethod('post')) {
@@ -160,7 +165,8 @@ class UtilityController extends Controller {
         }
     }
 
-    public function theme_option(Request $request, $store = '') {
+    public function theme_option(Request $request, $store = '')
+    {
         if ($store == '') {
             return view("backend.administration.general_settings.theme_option");
         } else {
@@ -187,7 +193,6 @@ class UtilityController extends Controller {
                     $translation->setting_id = $setting->id;
                     $translation->value      = $setting->value;
                     $translation->save();
-
                 } else {
                     $setting        = new Setting();
                     $setting->name  = $key;
@@ -201,7 +206,6 @@ class UtilityController extends Controller {
 
                 \Cache::put($key, $value);
                 \Cache::put($key . "-" . get_language(), $value);
-
             } //End $_POST Loop
 
             //Upload File
@@ -222,53 +226,61 @@ class UtilityController extends Controller {
      *
      * @return \Illuminate\Http\Response
      */
-    public function database_backup_list() {
+    public function database_backup_list()
+    {
         $databasebackups = \App\Models\DatabaseBackup::all()->sortByDesc("id");
         return view('backend.administration.database_backup.list', compact('databasebackups'));
     }
 
-    public function create_database_backup() {
+    public function create_database_backup()
+    {
         @ini_set('max_execution_time', 0);
         @set_time_limit(0);
 
-        $return   = "";
-        $database = 'Tables_in_' . DB::getDatabaseName();
-        $tables   = array();
-        $result   = DB::select("SHOW TABLES");
+        $dbName = config('database.connections.pgsql.database');
+        $dbUser = config('database.connections.pgsql.username');
+        $dbPassword = config('database.connections.pgsql.password');
+        $dbHost = config('database.connections.pgsql.host');
+        $dbPort = config('database.connections.pgsql.port', 5432);
 
-        foreach ($result as $table) {
-            $tables[] = $table->$database;
-        }
-
-        //loop through the tables
-        foreach ($tables as $table) {
-            $return .= "DROP TABLE IF EXISTS $table;";
-
-            $result2 = DB::select("SHOW CREATE TABLE $table");
-            $row2    = $result2[0]->{'Create Table'};
-
-            $return .= "\n\n" . $row2 . ";\n\n";
-
-            $result = DB::select("SELECT * FROM $table");
-
-            foreach ($result as $row) {
-                $return .= "INSERT INTO $table VALUES(";
-                foreach ($row as $key => $val) {
-                    $return .= "'" . addslashes($val) . "',";
-                }
-                $return = substr_replace($return, "", -1);
-                $return .= ");\n";
-            }
-
-            $return .= "\n\n\n";
-        }
-
-        //save file
         $file_name = 'DB-BACKUP-' . time() . '.sql';
-        $file      = 'public/backup/DB-BACKUP-' . $file_name;
-        $handle    = fopen($file, 'w+');
-        fwrite($handle, $return);
-        fclose($handle);
+        $file_path = public_path('backup/' . $file_name);
+
+        // Ensure backup directory exists
+        if (!is_dir(public_path('backup'))) {
+            mkdir(public_path('backup'), 0755, true);
+        }
+
+        // Try using pg_dump first (most reliable method)
+        $pgDumpPath = 'pg_dump'; // Or specify full path if needed
+
+        // Set PGPASSWORD environment variable for pg_dump
+        putenv("PGPASSWORD=$dbPassword");
+
+        $command = sprintf(
+            '%s -h %s -p %s -U %s -d %s -f %s 2>&1',
+            $pgDumpPath,
+            escapeshellarg($dbHost),
+            escapeshellarg($dbPort),
+            escapeshellarg($dbUser),
+            escapeshellarg($dbName),
+            escapeshellarg($file_path)
+        );
+
+        exec($command, $output, $returnVar);
+
+        // Clear password from environment
+        putenv("PGPASSWORD");
+
+        // If pg_dump failed, fall back to manual backup
+        if ($returnVar !== 0 || !file_exists($file_path)) {
+            $return = $this->manualPostgreSQLBackup();
+
+            // Save file
+            $handle = fopen($file_path, 'w+');
+            fwrite($handle, $return);
+            fclose($handle);
+        }
 
         $databasebackup          = new \App\Models\DatabaseBackup();
         $databasebackup->file    = $file_name;
@@ -280,14 +292,110 @@ class UtilityController extends Controller {
     }
 
     /**
+     * Manual PostgreSQL backup using SQL queries
+     */
+    private function manualPostgreSQLBackup()
+    {
+        $return = "-- PostgreSQL Database Backup\n";
+        $return .= "-- Generated: " . date('Y-m-d H:i:s') . "\n\n";
+
+        // Get all tables from public schema
+        $tables = DB::select("
+            SELECT table_name
+            FROM information_schema.tables
+            WHERE table_schema = 'public'
+            AND table_type = 'BASE TABLE'
+            ORDER BY table_name
+        ");
+
+        foreach ($tables as $tableObj) {
+            $table = $tableObj->table_name;
+
+            $return .= "\n-- Table: $table\n";
+            $return .= "DROP TABLE IF EXISTS \"$table\" CASCADE;\n";
+
+            // Get table structure
+            $columns = DB::select("
+                SELECT
+                    column_name,
+                    data_type,
+                    character_maximum_length,
+                    is_nullable,
+                    column_default
+                FROM information_schema.columns
+                WHERE table_schema = 'public'
+                AND table_name = ?
+                ORDER BY ordinal_position
+            ", [$table]);
+
+            if (!empty($columns)) {
+                $return .= "CREATE TABLE \"$table\" (\n";
+                $columnDefs = [];
+
+                foreach ($columns as $col) {
+                    $colDef = "  \"" . $col->column_name . "\" " . strtoupper($col->data_type);
+
+                    if ($col->character_maximum_length) {
+                        $colDef .= "(" . $col->character_maximum_length . ")";
+                    }
+
+                    if ($col->is_nullable === 'NO') {
+                        $colDef .= " NOT NULL";
+                    }
+
+                    if ($col->column_default) {
+                        $colDef .= " DEFAULT " . $col->column_default;
+                    }
+
+                    $columnDefs[] = $colDef;
+                }
+
+                $return .= implode(",\n", $columnDefs) . "\n);\n\n";
+            }
+
+            // Get table data
+            $rows = DB::table($table)->get();
+
+            if ($rows->count() > 0) {
+                foreach ($rows as $row) {
+                    $rowArray = (array) $row;
+                    $columns = array_keys($rowArray);
+                    $values = array_values($rowArray);
+
+                    $return .= "INSERT INTO \"$table\" (\"" . implode('", "', $columns) . "\") VALUES (";
+
+                    $escapedValues = [];
+                    foreach ($values as $val) {
+                        if ($val === null) {
+                            $escapedValues[] = 'NULL';
+                        } elseif (is_bool($val)) {
+                            $escapedValues[] = $val ? 'TRUE' : 'FALSE';
+                        } elseif (is_numeric($val)) {
+                            $escapedValues[] = $val;
+                        } else {
+                            $escapedValues[] = "'" . str_replace("'", "''", $val) . "'";
+                        }
+                    }
+
+                    $return .= implode(', ', $escapedValues) . ");\n";
+                }
+                $return .= "\n";
+            }
+        }
+
+        return $return;
+    }
+
+    /**
      * Remove the specified resource from storage.
      *
      * @param  int  $id
      * @return \Illuminate\Http\Response
      */
-    public function download_database_backup($id) {
+    public function download_database_backup($id)
+    {
         $databasebackup = \App\Models\DatabaseBackup::find($id);
-        $file           = 'public/backup/DB-BACKUP-' . $databasebackup->file;
+        $file           = public_path('backup/' . $databasebackup->file);
         return response()->download($file);
     }
 
@@ -297,16 +405,21 @@ class UtilityController extends Controller {
      * @param  int  $id
      * @return \Illuminate\Http\Response
      */
-    public function destroy_database_backup($id) {
+    public function destroy_database_backup($id)
+    {
         $databasebackup = \App\Models\DatabaseBackup::find($id);
-        $file           = 'public/backup/DB-BACKUP-' . $databasebackup->file;
+        $file           = public_path('backup/' . $databasebackup->file);
         $databasebackup->delete();
-        unlink($file);
+        
+        if (file_exists($file)) {
+            unlink($file);
+        }
 
         return redirect()->route('database_backups.list')->with('success', _lang('Deleted successfully'));
     }
 
-    public function remove_cache(Request $request) {
+    public function remove_cache(Request $request)
+    {
         $this->validate($request, [
             'cache' => 'required',
         ]);
@@ -322,7 +435,8 @@ class UtilityController extends Controller {
         return back()->with('success', _lang('Cache Removed successfully'));
     }
 
-    public function send_test_email(Request $request) {
+    public function send_test_email(Request $request)
+    {
         @ini_set('max_execution_time', 0);
         @set_time_limit(0);
 
@@ -348,7 +462,7 @@ class UtilityController extends Controller {
             } else {
                 return response()->json(['result' => 'success', 'action' => 'update', 'message' => _lang('Your Message send sucessfully')]);
             }
-        } catch (\Exception$e) {
+        } catch (\Exception $e) {
             if (!$request->ajax()) {
                 return back()->with('error', $e->getMessage());
             } else {
@@ -356,5 +470,4 @@ class UtilityController extends Controller {
             }
         }
     }
-
 }

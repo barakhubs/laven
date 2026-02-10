@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use App\Models\BankAccount;
@@ -50,13 +51,60 @@ class ReportController extends Controller
                 return back()->with('error', _lang('Account not found'));
             }
 
-            DB::select("SELECT ((SELECT IFNULL(SUM(amount),0) FROM transactions WHERE dr_cr = 'cr' AND member_id = $account->member_id AND savings_account_id = $account->id AND status=2 AND created_at < '$date1') - (SELECT IFNULL(SUM(amount),0) FROM transactions WHERE dr_cr = 'dr' AND member_id = $account->member_id AND savings_account_id = $account->id AND status = 2 AND created_at < '$date1')) into @openingBalance");
-
-            $data['report_data'] = DB::select("SELECT '$date1' trans_date,'Opening Balance' as description, 0 as 'debit', 0 as 'credit', @openingBalance as 'balance'
-            UNION ALL
-            SELECT date(trans_date), description, debit, credit, @openingBalance := @openingBalance + (credit - debit) as balance FROM
-            (SELECT date(transactions.trans_date) as trans_date, transactions.description, IF(transactions.dr_cr='dr',transactions.amount,0) as debit, IF(transactions.dr_cr='cr',transactions.amount,0) as credit FROM `transactions` JOIN savings_accounts ON savings_account_id=savings_accounts.id WHERE savings_accounts.id = $account->id AND transactions.member_id = $account->member_id AND transactions.status=2 AND date(transactions.trans_date) >= '$date1' AND date(transactions.trans_date) <= '$date2')
-            as all_transaction");
+            // PostgreSQL-compatible query using window functions for running balance
+            $data['report_data'] = DB::select("
+                WITH opening_balance AS (
+                    SELECT COALESCE(
+                        (SELECT SUM(amount) FROM transactions WHERE dr_cr = 'cr' AND member_id = ? AND savings_account_id = ? AND status = 2 AND created_at < ?), 0
+                    ) - COALESCE(
+                        (SELECT SUM(amount) FROM transactions WHERE dr_cr = 'dr' AND member_id = ? AND savings_account_id = ? AND status = 2 AND created_at < ?), 0
+                    ) AS balance
+                ),
+                all_transactions AS (
+                    SELECT
+                        ?::date as trans_date,
+                        'Opening Balance' as description,
+                        0::numeric as debit,
+                        0::numeric as credit,
+                        (SELECT balance FROM opening_balance) as running_total
+                    UNION ALL
+                    SELECT
+                        date(trans_date) as trans_date,
+                        description,
+                        CASE WHEN dr_cr = 'dr' THEN amount ELSE 0 END as debit,
+                        CASE WHEN dr_cr = 'cr' THEN amount ELSE 0 END as credit,
+                        0 as running_total
+                    FROM transactions
+                    JOIN savings_accounts ON savings_account_id = savings_accounts.id
+                    WHERE savings_accounts.id = ?
+                        AND transactions.member_id = ?
+                        AND transactions.status = 2
+                        AND date(trans_date) >= ?
+                        AND date(trans_date) <= ?
+                    ORDER BY trans_date
+                )
+                SELECT
+                    trans_date,
+                    description,
+                    debit,
+                    credit,
+                    SUM(credit - debit) OVER (ORDER BY trans_date, description ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) +
+                    (SELECT balance FROM opening_balance) as balance
+                FROM all_transactions
+                ORDER BY trans_date, description
+            ", [
+                $account->member_id,
+                $account->id,
+                $date1,
+                $account->member_id,
+                $account->id,
+                $date1,
+                $date1,
+                $account->id,
+                $account->member_id,
+                $date1,
+                $date2
+            ]);
 
             $data['date1']          = $request->date1;
             $data['date2']          = $request->date2;
@@ -239,7 +287,7 @@ class ReportController extends Controller
             $currency_id = $request->currency_id;
 
             $transaction_revenue = Transaction::selectRaw("CONCAT('Revenue from ', type), sum(charge) as amount")
-                ->whereRaw("YEAR(trans_date) = '$year' AND MONTH(trans_date) = '$month'")
+                ->whereRaw("EXTRACT(YEAR FROM trans_date) = '$year' AND EXTRACT(MONTH FROM trans_date) = '$month'")
                 ->where('charge', '>', 0)
                 ->where('status', 2)
                 ->whereHas('account.savings_type', function ($query) use ($currency_id) {
@@ -248,7 +296,7 @@ class ReportController extends Controller
                 ->groupBy('type');
 
             $maintainaince_fee = Transaction::selectRaw("CONCAT('Revenue from ', type), sum(amount) as amount")
-                ->whereRaw("YEAR(trans_date) = '$year' AND MONTH(trans_date) = '$month'")
+                ->whereRaw("EXTRACT(YEAR FROM trans_date) = '$year' AND EXTRACT(MONTH FROM trans_date) = '$month'")
                 ->where('type', 'Account_Maintenance_Fee')
                 ->where('status', 2)
                 ->whereHas('account.savings_type', function ($query) use ($currency_id) {
@@ -261,7 +309,7 @@ class ReportController extends Controller
                     ->where('transaction_categories.status', '=', 1);
             })
                 ->selectRaw("CONCAT('Revenue from ', type), sum(amount) as amount")
-                ->whereRaw("YEAR(trans_date) = '$year' AND MONTH(trans_date) = '$month'")
+                ->whereRaw("EXTRACT(YEAR FROM trans_date) = '$year' AND EXTRACT(MONTH FROM trans_date) = '$month'")
                 ->where('dr_cr', 'dr')
                 ->where('transactions.status', 2)
                 ->whereHas('account.savings_type', function ($query) use ($currency_id) {
@@ -270,7 +318,7 @@ class ReportController extends Controller
                 ->groupBy('type');
 
             $data['report_data'] = LoanPayment::selectRaw("'Revenue from Loan' as type, sum(interest + late_penalties) as amount")
-                ->whereRaw("YEAR(loan_payments.paid_at) = '$year' AND MONTH(loan_payments.paid_at) = '$month'")
+                ->whereRaw("EXTRACT(YEAR FROM loan_payments.paid_at) = '$year' AND EXTRACT(MONTH FROM loan_payments.paid_at) = '$month'")
                 ->whereHas('loan', function ($query) use ($currency_id) {
                     return $query->where('currency_id', $currency_id);
                 })
@@ -284,7 +332,6 @@ class ReportController extends Controller
             $data['currency_id'] = $request->currency_id;
             return view('backend.reports.revenue_report', $data);
         }
-
     }
 
     public function loan_repayment_report(Request $request)
@@ -315,7 +362,7 @@ class ReportController extends Controller
         @ini_set('max_execution_time', 0);
         @set_time_limit(0);
 
-        $total_deposit = DB::select("SELECT currency.name as currency_name, IFNULL(SUM(amount),0) as total_deposit FROM transactions
+        $total_deposit = DB::select("SELECT currency.name as currency_name, COALESCE(SUM(amount),0) as total_deposit FROM transactions
 		JOIN savings_accounts ON savings_accounts.id = transactions.savings_account_id
 		JOIN savings_products ON savings_products.id = savings_accounts.savings_product_id
 		JOIN currency ON currency.id = savings_products.currency_id
@@ -325,7 +372,7 @@ class ReportController extends Controller
             $data['total_deposit'][$row->currency_name] = $row;
         }
 
-        $total_withdraw = DB::select("SELECT currency.name as currency_name, IFNULL(SUM(amount),0) as total_withdraw FROM transactions
+        $total_withdraw = DB::select("SELECT currency.name as currency_name, COALESCE(SUM(amount),0) as total_withdraw FROM transactions
 		JOIN savings_accounts ON savings_accounts.id = transactions.savings_account_id
 		JOIN savings_products ON savings_products.id = savings_accounts.savings_product_id
 		JOIN currency ON currency.id = savings_products.currency_id
@@ -335,7 +382,7 @@ class ReportController extends Controller
             $data['total_withdraw'][$row->currency_name] = $row;
         }
 
-        $total_cash_disbursement = DB::select("SELECT currency.name as currency_name, IFNULL(SUM(applied_amount),0) as total_cash_disbursement FROM loans
+        $total_cash_disbursement = DB::select("SELECT currency.name as currency_name, COALESCE(SUM(applied_amount),0) as total_cash_disbursement FROM loans
 		JOIN currency ON currency.id = loans.currency_id
 		WHERE loans.disburse_method = 'cash' AND (loans.status = 1 OR loans.status = 2) GROUP BY currency_name");
 
@@ -343,7 +390,7 @@ class ReportController extends Controller
             $data['total_cash_disbursement'][$row->currency_name] = $row;
         }
 
-        $total_cash_payment = DB::select("SELECT currency.name as currency_name, IFNULL(SUM(total_amount),0) as total_cash_payment FROM loan_payments
+        $total_cash_payment = DB::select("SELECT currency.name as currency_name, COALESCE(SUM(total_amount),0) as total_cash_payment FROM loan_payments
 		JOIN loans ON loans.id = loan_payments.loan_id
 		JOIN currency ON currency.id = loans.currency_id
 		WHERE loan_payments.transaction_id IS NULL GROUP BY currency_name");
@@ -352,7 +399,7 @@ class ReportController extends Controller
             $data['total_cash_payment'][$row->currency_name] = $row;
         }
 
-        $bank_to_cash_deposit = DB::select("SELECT currency.name as currency_name, IFNULL(SUM(amount),0) as bank_to_cash_deposit FROM bank_transactions
+        $bank_to_cash_deposit = DB::select("SELECT currency.name as currency_name, COALESCE(SUM(amount),0) as bank_to_cash_deposit FROM bank_transactions
 		JOIN bank_accounts ON bank_accounts.id = bank_transactions.bank_account_id
 		JOIN currency ON currency.id = bank_accounts.currency_id
 		WHERE bank_transactions.type = 'bank_to_cash' AND bank_transactions.status = 1 GROUP BY currency_name");
@@ -361,7 +408,7 @@ class ReportController extends Controller
             $data['bank_to_cash_deposit'][$row->currency_name] = $row;
         }
 
-        $cash_to_bank_deposit = DB::select("SELECT currency.name as currency_name, IFNULL(SUM(amount),0) as cash_to_bank_deposit FROM bank_transactions
+        $cash_to_bank_deposit = DB::select("SELECT currency.name as currency_name, COALESCE(SUM(amount),0) as cash_to_bank_deposit FROM bank_transactions
 		JOIN bank_accounts ON bank_accounts.id = bank_transactions.bank_account_id
 		JOIN currency ON currency.id = bank_accounts.currency_id
 		WHERE bank_transactions.type = 'cash_to_bank' AND bank_transactions.status = 1 GROUP BY currency_name");
@@ -370,7 +417,7 @@ class ReportController extends Controller
             $data['cash_to_bank_deposit'][$row->currency_name] = $row;
         }
 
-        $data['total_expense'] = DB::select("SELECT IFNULL(SUM(amount),0) as total_expense FROM expenses");
+        $data['total_expense'] = DB::select("SELECT COALESCE(SUM(amount),0) as total_expense FROM expenses");
         $data['currencies']    = Currency::active()
             ->whereHas('savings_products')
             ->orWhereHas('bank_accounts')
@@ -425,9 +472,9 @@ class ReportController extends Controller
     public function bank_balances(Request $request)
     {
         $data             = [];
-        $data['accounts'] = BankAccount::select('bank_accounts.*', DB::raw("((SELECT IFNULL(SUM(amount),0)
+        $data['accounts'] = BankAccount::select('bank_accounts.*', DB::raw("((SELECT COALESCE(SUM(amount),0)
         FROM bank_transactions WHERE dr_cr = 'cr' AND status = 1 AND bank_account_id = bank_accounts.id) -
-        (SELECT IFNULL(SUM(amount),0) FROM bank_transactions WHERE dr_cr = 'dr'
+        (SELECT COALESCE(SUM(amount),0) FROM bank_transactions WHERE dr_cr = 'dr'
         AND status = 1 AND bank_account_id = bank_accounts.id)) as balance"))
             ->with('currency')
             ->orderBy('id', 'desc')
@@ -435,5 +482,4 @@ class ReportController extends Controller
 
         return view('backend.reports.bank_balances', $data);
     }
-
 }
