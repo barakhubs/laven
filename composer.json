@@ -10,7 +10,7 @@
         "guzzlehttp/guzzle": "^7.2",
         "intervention/image": "^2.7",
         "josiasmontag/laravel-recaptchav3": "^1.0",
-        "laravel/framework": "^11.0",
+        "laravel/framework": "^11.31",
         "laravel/sanctum": "^4.0",
         "laravel/socialite": "^5.6",
         "laravel/tinker": "^2.8",
