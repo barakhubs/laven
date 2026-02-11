@@ -1,10 +1,12 @@
 <?php
+
 namespace App\Models;
 
 use App\Traits\Member;
 use Illuminate\Database\Eloquent\Model;
 
-class Transaction extends Model {
+class Transaction extends Model
+{
     /**
      * The table associated with the model.
      *
@@ -12,57 +14,94 @@ class Transaction extends Model {
      */
     protected $table = 'transactions';
 
+    /**
+     * The attributes that are mass assignable.
+     *
+     * @var array
+     */
+    protected $fillable = [
+        'trans_date',
+        'member_id',
+        'savings_account_id',
+        'loan_id',
+        'charge',
+        'amount',
+        'gateway_amount',
+        'dr_cr',
+        'type',
+        'method',
+        'status',
+        'description',
+        'transaction_details',
+        'gateway_id',
+        'parent_id',
+        'created_user_id',
+        'updated_user_id',
+        'branch_id',
+    ];
+
     use Member;
 
-    public function member() {
+    public function member()
+    {
         return $this->belongsTo('App\Models\Member', 'member_id')->withDefault();
     }
 
-    public function account() {
+    public function account()
+    {
         return $this->belongsTo('App\Models\SavingsAccount', 'savings_account_id')
             ->withoutGlobalScopes()
             ->withDefault();
     }
 
-    public function created_by() {
+    public function created_by()
+    {
         return $this->belongsTo('App\Models\User', 'created_user_id')->withDefault();
     }
 
-    public function updated_by() {
+    public function updated_by()
+    {
         return $this->belongsTo('App\Models\User', 'updated_user_id')->withDefault(['name' => _lang('N/A')]);
     }
 
-    public function gateway() {
+    public function gateway()
+    {
         return $this->belongsTo('App\Models\PaymentGateway', 'gateway_id')->withDefault();
     }
 
-    public function parent_transaction() {
+    public function parent_transaction()
+    {
         return $this->belongsTo('App\Models\Transaction', 'parent_id')->withDefault();
     }
 
-    public function getTransDateAttribute($value) {
+    public function getTransDateAttribute($value)
+    {
         $date_format = get_date_format();
         $time_format = get_time_format();
         return \Carbon\Carbon::parse($value)->format("$date_format $time_format");
     }
 
-    public function getCreatedAtAttribute($value) {
+    public function getCreatedAtAttribute($value)
+    {
         $date_format = get_date_format();
         $time_format = get_time_format();
         return \Carbon\Carbon::parse($value)->format("$date_format $time_format");
     }
 
-    public function getUpdatedAtAttribute($value) {
+    public function getUpdatedAtAttribute($value)
+    {
         $date_format = get_date_format();
         $time_format = get_time_format();
         return \Carbon\Carbon::parse($value)->format("$date_format $time_format");
     }
 
-    public function getTransactionDetailsAttribute($value) {
+    public function getTransactionDetailsAttribute($value)
+    {
         return json_decode($value);
     }
 
-    protected static function booted(): void {
+    protected static function booted(): void
+    {
         static::deleting(function (Transaction $transaction) {
             if ($transaction->loan_id != null && $transaction->type = 'Loan_Repayment') {
                 $loanPayment = LoanPayment::where('transaction_id', $transaction->id)->first();

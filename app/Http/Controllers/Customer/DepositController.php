@@ -11,23 +11,26 @@ use App\Models\Transaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
-class DepositController extends Controller {
+class DepositController extends Controller
+{
 
     /**
      * Create a new controller instance.
      *
      * @return void
      */
-    public function __construct() {
+    public function __construct()
+    {
         date_default_timezone_set(get_option('timezone', 'Asia/Dhaka'));
     }
 
     /**
      * Display a listing of the resource.
      *
-     * @return \Illuminate\Http\Response
+     * @return \Illuminate\Contracts\View\View
      */
-    public function manual_methods() {
+    public function manual_methods()
+    {
         $alert_col = 'col-lg-8 offset-lg-2';
         $deposit_methods = DepositMethod::where('status', 1)->get();
         return view('backend.customer_portal.deposit.manual_methods', compact('deposit_methods', 'alert_col'));
@@ -36,15 +39,17 @@ class DepositController extends Controller {
     /**
      * Display a listing of the resource.
      *
-     * @return \Illuminate\Http\Response
+     * @return \Illuminate\Contracts\View\View
      */
-    public function automatic_methods() {
+    public function automatic_methods()
+    {
         $alert_col = 'col-lg-8 offset-lg-2';
         $deposit_methods = PaymentGateway::where('status', 1)->get();
         return view('backend.customer_portal.deposit.automatic_methods', compact('deposit_methods', 'alert_col'));
     }
 
-    public function manual_deposit(Request $request, $methodId) {
+    public function manual_deposit(Request $request, $methodId)
+    {
         if ($request->isMethod('get')) {
             $alert_col = 'col-lg-8 offset-lg-2';
             $accounts  = SavingsAccount::with('savings_type')
@@ -54,9 +59,19 @@ class DepositController extends Controller {
             return view('backend.customer_portal.deposit.manual_deposit', compact('deposit_method', 'accounts', 'alert_col'));
         } else if ($request->isMethod('post')) {
             $deposit_method = DepositMethod::find($methodId);
-            $account        = SavingsAccount::where('id', $request->credit_account)
+
+            if (!$deposit_method) {
+                return back()->with('error', _lang('Deposit method not found'));
+            }
+
+            $account = SavingsAccount::where('id', $request->credit_account)
                 ->where('member_id', auth()->user()->member->id)
                 ->first();
+
+            if (!$account) {
+                return back()->with('error', _lang('Account not found'));
+            }
+
             $accountType = $account->savings_type;
 
             //$min_amount = convert_currency($deposit_method->currency->name, $accountType->currency->name, $deposit_method->minimum_amount);
@@ -87,6 +102,7 @@ class DepositController extends Controller {
             //Convert account currency to gateway currency
             $convertedAdmount = convert_currency($accountType->currency->name, $deposit_method->currency->name, $request->amount);
 
+            $charge = 0; // Initialize charge
             $chargeLimit = $deposit_method->chargeLimits()->where('minimum_amount', '<=', $convertedAdmount)->where('maximum_amount', '>=', $convertedAdmount)->first();
 
             if ($chargeLimit) {
@@ -107,16 +123,18 @@ class DepositController extends Controller {
                 $file->move(public_path() . "/uploads/media/", $attachment);
             }
 
-            $depositRequest                    = new DepositRequest();
-            $depositRequest->member_id         = auth()->user()->member->id;
-            $depositRequest->method_id         = $methodId;
-            $depositRequest->credit_account_id = $request->credit_account;
-            $depositRequest->amount            = $request->amount;
-            $depositRequest->converted_amount  = $convertedAdmount + $charge;
-            $depositRequest->charge            = $charge;
-            $depositRequest->description       = $request->description;
-            $depositRequest->requirements      = json_encode($request->requirements);
-            $depositRequest->attachment        = $attachment;
+            $depositRequest = new DepositRequest();
+            $depositRequest->fill([
+                'member_id'         => auth()->user()->member->id,
+                'method_id'         => $methodId,
+                'credit_account_id' => $request->credit_account,
+                'amount'            => $request->amount,
+                'converted_amount'  => $convertedAdmount + $charge,
+                'charge'            => $charge,
+                'description'       => $request->description,
+                'requirements'      => json_encode($request->requirements),
+                'attachment'        => $attachment,
+            ]);
             $depositRequest->save();
 
             if (!$request->ajax()) {
@@ -127,7 +145,8 @@ class DepositController extends Controller {
         }
     }
 
-    public function automatic_deposit(Request $request, $methodId) {
+    public function automatic_deposit(Request $request, $methodId)
+    {
         if ($request->isMethod('get')) {
             if ($request->ajax()) {
                 $accounts = SavingsAccount::with('savings_type')
@@ -144,6 +163,11 @@ class DepositController extends Controller {
             return redirect()->route('deposit.automatic_methods');
         } else if ($request->isMethod('post')) {
             $deposit_method = PaymentGateway::where('id', $methodId)->where('status', 1)->first();
+
+            if (!$deposit_method) {
+                return redirect()->route('deposit.automatic_methods')
+                    ->with('error', _lang('Payment gateway not found'));
+            }
 
             $validator = Validator::make($request->all(), [
                 'credit_account' => 'required',
@@ -165,9 +189,15 @@ class DepositController extends Controller {
                 ->where('member_id', $member_id)
                 ->first();
 
+            if (!$account) {
+                return redirect()->route('deposit.automatic_methods')
+                    ->with('error', _lang('Account not found'));
+            }
+
             $baseAmount    = convert_currency($account->savings_type->currency->name, get_base_currency(), $request->amount); //Convert account currency to base currency
             $gatewayAmount = convert_currency_2(1, $deposit_method->exchange_rate, $baseAmount); //Convert Base currency to gateway currency
 
+            $charge = 0; // Initialize charge
             $chargeLimit = $deposit_method->chargeLimits()->where('minimum_amount', '<=', $gatewayAmount)->where('maximum_amount', '>=', $gatewayAmount)->first();
 
             if ($chargeLimit) {
@@ -180,14 +210,14 @@ class DepositController extends Controller {
                 $minimumAmount = $deposit_method->chargeLimits()->min('minimum_amount');
                 $maximumAmount = $deposit_method->chargeLimits()->max('maximum_amount');
 
-                $currencyName = $deposit_method->is_crypto == 1 ? get_base_currency(): $deposit_method->currency;
+                $currencyName = $deposit_method->is_crypto == 1 ? get_base_currency() : $deposit_method->currency;
 
                 if ($gatewayAmount < $minimumAmount) {
                     return redirect()->route('deposit.automatic_methods')
                         ->with('error', _lang('The amount must be at least') . ' ' . $minimumAmount . ' ' . $currencyName)
                         ->withInput();
                 }
-    
+
                 if ($gatewayAmount > $maximumAmount) {
                     return redirect()->route('deposit.automatic_methods')
                         ->with('error', _lang('The amount may not be greater than') . ' ' . $maximumAmount . ' ' . $currencyName)
@@ -196,22 +226,23 @@ class DepositController extends Controller {
             }
 
             //Create Pending Transaction
-            $deposit                     = new Transaction();
-            $deposit->trans_date         = now();
-            $deposit->member_id          = $member_id;
-            $deposit->savings_account_id = $request->credit_account;
-            $deposit->charge             = convert_currency_2($deposit_method->exchange_rate, $deposit->account->savings_type->currency->exchange_rate, $charge);
-            $deposit->amount             = $request->amount;
-            $deposit->gateway_amount     = $gatewayAmount;
-            $deposit->dr_cr              = 'cr';
-            $deposit->type               = 'Deposit';
-            $deposit->method             = $deposit_method->slug;
-            $deposit->status             = 0;
-            $deposit->description        = _lang('Deposit via') . ' ' . $deposit_method->name;
-            $deposit->gateway_id         = $deposit_method->id;
-            $deposit->created_user_id    = auth()->id();
-            $deposit->branch_id          = auth()->user()->branch_id;
-
+            $deposit = new Transaction();
+            $deposit->fill([
+                'trans_date'         => now(),
+                'member_id'          => $member_id,
+                'savings_account_id' => $request->credit_account,
+                'charge'             => convert_currency_2($deposit_method->exchange_rate, $account->savings_type->currency->exchange_rate, $charge),
+                'amount'             => $request->amount,
+                'gateway_amount'     => $gatewayAmount,
+                'dr_cr'              => 'cr',
+                'type'               => 'Deposit',
+                'method'             => $deposit_method->slug,
+                'status'             => 0,
+                'description'        => _lang('Deposit via') . ' ' . $deposit_method->name,
+                'gateway_id'         => $deposit_method->id,
+                'created_user_id'    => auth()->id(),
+                'branch_id'          => auth()->user()->branch_id,
+            ]);
             $deposit->save();
 
             //Process Via Payment Gateway
@@ -234,5 +265,4 @@ class DepositController extends Controller {
             return view($data->view, compact('data', 'deposit', 'gatewayAmount', 'charge', 'alert_col'));
         }
     }
-
 }

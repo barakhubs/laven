@@ -5,7 +5,8 @@ namespace App\Models;
 use App\Traits\Member;
 use Illuminate\Database\Eloquent\Model;
 
-class DepositRequest extends Model {
+class DepositRequest extends Model
+{
 
     use Member;
     /**
@@ -15,20 +16,42 @@ class DepositRequest extends Model {
      */
     protected $table = 'deposit_requests';
 
+    /**
+     * The attributes that are mass assignable.
+     *
+     * @var array
+     */
+    protected $fillable = [
+        'member_id',
+        'method_id',
+        'credit_account_id',
+        'amount',
+        'converted_amount',
+        'charge',
+        'description',
+        'requirements',
+        'attachment',
+        'status',
+    ];
 
-    public function method() {
+
+    public function method()
+    {
         return $this->belongsTo('App\Models\DepositMethod', 'method_id')->withDefault();
     }
 
-    public function member() {
+    public function member()
+    {
         return $this->belongsTo('App\Models\Member', 'member_id')->withDefault();
     }
 
-    public function account() {
+    public function account()
+    {
         return $this->belongsTo('App\Models\SavingsAccount', 'credit_account_id')->withDefault();
     }
 
-    public function getRequirementsAttribute($value) {
+    public function getRequirementsAttribute($value)
+    {
         return json_decode($value);
     }
 }

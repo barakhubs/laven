@@ -950,6 +950,10 @@ if (! function_exists('convert_currency')) {
         $currency1 = \App\Models\Currency::where('name', $from_currency)->first()->exchange_rate;
         $currency2 = \App\Models\Currency::where('name', $to_currency)->first()->exchange_rate;
 
+        if ($currency1 == 0) {
+            return 0;
+        }
+
         $converted_output = ($amount / $currency1) * $currency2;
         return $converted_output;
     }
@@ -960,6 +964,10 @@ if (! function_exists('convert_currency_2')) {
     {
         $currency1 = $currency1_rate;
         $currency2 = $currency2_rate;
+
+        if ($currency1 == 0) {
+            return 0;
+        }
 
         $converted_output = ($amount / $currency1) * $currency2;
         return $converted_output;
@@ -1012,10 +1020,10 @@ if (! function_exists('xss_clean')) {
 if (! function_exists('get_account_details')) {
     function get_account_details($member_id)
     {
-        $accounts = SavingsAccount::select('savings_accounts.*', DB::raw("((SELECT IFNULL(SUM(amount),0)
+        $accounts = SavingsAccount::select('savings_accounts.*', DB::raw("((SELECT COALESCE(SUM(amount),0)
         FROM transactions WHERE dr_cr = 'cr' AND status = 2 AND savings_account_id = savings_accounts.id) -
-        (SELECT IFNULL(SUM(amount),0) FROM transactions WHERE dr_cr = 'dr'
-        AND status != 1 AND savings_account_id = savings_accounts.id)) as balance"), DB::raw("(SELECT IFNULL(SUM(guarantors.amount),0)
+        (SELECT COALESCE(SUM(amount),0) FROM transactions WHERE dr_cr = 'dr'
+        AND status != 1 AND savings_account_id = savings_accounts.id)) as balance"), DB::raw("(SELECT COALESCE(SUM(guarantors.amount),0)
         FROM guarantors JOIN loans ON loans.id=guarantors.loan_id WHERE (loans.status = 0 OR loans.status = 1)
         AND guarantors.savings_account_id=savings_accounts.id) as blocked_amount"))
             ->with(['member', 'savings_type', 'savings_type.currency'])
@@ -1036,8 +1044,8 @@ if (! function_exists('get_account_balance')) {
             ->where('guarantors.savings_account_id', $account_id)
             ->sum('guarantors.amount');
 
-        $result = DB::select("SELECT ((SELECT IFNULL(SUM(amount),0) FROM transactions WHERE dr_cr = 'cr'
-	    AND member_id = $member_id AND savings_account_id = $account_id AND status = 2) - (SELECT IFNULL(SUM(amount),0) FROM transactions
+        $result = DB::select("SELECT ((SELECT COALESCE(SUM(amount),0) FROM transactions WHERE dr_cr = 'cr'
+	    AND member_id = $member_id AND savings_account_id = $account_id AND status = 2) - (SELECT COALESCE(SUM(amount),0) FROM transactions
 	    WHERE dr_cr = 'dr' AND member_id = $member_id AND savings_account_id = $account_id AND status != 1)) as balance");
 
         return $result[0]->balance - $blockedAmount;
