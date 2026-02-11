@@ -198,10 +198,10 @@ if (! function_exists('profile_picture')) {
         }
 
         if ($profile_picture == '') {
-            return asset('public/backend/images/avatar.png');
+            return asset('backend/images/avatar.png');
         }
 
-        return asset('public/uploads/profile/' . $profile_picture);
+        return asset('uploads/profile/' . $profile_picture);
     }
 }
 

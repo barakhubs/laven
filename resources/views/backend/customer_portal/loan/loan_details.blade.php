@@ -89,7 +89,7 @@
                             <td>
                                     @if($customField->field_type == 'file')
                                     @php $file = $customFieldsData[$customField->field_name]['field_value'] ?? null; @endphp
-                                    {!! $file != null ? '<a href="'. asset('public/uploads/media/'.$file) .'" target="_blank" class="btn btn-xs btn-outline-primary"><i class="far fa-eye mr-2"></i>'._lang('Preview').'</a>' : '' !!}
+                                    {!! $file != null ? '<a href="'. asset('uploads/media/'.$file) .'" target="_blank" class="btn btn-xs btn-outline-primary"><i class="far fa-eye mr-2"></i>'._lang('Preview').'</a>' : '' !!}
                                     @else
                                     {{ $customFieldsData[$customField->field_name]['field_value'] ?? null }}
                                     @endif
@@ -100,7 +100,7 @@
                         <tr>
                             <td>{{ _lang('Attachment') }}</td>
                             <td>
-                                {!! $loan->attachment == "" ? '' : '<a href="'. asset('public/uploads/media/'.$loan->attachment) .'" target="_blank">'._lang('Download').'</a>' !!}
+                                {!! $loan->attachment == "" ? '' : '<a href="'. asset('uploads/media/'.$loan->attachment) .'" target="_blank">'._lang('Download').'</a>' !!}
                             </td>
                         </tr>
 

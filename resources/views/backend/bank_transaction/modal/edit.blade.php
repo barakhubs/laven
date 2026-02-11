@@ -50,7 +50,7 @@
 		<div class="col-lg-12">
 			<div class="form-group">
 				<label class="control-label">{{ _lang('Attachment') }}</label>						
-				<input type="file" class="form-control dropify" name="attachment" data-allowed-file-extensions="png jpg jpeg PNG JPG JPEG" data-default-file="{{ $bankTransaction->attachment != null ? asset('public/uploads/media' . $bankTransaction->attachment) : '' }}">
+				<input type="file" class="form-control dropify" name="attachment" data-allowed-file-extensions="png jpg jpeg PNG JPG JPEG" data-default-file="{{ $bankTransaction->attachment != null ? asset('uploads/media' . $bankTransaction->attachment) : '' }}">
 			</div>
 		</div>
 

@@ -22,7 +22,7 @@
 					<tbody>
 					    @foreach($depositmethods as $depositmethod)
 					    <tr data-id="row_{{ $depositmethod->id }}">
-							<td class='image'><img class="thumb-sm" src="{{ $depositmethod->image != null ? asset('public/uploads/media/'.$depositmethod->image) : asset('public/backend/images/no-image.png') }}"/></td>
+							<td class='image'><img class="thumb-sm" src="{{ $depositmethod->image != null ? asset('uploads/media/'.$depositmethod->image) : asset('backend/images/no-image.png') }}"/></td>
 							<td class='name'>{{ $depositmethod->name }}</td>
 							<td class='currency'>{{ $depositmethod->currency->name }}</td>
 							<td class='status'>{!! xss_clean(status($depositmethod->status)) !!}</td>

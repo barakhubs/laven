@@ -22,7 +22,7 @@
 					<tbody>
 					    @foreach($withdrawmethods as $withdrawmethod)
 					    <tr data-id="row_{{ $withdrawmethod->id }}">
-							<td class='image'><img class="thumb-sm" src="{{ $withdrawmethod->image != null ? asset('public/uploads/media/'.$withdrawmethod->image) : asset('public/backend/images/no-image.png') }}"/></td>
+							<td class='image'><img class="thumb-sm" src="{{ $withdrawmethod->image != null ? asset('uploads/media/'.$withdrawmethod->image) : asset('backend/images/no-image.png') }}"/></td>
 							<td class='name'>{{ $withdrawmethod->name }}</td>
 							<td class='currency'>{{ $withdrawmethod->currency->name }}</td>
 							<td class='status'>{!! xss_clean(status($withdrawmethod->status)) !!}</td>

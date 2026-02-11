@@ -25,7 +25,7 @@
 						<tbody>
 							@foreach($members as $member)
 								<tr id="row_{{ $member->id }}">
-									<td class="text-center"><img src="{{ asset('public/uploads/profile/'.$member->photo) }}" alt="Profile Image" style="width: 50px; height: 50px; border-radius: 50%;"></td>
+									<td class="text-center"><img src="{{ asset('uploads/profile/'.$member->photo) }}" alt="Profile Image" style="width: 50px; height: 50px; border-radius: 50%;"></td>
 									<td class='member_no'>{{ $member->member_no }}</td>
 									<td class='first_name'>{{ $member->first_name }}</td>
 									<td class='last_name'>{{ $member->last_name }}</td>

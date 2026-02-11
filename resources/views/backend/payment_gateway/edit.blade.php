@@ -22,7 +22,7 @@
 						<div class="col-lg-12">
 							<div class="form-group">
 								<label class="control-label">{{ _lang('Image') }}</label>
-								<input type="file" class="form-control dropify" name="image" data-allowed-file-extensions="png jpg" data-default-file="{{ asset('public/backend/images/gateways/'.$paymentgateway->image) }}">
+								<input type="file" class="form-control dropify" name="image" data-allowed-file-extensions="png jpg" data-default-file="{{ asset('backend/images/gateways/'.$paymentgateway->image) }}">
 							</div>
 						</div>
 

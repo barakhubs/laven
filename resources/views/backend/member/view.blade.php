@@ -50,7 +50,7 @@
                                     <td>
                                         @if($customField->field_type == 'file')
                                         @php $file = $customFieldsData[$customField->field_name]['field_value'] ?? null; @endphp
-                                        {!! $file != null ? '<a href="'. asset('public/uploads/media/'.$file) .'" target="_blank" class="btn btn-xs btn-primary"><i class="fas fa-download mr-2"></i>'._lang('Download').'</a>' : '' !!}
+                                        {!! $file != null ? '<a href="'. asset('uploads/media/'.$file) .'" target="_blank" class="btn btn-xs btn-primary"><i class="fas fa-download mr-2"></i>'._lang('Download').'</a>' : '' !!}
                                         @else
                                         {{ $customFieldsData[$customField->field_name]['field_value'] ?? null }}
                                         @endif
@@ -199,7 +199,7 @@
                             @foreach($member->documents as $document)
                                 <tr>
                                     <td>{{ $document->name }}</td>
-                                    <td><a target="_blank" href="{{ asset('public/uploads/documents/'.$document->document ) }}">{{ $document->document }}</a></td>
+                                    <td><a target="_blank" href="{{ asset('uploads/documents/'.$document->document ) }}">{{ $document->document }}</a></td>
                                     <td>{{ date('d M, Y H:i:s',strtotime($document->created_at)) }}</td>
                                     <td class="text-center">
                                         <span class="dropdown">

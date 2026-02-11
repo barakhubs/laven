@@ -1,4 +1,4 @@
-<link href="{{ asset('public/backend/plugins/bootstrap-colorpicker/bootstrap-colorpicker.min.css') }}" rel="stylesheet">
+<link href="{{ asset('backend/plugins/bootstrap-colorpicker/bootstrap-colorpicker.min.css') }}" rel="stylesheet">
 
 <form method="post" class="ajax-submit" autocomplete="off" action="{{ route('expense_categories.store') }}" enctype="multipart/form-data">
 	{{ csrf_field() }}
@@ -32,4 +32,4 @@
 	</div>
 </form>
 
-<script src="{{ asset('public/backend/plugins/bootstrap-colorpicker/bootstrap-colorpicker.js') }}"></script>
+<script src="{{ asset('backend/plugins/bootstrap-colorpicker/bootstrap-colorpicker.js') }}"></script>

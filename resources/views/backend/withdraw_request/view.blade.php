@@ -26,7 +26,7 @@
                     <tr>
                         <td>{{ _lang('Attachment') }}</td>
                         <td>
-                            {!! $withdrawRequest->attachment == "" ? '' : '<a href="'. asset('public/uploads/media/'.$withdrawRequest->attachment) .'" target="_blank">'._lang('View Attachment').'</a>' !!}
+                            {!! $withdrawRequest->attachment == "" ? '' : '<a href="'. asset('uploads/media/'.$withdrawRequest->attachment) .'" target="_blank">'._lang('View Attachment').'</a>' !!}
                         </td>
                     </tr>
                     <tr><td>{{ _lang('Status') }}</td><td>{!! xss_clean(transaction_status($withdrawRequest->status)) !!}</td></tr>

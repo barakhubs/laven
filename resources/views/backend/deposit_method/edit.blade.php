@@ -22,7 +22,7 @@
 						<div class="col-md-12">
 							<div class="form-group">
 								<label class="control-label">{{ _lang('Image') }}</label>
-								<input type="file" class="form-control dropify" name="image" data-default-file="{{ $depositmethod->image != null ? asset('public/uploads/media/'.$depositmethod->image) : asset('public/backend/images/no-image.png') }}">
+								<input type="file" class="form-control dropify" name="image" data-default-file="{{ $depositmethod->image != null ? asset('uploads/media/'.$depositmethod->image) : asset('backend/images/no-image.png') }}">
 							</div>
 						</div>
 

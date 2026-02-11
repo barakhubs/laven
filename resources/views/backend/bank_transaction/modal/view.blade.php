@@ -35,7 +35,7 @@
 		<td>{{ _lang('Attachment') }}</td>
 		<td>
 		@if($bankTransaction->attachment != '')
-		 	<a href="{{ asset('public/uploads/media/'.$bankTransaction->attachment) }}" target="_blank">{{ $bankTransaction->attachment }}</a>
+		 	<a href="{{ asset('uploads/media/'.$bankTransaction->attachment) }}" target="_blank">{{ $bankTransaction->attachment }}</a>
 		@endif
 		</td>
 	</tr>

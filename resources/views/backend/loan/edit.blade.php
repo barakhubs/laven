@@ -119,7 +119,7 @@
 						<div class="col-md-12">
 							<div class="form-group">
 								<label class="control-label">{{ _lang('Attachment') }}</label>
-								<input type="file" class="dropify" name="attachment" data-default-file="{{ $loan->attachment != null ? asset('public/uploads/media/'.$loan->attachment) : '' }}"  {{ $loan->status == 1 ? 'disabled' : '' }}>
+								<input type="file" class="dropify" name="attachment" data-default-file="{{ $loan->attachment != null ? asset('uploads/media/'.$loan->attachment) : '' }}"  {{ $loan->status == 1 ? 'disabled' : '' }}>
 							</div>
 						</div>
 

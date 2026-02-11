@@ -14,7 +14,7 @@
 		<div class="col-md-12">
 			<div class="form-group">
 				<label class="control-label">{{ _lang('Document') }}</label>						
-				<input type="file" class="form-control dropify" name="document" data-default-file="{{ asset('public/uploads/documents/'.$memberdocument->document) }}">
+				<input type="file" class="form-control dropify" name="document" data-default-file="{{ asset('uploads/documents/'.$memberdocument->document) }}">
 			</div>
 		</div>
 	

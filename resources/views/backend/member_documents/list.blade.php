@@ -24,7 +24,7 @@
 					    <tr data-id="row_{{ $memberdocument->id }}">
 							<td class='user_id'>{{ $memberdocument->member->first_name.' '.$memberdocument->member->last_name }}</td>
 							<td class='name'>{{ $memberdocument->name }}</td>
-							<td class='document'><a target="_blank" href="{{ asset('public/uploads/documents/'.$memberdocument->document) }}">{{ $memberdocument->document }}</a></td>
+							<td class='document'><a target="_blank" href="{{ asset('uploads/documents/'.$memberdocument->document) }}">{{ $memberdocument->document }}</a></td>
 							
 							<td class="text-center">
 								<span class="dropdown">

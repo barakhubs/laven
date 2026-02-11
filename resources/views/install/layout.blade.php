@@ -16,12 +16,12 @@
 		<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
 
 		<!-- Bootstrap -->
-		<link type="text/css" rel="stylesheet" href="{{ asset('public/backend/plugins/bootstrap/css/bootstrap.min.css') }}"/>
+		<link type="text/css" rel="stylesheet" href="{{ asset('backend/plugins/bootstrap/css/bootstrap.min.css') }}"/>
 
-		<link type="text/css" rel="stylesheet" href="{{ asset('public/backend/plugins/select2/css/select2.min.css') }}"/>
+		<link type="text/css" rel="stylesheet" href="{{ asset('backend/plugins/select2/css/select2.min.css') }}"/>
 
 		<!-- Custom stlylesheet -->
-		<link type="text/css" rel="stylesheet" href="{{ asset('public/install_asset/css/style.css?v=1.0') }}"/>
+		<link type="text/css" rel="stylesheet" href="{{ asset('install_asset/css/style.css?v=1.0') }}"/>
 
 		<!-- HTML5 shim and Respond.js for IE8 support of HTML5 elements and media queries -->
 		<!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
@@ -44,10 +44,10 @@
 		</div>
 
 		<!-- jQuery Plugins -->
-		<script type="text/javascript" src="{{ asset('public/backend/assets/js/vendor/jquery-3.6.1.min.js') }}"></script>
-		<script type="text/javascript" src="{{ asset('public/backend/plugins/bootstrap/js/bootstrap.min.js') }}"></script>
-		<script type="text/javascript" src="{{ asset('public/backend/plugins/select2/js/select2.min.js') }}"></script>
-		<script type="text/javascript" src="{{ asset('public/install_asset/js/scripts.js') }}"></script>
+		<script type="text/javascript" src="{{ asset('backend/assets/js/vendor/jquery-3.6.1.min.js') }}"></script>
+		<script type="text/javascript" src="{{ asset('backend/plugins/bootstrap/js/bootstrap.min.js') }}"></script>
+		<script type="text/javascript" src="{{ asset('backend/plugins/select2/js/select2.min.js') }}"></script>
+		<script type="text/javascript" src="{{ asset('install_asset/js/scripts.js') }}"></script>
 		@yield('js-script')
 	</body>
 </html>

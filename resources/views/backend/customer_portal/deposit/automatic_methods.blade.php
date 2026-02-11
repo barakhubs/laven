@@ -14,7 +14,7 @@
                     <div class="col-md-4">
                         <div class="card mb-4">
                             <div class="card-body text-center">
-                                <img src="{{ asset('public/backend/images/gateways/'.$deposit_method->image) }}" class="thumb-xl m-auto rounded-circle img-thumbnail"/>
+                                <img src="{{ asset('backend/images/gateways/'.$deposit_method->image) }}" class="thumb-xl m-auto rounded-circle img-thumbnail"/>
                                 <h5 class="mt-3 mb-2"><b>{{ $deposit_method->name }}</b></h5>
                                 <button data-href="{{ route('deposit.automatic_deposit',$deposit_method->id) }}" data-title="{{ _lang('Deposit Via').' '.$deposit_method->name }}" class="btn btn-outline-primary mt-3 stretched-link ajax-modal">{{ _lang('Deposit Now') }}</button>
                             </div>

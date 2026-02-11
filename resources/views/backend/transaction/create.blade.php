@@ -121,7 +121,7 @@
 								<table class="table">
 									<tr>
 										<td colspan="2" class="text-center">
-											<img id="account_avatar" class="thumb-contact" src="{{ asset('public/uploads/profile/default.png') }}">
+											<img id="account_avatar" class="thumb-contact" src="{{ asset('uploads/profile/default.png') }}">
 										</td>
 									</tr>
 									<tr>

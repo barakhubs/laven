@@ -20,7 +20,7 @@
 					<tr>
 						<td>{{ _lang('Attachments') }}</td>
 						<td>
-							{!! $loancollateral->attachments == "" ? '' : '<a href="'. asset('public/uploads/media/'.$loancollateral->attachments) .'" target="_blank">'._lang('Download').'</a>' !!}
+							{!! $loancollateral->attachments == "" ? '' : '<a href="'. asset('uploads/media/'.$loancollateral->attachments) .'" target="_blank">'._lang('Download').'</a>' !!}
 						</td>
 					</tr>
 					<tr><td>{{ _lang('Description') }}</td><td>{{ $loancollateral->description }}</td></tr>

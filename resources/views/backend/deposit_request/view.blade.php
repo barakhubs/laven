@@ -26,7 +26,7 @@
                     <tr>
                         <td>{{ _lang('Attachment') }}</td>
                         <td>
-                            {!! $depositrequest->attachment == "" ? '' : '<a href="'. asset('public/uploads/media/'.$depositrequest->attachment) .'" target="_blank">'._lang('View Attachment').'</a>' !!}
+                            {!! $depositrequest->attachment == "" ? '' : '<a href="'. asset('uploads/media/'.$depositrequest->attachment) .'" target="_blank">'._lang('View Attachment').'</a>' !!}
                         </td>
                     </tr>
                     <tr><td>{{ _lang('Status') }}</td><td>{!! xss_clean(transaction_status($depositrequest->status)) !!}</td></tr>

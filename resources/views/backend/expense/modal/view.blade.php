@@ -9,7 +9,7 @@
 		<td>{{ _lang('Attachment') }}</td>
 		<td>
 		@if($expense->attachment != '')
-		 	<a href="{{ asset('public/uploads/media/'.$expense->attachment) }}" target="_blank">{{ $expense->attachment }}</a>
+		 	<a href="{{ asset('uploads/media/'.$expense->attachment) }}" target="_blank">{{ $expense->attachment }}</a>
 		@endif
 		</td>
 	</tr>

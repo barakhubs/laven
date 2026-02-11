@@ -37,5 +37,5 @@
 @endsection
 
 @section('js-script')
-<script src="{{ asset('public/backend/assets/js/datatables/withdraw_requests.js?v=1.0') }}"></script>
+<script src="{{ asset('backend/assets/js/datatables/withdraw_requests.js?v=1.0') }}"></script>
 @endsection

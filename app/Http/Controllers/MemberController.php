@@ -51,7 +51,7 @@ class MemberController extends Controller {
                 return $member->branch->name;
             })
             ->editColumn('photo', function ($member) {
-                $photo = $member->photo != null ? profile_picture($member->photo) : asset('public/backend/images/avatar.png');
+                $photo = $member->photo != null ? profile_picture($member->photo) : asset('backend/images/avatar.png');
                 return '<div class="profile_picture text-center">'
                     . '<img src="' . $photo . '" class="thumb-sm img-thumbnail">'
                     . '</div>';

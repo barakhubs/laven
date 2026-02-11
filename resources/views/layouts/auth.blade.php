@@ -17,8 +17,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
 
     <!-- Styles -->
-    <link rel="stylesheet" href="{{ asset('public/backend/plugins/bootstrap/css/bootstrap.min.css') }}">
-    <link href="{{ asset('public/auth/css/app.css') . '?v=' . filemtime(public_path('auth/css/app.css')) }}" rel="stylesheet">
+    <link rel="stylesheet" href="{{ asset('backend/plugins/bootstrap/css/bootstrap.min.css') }}">
+    <link href="{{ asset('auth/css/app.css') . '?v=' . filemtime(public_path('auth/css/app.css')) }}" rel="stylesheet">
 </head>
 <body>
     <div id="app">
