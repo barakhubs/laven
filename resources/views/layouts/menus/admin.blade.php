@@ -48,6 +48,7 @@ $upcomming_repayments = request_count('upcomming_repayments', true);
 </li>
 
 <li><a href="{{ route('loans.upcoming_loan_repayments') }}"><i class="fas fa-calendar-alt"></i><span>{{ _lang('Upcomming Payments') }} {!! xss_clean($upcomming_repayments) !!}</span></a></li>
+<li><a href="{{ route('loans.due_payments') }}"><i class="fas fa-exclamation-circle"></i><span>{{ _lang('Due Payments') }}</span></a></li>
 <li><a href="{{ route('loan_payments.index') }}"><i class="fas fa-receipt"></i><span>{{ _lang('Loan Repayments') }}</span></a></li>
 
 <li>
@@ -161,3 +162,4 @@ $upcomming_repayments = request_count('upcomming_repayments', true);
 		<li class="nav-item"><a class="nav-link" href="{{ route('database_backups.list') }}">{{ _lang('Database Backup') }}</a></li>
 	</ul>
 </li>
+
