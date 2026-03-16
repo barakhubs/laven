@@ -619,6 +619,42 @@ class LoanController extends Controller {
 
     }
 
+    public function due_payments(Request $request) {
+        $filter = $request->get('filter', 'today');
+        $today  = Carbon::today();
+
+        if ($filter === 'today') {
+            $startDate = $today->copy();
+            $endDate   = $today->copy();
+        } elseif ($filter === '2days') {
+            $startDate = $today->copy();
+            $endDate   = $today->copy()->addDays(2);
+        } elseif ($filter === '3days') {
+            $startDate = $today->copy();
+            $endDate   = $today->copy()->addDays(3);
+        } elseif ($filter === 'week') {
+            $startDate = $today->copy();
+            $endDate   = $today->copy()->addDays(7);
+        } elseif ($filter === 'overdue') {
+            $startDate = Carbon::parse('2000-01-01');
+            $endDate   = $today->copy()->subDay();
+        } elseif ($filter === 'custom') {
+            $startDate = Carbon::parse($request->get('start_date', $today->toDateString()));
+            $endDate   = Carbon::parse($request->get('end_date', $today->toDateString()));
+        } else {
+            $startDate = $today->copy();
+            $endDate   = $today->copy();
+        }
+
+        $repayments = LoanRepayment::with(['loan', 'loan.borrower', 'loan.borrower.branch', 'loan.currency'])
+            ->whereBetween('repayment_date', [$startDate->toDateString(), $endDate->toDateString()])
+            ->where('status', 0)
+            ->orderBy('repayment_date', 'asc')
+            ->get();
+
+        return view('backend.loan.due_payments', compact('repayments', 'filter', 'startDate', 'endDate'));
+    }
+
     /**
      * Remove the specified resource from storage.
      *
@@ -737,3 +773,4 @@ class LoanController extends Controller {
     }
 
 }
+

@@ -219,6 +219,7 @@ Route::group(['middleware' => ['install']], function () {
 
                 //Loan Controller
                 Route::get('loans/upcoming_loan_repayments', [LoanController::class, 'upcoming_loan_repayments'])->name('loans.upcoming_loan_repayments');
+                Route::get('loans/due_payments', [LoanController::class, 'due_payments'])->name('loans.due_payments');
                 Route::post('loans/get_table_data', [LoanController::class, 'get_table_data']);
                 Route::get('loans/calculator', [LoanController::class, 'calculator'])->name('loans.admin_calculator');
                 Route::post('loans/calculator/calculate', [LoanController::class, 'calculate'])->name('loans.calculate');
@@ -360,3 +361,4 @@ Route::post('install/finish', 'Install\InstallController@final_touch');
 //Update System
 Route::get('system/update/{action?}', 'Install\UpdateController@index');
 Route::get('migration/update', 'Install\UpdateController@update_migration');
+
