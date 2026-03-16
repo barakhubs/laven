@@ -236,6 +236,15 @@
 						</div>
 					</div>
                     
+					{{-- Back Button: hidden on dashboard, shown on all other pages when history exists --}}
+					@if(!Request::is('dashboard'))
+					<div id="back-btn-wrapper" class="mb-3 px-1" style="display:none;">
+						<a href="javascript:history.back()" class="btn btn-secondary btn-sm" id="global-back-btn">
+							<i class="ti-arrow-left mr-1"></i>{{ _lang('Back') }}
+						</a>
+					</div>
+					@endif
+
 					@yield('content')
 				</div><!--End main content Inner-->
 				
@@ -314,6 +323,11 @@
 			
 			@endforeach
 			
+        // Show back button if there is navigation history
+			if (document.referrer !== '' && window.history.length > 1) {
+				$('#back-btn-wrapper').show();
+			}
+
         })(jQuery);
 		
 	 </script>
@@ -325,3 +339,4 @@
 		
     </body>
 </html>
+
