@@ -53,16 +53,26 @@ class MemberController extends Controller {
             ->editColumn('photo', function ($member) {
                 $photo = $member->photo != null ? profile_picture($member->photo) : asset('backend/images/avatar.png');
                 return '<div class="profile_picture text-center">'
+                    . '<a href="' . route('members.show', $member->id) . '">'
                     . '<img src="' . $photo . '" class="thumb-sm img-thumbnail">'
+                    . '</a>'
                     . '</div>';
+            })
+            ->editColumn('first_name', function ($member) {
+                return '<a href="' . route('members.show', $member->id) . '" class="font-weight-bold">' . $member->first_name . '</a>';
+            })
+            ->editColumn('last_name', function ($member) {
+                return '<a href="' . route('members.show', $member->id) . '">' . $member->last_name . '</a>';
             })
             ->addColumn('action', function ($member) {
                 return '<div class="dropdown text-center">'
                 . '<button class="btn btn-primary btn-xs dropdown-toggle" type="button" data-toggle="dropdown">' . _lang('Action')
                 . '&nbsp;</button>'
                 . '<div class="dropdown-menu">'
+                . '<a class="dropdown-item font-weight-bold" href="' . route('members.show', $member->id) . '"><i class="ti-eye"></i>  ' . _lang('View Profile') . '</a>'
                 . '<a class="dropdown-item" href="' . route('members.edit', $member->id) . '"><i class="ti-pencil-alt"></i> ' . _lang('Edit') . '</a>'
-                . '<a class="dropdown-item" href="' . route('members.show', $member->id) . '"><i class="ti-eye"></i>  ' . _lang('View') . '</a>'
+                . '<a class="dropdown-item" href="' . route('members.show', $member->id) . '?tab=savings_overview"><i class="ti-wallet"></i>  ' . _lang('Savings') . '</a>'
+                . '<a class="dropdown-item" href="' . route('members.show', $member->id) . '?tab=loan_summary"><i class="ti-credit-card"></i>  ' . _lang('Loans') . '</a>'
                 . '<a class="dropdown-item" href="' . route('member_documents.index', $member->id) . '"><i class="ti-files"></i>  ' . _lang('Documents') . '</a>'
                 . '<form action="' . route('members.destroy', $member->id) . '" method="post">'
                 . csrf_field()
@@ -75,7 +85,7 @@ class MemberController extends Controller {
             ->setRowId(function ($member) {
                 return "row_" . $member->id;
             })
-            ->rawColumns(['photo', 'action'])
+            ->rawColumns(['photo', 'first_name', 'last_name', 'action'])
             ->make(true);
     }
 
@@ -232,7 +242,46 @@ class MemberController extends Controller {
             ->orderBy("id", "asc")
             ->get();
         if (! $request->ajax()) {
-            return view('backend.member.view', compact('member', 'id', 'customFields'));
+            // Financial summary data for the member profile
+            $savingsAccounts = \App\Models\SavingsAccount::with('savings_type.currency')
+                ->where('member_id', $id)
+                ->get();
+
+            $loans = $member->loans()->with(['loan_product', 'currency', 'payments'])->get();
+
+            // Totals
+            $totalSavingsBalance = 0;
+            foreach ($savingsAccounts as $account) {
+                $totalSavingsBalance += get_account_balance($account->id, $id);
+            }
+
+            $totalLoanApplied   = $loans->sum('applied_amount');
+            $totalLoanPaid      = $loans->sum('total_paid');
+            $totalLoanDue       = $loans->where('status', 1)->sum(function ($loan) {
+                return $loan->applied_amount - $loan->total_paid;
+            });
+            $totalInterestPaid  = $loans->flatMap->payments->sum('interest');
+            $totalPenaltiesPaid = $loans->flatMap->payments->sum('late_penalties');
+
+            $activeLoans    = $loans->where('status', 1)->count();
+            $completedLoans = $loans->where('status', 2)->count();
+            $pendingLoans   = $loans->where('status', 0)->count();
+
+            // Recent transactions (last 10)
+            $recentTransactions = Transaction::with(['account.savings_type.currency'])
+                ->where('member_id', $id)
+                ->orderBy('trans_date', 'desc')
+                ->limit(10)
+                ->get();
+
+            return view('backend.member.view', compact(
+                'member', 'id', 'customFields',
+                'savingsAccounts', 'loans',
+                'totalSavingsBalance', 'totalLoanApplied', 'totalLoanPaid',
+                'totalLoanDue', 'totalInterestPaid', 'totalPenaltiesPaid',
+                'activeLoans', 'completedLoans', 'pendingLoans',
+                'recentTransactions'
+            ));
         } else {
             return view('backend.member.modal.view', compact('member', 'id', 'customFields'));
         }
@@ -652,3 +701,5 @@ class MemberController extends Controller {
         }
     }
 }
+
+
