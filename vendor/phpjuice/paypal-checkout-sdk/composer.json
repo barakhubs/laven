@@ -1,0 +1,54 @@
+{
+    "name": "phpjuice/paypal-checkout-sdk",
+    "description": "PayPal's PHP SDK for Checkout REST APIs",
+    "keywords": [
+        "phpjuice",
+        "paypal",
+        "checkout"
+    ],
+    "homepage": "https://phpjuice.gitbook.io/paypal-checkout-sdk",
+    "license": "MIT",
+    "type": "library",
+    "authors": [
+        {
+            "name": "PHPJuice",
+            "email": "phpjuice@gmail.com",
+            "role": "Developer"
+        }
+    ],
+    "require": {
+        "php": "^8.1|^8.2|^8.3|^8.4",
+        "ext-json": "*",
+        "brick/money": "^0.5.2",
+        "phpjuice/paypal-http-client": "^1.0"
+    },
+    "require-dev": {
+        "laravel/pint": "^1.18",
+        "pestphp/pest": "^1.18",
+        "phpstan/phpstan": "^0.12"
+    },
+    "autoload": {
+        "psr-4": {
+            "PayPal\\Checkout\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/"
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "scripts": {
+        "test": "vendor/bin/pest --colors=always",
+        "pint": "vendor/bin/pint",
+        "fmt": "vendor/bin/pint",
+        "analyse": "phpstan analyse --ansi --debug"
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    }
+}
