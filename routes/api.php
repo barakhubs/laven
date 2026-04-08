@@ -1,19 +1,54 @@
 <?php
 
-use Illuminate\Http\Request;
+use App\Http\Controllers\Api\AuthController;
 use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
-| API Routes
+| API Routes – Mobile App Authentication
 |--------------------------------------------------------------------------
 |
-| Here is where you can register API routes for your application. These
-| routes are loaded by the RouteServiceProvider and all of them will
-| be assigned to the "api" middleware group. Make something great!
+| All routes are prefixed with /api (via RouteServiceProvider).
+| Auth routes are versioned under /v1/auth.
+|
+| Middleware groups:
+|   auth:sanctum         → valid Sanctum bearer token required
+|   api.2fa_verified     → token must have two_fa_verified = true
 |
 */
 
-Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
-    return $request->user();
+Route::prefix('v1')->group(function () {
+
+    // ----------------------------------------------------------------
+    // Public auth endpoints (no token required)
+    // ----------------------------------------------------------------
+    Route::prefix('auth')->name('api.auth.')->group(function () {
+
+        Route::post('login',          [AuthController::class, 'login'])->name('login');
+        Route::post('register',       [AuthController::class, 'register'])->name('register');
+        Route::post('forgot-password', [AuthController::class, 'forgotPassword'])->name('forgot-password');
+        Route::post('reset-password',  [AuthController::class, 'resetPassword'])->name('reset-password');
+    });
+
+    // ----------------------------------------------------------------
+    // Semi-protected: valid token required, but 2FA not yet verified
+    // (used during the OTP verification step)
+    // ----------------------------------------------------------------
+    Route::prefix('auth')->name('api.auth.')->middleware('auth:sanctum')->group(function () {
+
+        Route::post('verify-otp', [AuthController::class, 'verifyOtp'])->name('verify-otp');
+        Route::post('resend-otp', [AuthController::class, 'resendOtp'])->name('resend-otp');
+        Route::post('logout',     [AuthController::class, 'logout'])->name('logout');
+    });
+
+    // ----------------------------------------------------------------
+    // Fully protected: token required + 2FA verified
+    // ----------------------------------------------------------------
+    Route::middleware(['auth:sanctum', 'api.2fa_verified'])->group(function () {
+
+        // Example: authenticated user info
+        Route::get('me', [AuthController::class, 'me'])->name('api.me');
+
+    });
 });
+

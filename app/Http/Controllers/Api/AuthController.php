@@ -57,8 +57,8 @@ class AuthController extends ApiController
         $user->tokens()->where('name', $request->device_name)->delete();
 
         // Issue new Sanctum token — mark two_fa_verified based on 2FA setting
-        $twoFaEnabled   = get_option('email_2fa_status', 0) == 1;
-        $twoFaVerified  = !$twoFaEnabled; // if 2FA is off, token is immediately fully verified
+        $twoFaEnabled  = get_option('email_2fa_status', 0) == 1;
+        $twoFaVerified = !$twoFaEnabled; // if 2FA is off, token is immediately fully verified
 
         $token = $user->createToken($request->device_name, ['*']);
 
@@ -84,11 +84,11 @@ class AuthController extends ApiController
         }
 
         return $this->success([
-            'access_token'  => $token->plainTextToken,
-            'token_type'    => 'Bearer',
-            'requires_2fa'  => $twoFaEnabled,
+            'access_token'    => $token->plainTextToken,
+            'token_type'      => 'Bearer',
+            'requires_2fa'    => $twoFaEnabled,
             'two_fa_verified' => $twoFaVerified,
-            'user'          => $this->formatUser($user),
+            'user'            => $this->formatUser($user),
         ], $twoFaEnabled ? 'OTP sent to your email address.' : 'Login successful.');
     }
 
@@ -103,19 +103,19 @@ class AuthController extends ApiController
         }
 
         $validator = Validator::make($request->all(), [
-            'first_name'  => 'required|string|max:50',
-            'last_name'   => 'required|string|max:50',
-            'email'       => 'required|email|max:191|unique:users|unique:members',
-            'mobile'      => 'required|numeric|unique:members',
-            'country_code'=> 'required|string',
-            'password'    => ['required', 'confirmed', PasswordRule::min(6)],
-            'gender'      => 'required|string',
-            'city'        => 'required|string',
-            'state'       => 'required|string',
-            'zip'         => 'required|string',
-            'address'     => 'required|string',
-            'credit_source' => 'required|string',
-            'device_name' => 'required|string|max:191',
+            'first_name'   => 'required|string|max:50',
+            'last_name'    => 'required|string|max:50',
+            'email'        => 'required|email|max:191|unique:users|unique:members',
+            'mobile'       => 'required|numeric|unique:members',
+            'country_code' => 'required|string',
+            'password'     => ['required', 'confirmed', PasswordRule::min(6)],
+            'gender'       => 'required|string',
+            'city'         => 'required|string',
+            'state'        => 'required|string',
+            'zip'          => 'required|string',
+            'address'      => 'required|string',
+            'credit_source'=> 'required|string',
+            'device_name'  => 'required|string|max:191',
         ]);
 
         if ($validator->fails()) {
@@ -268,8 +268,8 @@ class AuthController extends ApiController
             return $this->error('Validation failed', 'VALIDATION_ERROR', $validator->errors()->toArray());
         }
 
-        // We always return a success message regardless of whether the
-        // email exists — this prevents user enumeration attacks.
+        // Always return success regardless of whether the email exists
+        // to prevent user enumeration attacks.
         Password::sendResetLink($request->only('email'));
 
         return $this->success(null, 'If that email is registered, a password reset link has been sent.');
@@ -309,6 +309,14 @@ class AuthController extends ApiController
             ['email' => [__($status)]],
             422
         );
+    }
+
+    // ----------------------------------------------------------------
+    // GET /api/v1/me   (requires auth:sanctum + api.2fa_verified)
+    // ----------------------------------------------------------------
+    public function me(Request $request)
+    {
+        return $this->success($this->formatUser($request->user()), 'User profile retrieved.');
     }
 
     // ----------------------------------------------------------------
