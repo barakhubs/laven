@@ -62,7 +62,7 @@ class DashboardController extends ApiController
         // Active loans
         $activeLoans = Loan::with(['loan_product', 'next_payment', 'currency'])
             ->where('borrower_id', $memberId)
-            ->whereIn('status', ['Active', 'Running'])
+            ->where('status', 1)
             ->get()
             ->map(fn($loan) => [
                 'id'                => $loan->id,
@@ -71,7 +71,7 @@ class DashboardController extends ApiController
                 'total_paid'        => (float) $loan->total_paid,
                 'remaining_balance' => (float) ($loan->applied_amount - $loan->total_paid),
                 'currency'          => $loan->currency->name ?? get_option('currency'),
-                'status'            => $loan->status,
+                'status'            => 'Active',
                 'next_repayment'    => $loan->next_payment ? [
                     'date'             => $loan->next_payment->repayment_date,
                     'amount'           => (float) $loan->next_payment->total_amount,
@@ -110,4 +110,3 @@ class DashboardController extends ApiController
         ], 'Dashboard loaded.');
     }
 }
-
