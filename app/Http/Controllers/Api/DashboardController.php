@@ -33,9 +33,9 @@ class DashboardController extends ApiController
             ->get()
             ->map(fn($acc) => [
                 'id'           => $acc->id,
-                'account_no'   => $acc->account_no,
                 'product_name' => $acc->savings_type->name ?? 'N/A',
-                'balance'      => (float) $acc->balance,
+                'balance'      => (float) get_account_balance($acc->id, $memberId),
+                'account_no'   => $acc->account_number,
                 'currency'     => $acc->savings_type->currency->name ?? get_option('currency'),
             ]);
 
