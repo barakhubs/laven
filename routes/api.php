@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AuthController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\DashboardController;
 
 /*
 |--------------------------------------------------------------------------
@@ -45,10 +46,10 @@ Route::prefix('v1')->group(function () {
     // Fully protected: token required + 2FA verified
     // ----------------------------------------------------------------
     Route::middleware(['auth:sanctum', 'api.2fa_verified'])->group(function () {
+    Route::get('me', [AuthController::class, 'me'])->name('api.me');
 
-        // Example: authenticated user info
-        Route::get('me', [AuthController::class, 'me'])->name('api.me');
-
-    });
+    // Dashboard
+    Route::get('dashboard', [DashboardController::class, 'index'])->name('api.dashboard');
+});
 });
 
