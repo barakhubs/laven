@@ -3,6 +3,10 @@
 use App\Http\Controllers\Api\AuthController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\LoanController;
+use App\Http\Controllers\Api\TransactionController;
+use App\Http\Controllers\Api\SavingsController;
+use App\Http\Controllers\Api\DepositController;
 
 /*
 |--------------------------------------------------------------------------
@@ -50,6 +54,22 @@ Route::prefix('v1')->group(function () {
 
     // Dashboard
     Route::get('dashboard', [DashboardController::class, 'index'])->name('api.dashboard');
-});
-});
 
+    // Loans
+    Route::get('loans',      [LoanController::class, 'index'])->name('api.loans.index');
+    Route::get('loans/{id}', [LoanController::class, 'show'])->name('api.loans.show');
+
+    // Transactions
+    Route::get('transactions', [TransactionController::class, 'index'])->name('api.transactions.index');
+
+    // Savings
+    Route::get('savings',                          [SavingsController::class, 'index'])->name('api.savings.index');
+    Route::get('savings/{id}/transactions',        [SavingsController::class, 'transactions'])->name('api.savings.transactions');
+
+    // Deposits
+    Route::get('deposit/methods',                  [DepositController::class, 'methods'])->name('api.deposit.methods');
+    Route::get('deposit/accounts',                 [DepositController::class, 'accounts'])->name('api.deposit.accounts');
+    Route::post('deposit/manual/{methodId}',       [DepositController::class, 'store'])->name('api.deposit.store');
+    Route::get('deposit/history',                  [DepositController::class, 'history'])->name('api.deposit.history');
+});
+});

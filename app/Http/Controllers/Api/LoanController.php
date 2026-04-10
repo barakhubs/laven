@@ -84,9 +84,9 @@ class LoanController extends ApiController
                 'id'               => $r->id,
                 'repayment_date'   => $r->repayment_date,
                 'principal_amount' => (float) $r->principal_amount,
-                'interest_amount'  => (float) $r->interest_amount,
-                'total_amount'     => (float) $r->total_amount,
-                'paid_amount'      => (float) ($r->paid_amount ?? 0),
+                'interest_amount'  => (float) $r->interest,
+                'total_amount'     => (float) $r->amount_to_pay,
+                'paid_amount'      => (float) ($r->penalty ?? 0),
                 'status'           => $r->status ?? 0,
             ]);
 
@@ -110,11 +110,11 @@ class LoanController extends ApiController
             'status'            => $statusMap[$loan->status] ?? 'Unknown',
             'status_code'       => $loan->status,
             'applied_date'      => $loan->applied_date ?? $loan->created_at,
-            'next_repayment'    => $loan->next_payment ? [
+            'next_repayment'    => ($loan->next_payment && $loan->next_payment->exists) ? [
                 'date'      => $loan->next_payment->repayment_date,
-                'amount'    => (float) $loan->next_payment->total_amount,
+                'amount'    => (float) $loan->next_payment->amount_to_pay,
                 'principal' => (float) $loan->next_payment->principal_amount,
-                'interest'  => (float) $loan->next_payment->interest_amount,
+                'interest'  => (float) $loan->next_payment->interest,
             ] : null,
         ];
     }
