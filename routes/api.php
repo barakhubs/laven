@@ -56,8 +56,9 @@ Route::prefix('v1')->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('api.dashboard');
 
     // Loans
-    Route::get('loans',      [LoanController::class, 'index'])->name('api.loans.index');
-    Route::get('loans/{id}', [LoanController::class, 'show'])->name('api.loans.show');
+    Route::get('loans',           [LoanController::class, 'index'])->name('api.loans.index');
+    Route::post('loans/{id}/pay', [LoanController::class, 'pay'])->name('api.loans.pay');   // ← before show
+    Route::get('loans/{id}',      [LoanController::class, 'show'])->name('api.loans.show');
 
     // Transactions
     Route::get('transactions', [TransactionController::class, 'index'])->name('api.transactions.index');
