@@ -69,7 +69,7 @@ Route::prefix('v1')->group(function () {
     // Deposits
     Route::get('deposit/methods',                  [DepositController::class, 'methods'])->name('api.deposit.methods');
     Route::get('deposit/accounts',                 [DepositController::class, 'accounts'])->name('api.deposit.accounts');
-    Route::post('deposit/manual/{methodId}',       [DepositController::class, 'store'])->name('api.deposit.store');
+    Route::post('deposit/manual/{methodId?}',      [DepositController::class, 'store'])->name('api.deposit.store');
     Route::get('deposit/history',                  [DepositController::class, 'history'])->name('api.deposit.history');
 });
 });

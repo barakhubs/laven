@@ -21,26 +21,23 @@ class DepositController extends ApiController
      */
     public function methods(Request $request)
     {
-        $methods = DepositMethod::where('status', 1)
+        $methods = DepositMethod::with('chargeLimits')
+            ->where('status', 1)
             ->get()
-            ->map(function ($m) {
-                // Prefer chargeLimit range, fall back to method's own min/max
-                $minAmount = $m->chargeLimits()->min('minimum_amount') ?? $m->minimum_amount;
-                $maxAmount = $m->chargeLimits()->max('maximum_amount') ?? $m->maximum_amount;
-
-                return [
-                    'id'             => $m->id,
-                    'name'           => $m->name,
-                    'currency'       => $m->currency->name ?? get_option('currency'),
-                    'minimum_amount' => (float) $minAmount,
-                    'maximum_amount' => (float) $maxAmount,
-                    'fixed_charge'   => (float) $m->fixed_charge,
-                    'charge_percent' => (float) $m->charge_in_percentage,
-                    'requirements'   => $m->requirements ? (array) $m->requirements : [],
-                    'description'    => $m->descriptions ?? null,
-                    'image'          => $m->image ? asset('uploads/media/' . $m->image) : null,
-                ];
-            });
+            ->map(fn($method) => [
+                'id'             => $method->id,
+                'name'           => $method->name,
+                'currency'       => $method->currency->name ?? get_option('currency'),
+                'minimum_amount' => (float) ($method->chargeLimits->min('minimum_amount') ?? 0),
+                'maximum_amount' => (float) ($method->chargeLimits->max('maximum_amount') ?? 0),
+                'fixed_charge'   => (float) ($method->chargeLimits->first()->fixed_charge ?? 0),
+                'charge_percent' => (float) ($method->chargeLimits->first()->charge_in_percentage ?? 0),
+                'requirements'   => $method->requirements ? (array) $method->requirements : [],
+                'description'    => $method->descriptions ?? null,
+                'image'          => $method->image && $method->image !== 'default.png'
+                                        ? asset('uploads/media/' . $method->image)
+                                        : null,
+            ]);
 
         return $this->success(['methods' => $methods], 'Deposit methods loaded.');
     }
@@ -71,9 +68,9 @@ class DepositController extends ApiController
     }
 
     /**
-     * POST /v1/deposit/manual/{methodId}
+     * POST /v1/deposit/manual/{methodId?}
      */
-    public function store(Request $request, $methodId)
+    public function store(Request $request, $methodId = null)
     {
         $member = $request->user()->member;
 
@@ -81,25 +78,10 @@ class DepositController extends ApiController
             return $this->error('Member profile not found.', 'MEMBER_NOT_FOUND', [], 404);
         }
 
-        $memberId      = $member->id;
-        $depositMethod = DepositMethod::where('id', $methodId)->where('status', 1)->first();
-
-        if (!$depositMethod) {
-            return $this->error('Deposit method not found.', 'METHOD_NOT_FOUND', [], 404);
-        }
-
-        $account = SavingsAccount::where('id', $request->credit_account)
-            ->where('member_id', $memberId)
-            ->first();
-
-        if (!$account) {
-            return $this->error('Account not found.', 'ACCOUNT_NOT_FOUND', [], 404);
-        }
-
         $validator = Validator::make($request->all(), [
             'credit_account' => 'required|integer',
             'amount'         => 'required|numeric|min:0.01',
-            'attachment'     => 'required|mimes:jpeg,png,jpg,pdf,doc,docx|max:5120',
+            'attachment'     => 'nullable|mimes:jpeg,png,jpg,pdf,doc,docx|max:5120',
         ]);
 
         if ($validator->fails()) {
@@ -111,14 +93,36 @@ class DepositController extends ApiController
             );
         }
 
+        // Resolve deposit method
+        $depositMethod = $methodId
+            ? DepositMethod::where('id', $methodId)->where('status', 1)->first()
+            : DepositMethod::where('status', 1)->first();
+
+        if (!$depositMethod) {
+            return $this->error(
+                'No active deposit method available. Please contact your branch.',
+                'NO_DEPOSIT_METHOD',
+                [],
+                404
+            );
+        }
+
+        $account = SavingsAccount::where('id', $request->credit_account)
+            ->where('member_id', $member->id)
+            ->first();
+
+        if (!$account) {
+            return $this->error('Account not found.', 'ACCOUNT_NOT_FOUND', [], 404);
+        }
+
         $accountType     = $account->savings_type;
         $convertedAmount = convert_currency(
-            $accountType->currency->name,
-            $depositMethod->currency->name,
+            $accountType->currency->name ?? get_option('currency'),
+            $depositMethod->currency->name ?? get_option('currency'),
             $request->amount
         );
 
-        // Try chargeLimit first, fall back to method's own fixed charges
+        // Calculate charge
         $charge      = 0;
         $chargeLimit = $depositMethod->chargeLimits()
             ->where('minimum_amount', '<=', $convertedAmount)
@@ -127,46 +131,9 @@ class DepositController extends ApiController
 
         if ($chargeLimit) {
             $charge = $chargeLimit->fixed_charge + ($convertedAmount * $chargeLimit->charge_in_percentage / 100);
-        } else {
-            // Fall back to method-level charges if no charge limits configured
-            $hasLimits = $depositMethod->chargeLimits()->exists();
-            if ($hasLimits) {
-                // Limits exist but amount is out of range
-                $minAmt = convert_currency(
-                    $depositMethod->currency->name,
-                    $accountType->currency->name,
-                    $depositMethod->chargeLimits()->min('minimum_amount') ?? 0
-                );
-                $maxAmt = convert_currency(
-                    $depositMethod->currency->name,
-                    $accountType->currency->name,
-                    $depositMethod->chargeLimits()->max('maximum_amount') ?? 0
-                );
-                return $this->error(
-                    "Amount out of range. Deposit limit: {$minAmt} – {$maxAmt} {$accountType->currency->name}",
-                    'AMOUNT_OUT_OF_RANGE',
-                    [],
-                    422
-                );
-            } else {
-                // No charge limits — use method's own fixed charge + percentage
-                $charge = $depositMethod->fixed_charge + ($convertedAmount * $depositMethod->charge_in_percentage / 100);
-            }
         }
 
-        // Validate against method's min/max
-        $methodMin = $depositMethod->minimum_amount;
-        $methodMax = $depositMethod->maximum_amount;
-        if ($methodMax > 0 && ($convertedAmount < $methodMin || $convertedAmount > $methodMax)) {
-            return $this->error(
-                "Deposit limit: {$methodMin} – {$methodMax} {$depositMethod->currency->name}",
-                'AMOUNT_OUT_OF_RANGE',
-                [],
-                422
-            );
-        }
-
-        // Save attachment
+        // Save attachment if provided
         $attachment = '';
         if ($request->hasFile('attachment')) {
             $file       = $request->file('attachment');
@@ -174,18 +141,16 @@ class DepositController extends ApiController
             $file->move(public_path('/uploads/media/'), $attachment);
         }
 
-        $depositRequest = new DepositRequest();
-        $depositRequest->fill([
-            'member_id'         => $memberId,
-            'method_id'         => $methodId,
-            'credit_account_id' => $request->credit_account,
-            'amount'            => $request->amount,
-            'converted_amount'  => $convertedAmount + $charge,
-            'charge'            => $charge,
-            'description'       => $request->description ?? '',
-            'requirements'      => json_encode($request->requirements ?? []),
-            'attachment'        => $attachment,
-        ]);
+        $depositRequest                    = new DepositRequest();
+        $depositRequest->member_id         = $member->id;
+        $depositRequest->method_id         = $depositMethod->id;
+        $depositRequest->credit_account_id = $request->credit_account;
+        $depositRequest->amount            = $request->amount;
+        $depositRequest->converted_amount  = $convertedAmount + $charge;
+        $depositRequest->charge            = $charge;
+        $depositRequest->description       = $request->description ?? '';
+        $depositRequest->requirements      = json_encode($request->requirements ?? []);
+        $depositRequest->attachment        = $attachment;
         $depositRequest->save();
 
         return $this->success([
@@ -211,7 +176,7 @@ class DepositController extends ApiController
 
         $perPage = min((int) $request->get('per_page', 20), 50);
 
-        $deposits = DepositRequest::with(['method', 'credit_account'])
+        $deposits = DepositRequest::with(['method', 'account'])
             ->where('member_id', $member->id)
             ->orderBy('id', 'desc')
             ->paginate($perPage);
@@ -223,7 +188,7 @@ class DepositController extends ApiController
             'amount'     => (float) $d->amount,
             'charge'     => (float) ($d->charge ?? 0),
             'method'     => $d->method->name ?? 'N/A',
-            'account_no' => $d->credit_account->account_number ?? 'N/A',
+            'account_no' => $d->account->account_number ?? 'N/A',
             'status'     => $statusMap[$d->status] ?? 'Pending',
             'created_at' => $d->created_at,
         ]);
