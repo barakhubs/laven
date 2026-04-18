@@ -120,4 +120,61 @@ class ProfileController extends Controller {
         return back()->with('success', _lang('Password has been changed'));
     }
 
+    public function apiUpdate(Request $request) {
+        $this->validate($request, [
+            'name'  => 'required|string|max:255',
+            'email' => [
+                'required',
+                'email',
+                Rule::unique('users')->ignore(Auth::id()),
+            ],
+        ]);
+
+        $user        = Auth::user();
+        $user->name  = $request->name;
+        $user->email = $request->email;
+        $user->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Profile updated successfully.',
+            'data'    => [
+                'id'        => $user->id,
+                'name'      => $user->name,
+                'email'     => $user->email,
+                'user_type' => $user->user_type,
+                'member_id' => $user->member?->id,
+                'member_no' => $user->member?->member_no,
+                'photo'     => $user->profile_picture
+                                ? asset('uploads/profile/' . $user->profile_picture)
+                                : null,
+            ],
+        ]);
+    }
+
+    public function apiUpdatePassword(Request $request) {
+        $this->validate($request, [
+            'oldpassword' => 'required',
+            'password'    => 'required|string|min:6|confirmed',
+        ]);
+
+        $user = Auth::user();
+
+        if (!Hash::check($request->oldpassword, $user->password)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Current password is incorrect.',
+            ], 422);
+        }
+
+        $user->password = Hash::make($request->password);
+        $user->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Password changed successfully.',
+            'data'    => null,
+        ]);
+    }
+
 }
