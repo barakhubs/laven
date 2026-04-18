@@ -1,12 +1,13 @@
 <?php
 
-use App\Http\Controllers\AuthController;
-use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\LoanController;
+use App\Http\Controllers\Api\TransactionController;
+use App\Http\Controllers\Api\SavingsController;
+use App\Http\Controllers\Api\DepositController;
+use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\LoanController;
-use App\Http\Controllers\TransactionController;
-use App\Http\Controllers\SavingsController;
-use App\Http\Controllers\DepositController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -30,6 +31,10 @@ Route::prefix('v1')->group(function () {
 
         Route::post('profile/update',          [ProfileController::class, 'apiUpdate'])->name('api.profile.update');
         Route::post('profile/update_password', [ProfileController::class, 'apiUpdatePassword'])->name('api.profile.update_password');
+
+        Route::get('notifications',                    [NotificationController::class, 'index'])->name('api.notifications.index');
+        Route::post('notifications/{id}/read',         [NotificationController::class, 'markRead'])->name('api.notifications.read');
+        Route::post('notifications/read-all',          [NotificationController::class, 'markAllRead'])->name('api.notifications.read-all');
 
         Route::get('loans',           [LoanController::class, 'index'])->name('api.loans.index');
         Route::post('loans/{id}/pay', [LoanController::class, 'pay'])->name('api.loans.pay');

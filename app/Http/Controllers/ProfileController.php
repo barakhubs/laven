@@ -122,8 +122,9 @@ class ProfileController extends Controller {
 
     public function apiUpdate(Request $request) {
         $this->validate($request, [
-            'name'  => 'required|string|max:255',
-            'email' => [
+            'first_name' => 'required|string|max:255',
+            'last_name'  => 'required|string|max:255',
+            'email'      => [
                 'required',
                 'email',
                 Rule::unique('users')->ignore(Auth::id()),
@@ -131,9 +132,16 @@ class ProfileController extends Controller {
         ]);
 
         $user        = Auth::user();
-        $user->name  = $request->name;
+        $user->name  = $request->first_name . ' ' . $request->last_name;
         $user->email = $request->email;
         $user->save();
+
+        // Also update the member table so dashboard reflects the change
+        if ($user->member && $user->member->id) {
+            $user->member->first_name = $request->first_name;
+            $user->member->last_name  = $request->last_name;
+            $user->member->save();
+        }
 
         return response()->json([
             'success' => true,
