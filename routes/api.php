@@ -1,4 +1,16 @@
+<?php
+
+use App\Http\Controllers\AuthController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\LoanController;
+use App\Http\Controllers\TransactionController;
+use App\Http\Controllers\SavingsController;
+use App\Http\Controllers\DepositController;
+use Illuminate\Support\Facades\Route;
+
 Route::prefix('v1')->group(function () {
+
     Route::prefix('auth')->name('api.auth.')->group(function () {
         Route::post('login',           [AuthController::class, 'login'])->name('login');
         Route::post('register',        [AuthController::class, 'register'])->name('register');
@@ -16,7 +28,6 @@ Route::prefix('v1')->group(function () {
         Route::get('me',        [AuthController::class, 'me'])->name('api.me');
         Route::get('dashboard', [DashboardController::class, 'index'])->name('api.dashboard');
 
-        // ── Profile (NEW) ──────────────────────────────────────────────
         Route::post('profile/update',          [ProfileController::class, 'apiUpdate'])->name('api.profile.update');
         Route::post('profile/update_password', [ProfileController::class, 'apiUpdatePassword'])->name('api.profile.update_password');
 
@@ -24,11 +35,11 @@ Route::prefix('v1')->group(function () {
         Route::post('loans/{id}/pay', [LoanController::class, 'pay'])->name('api.loans.pay');
         Route::get('loans/{id}',      [LoanController::class, 'show'])->name('api.loans.show');
         Route::get('transactions',    [TransactionController::class, 'index'])->name('api.transactions.index');
-        Route::get('savings',                         [SavingsController::class, 'index'])->name('api.savings.index');
-        Route::get('savings/{id}/transactions',       [SavingsController::class, 'transactions'])->name('api.savings.transactions');
-        Route::get('deposit/methods',                 [DepositController::class, 'methods'])->name('api.deposit.methods');
-        Route::get('deposit/accounts',                [DepositController::class, 'accounts'])->name('api.deposit.accounts');
-        Route::post('deposit/manual/{methodId?}',     [DepositController::class, 'store'])->name('api.deposit.store');
-        Route::get('deposit/history',                 [DepositController::class, 'history'])->name('api.deposit.history');
+        Route::get('savings',                     [SavingsController::class, 'index'])->name('api.savings.index');
+        Route::get('savings/{id}/transactions',   [SavingsController::class, 'transactions'])->name('api.savings.transactions');
+        Route::get('deposit/methods',             [DepositController::class, 'methods'])->name('api.deposit.methods');
+        Route::get('deposit/accounts',            [DepositController::class, 'accounts'])->name('api.deposit.accounts');
+        Route::post('deposit/manual/{methodId?}', [DepositController::class, 'store'])->name('api.deposit.store');
+        Route::get('deposit/history',             [DepositController::class, 'history'])->name('api.deposit.history');
     });
 });
