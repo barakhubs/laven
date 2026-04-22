@@ -8,7 +8,7 @@ class NotificationController extends ApiController
 {
     public function index(Request $request)
     {
-        $member = $request->user()->member;
+        $member = $request->attributes->get('effectiveMember') ?? $request->user()->member;
 
         if (!$member) {
             return $this->error('Member not found.', 'MEMBER_NOT_FOUND', [], 404);
@@ -35,7 +35,7 @@ class NotificationController extends ApiController
 
     public function markRead(Request $request, string $id)
     {
-        $member = $request->user()->member;
+        $member = $request->attributes->get('effectiveMember') ?? $request->user()->member;
 
         $notification = $member->notifications()->find($id);
 
@@ -50,11 +50,9 @@ class NotificationController extends ApiController
 
     public function markAllRead(Request $request)
     {
-        $member = $request->user()->member;
+        $member = $request->attributes->get('effectiveMember') ?? $request->user()->member;
         $member->unreadNotifications()->update(['read_at' => now()]);
 
         return $this->success(null, 'All notifications marked as read.');
     }
 }
-
-

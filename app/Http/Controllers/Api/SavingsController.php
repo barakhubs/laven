@@ -20,7 +20,9 @@ class SavingsController extends ApiController
      */
     public function index(Request $request)
     {
-        $member = $request->user()->member;
+        // Use the member resolved by StaffClientContext middleware.
+        // For staff this is the selected client's member; for customers it's their own.
+        $member = $request->attributes->get('effectiveMember') ?? $request->user()->member;
 
         if (!$member || !$member->id) {
             return $this->error('Member profile not found.', 'MEMBER_NOT_FOUND', [], 404);
@@ -57,7 +59,9 @@ class SavingsController extends ApiController
      */
     public function transactions(Request $request, $id)
     {
-        $member = $request->user()->member;
+        // Use the member resolved by StaffClientContext middleware.
+        // For staff this is the selected client's member; for customers it's their own.
+        $member = $request->attributes->get('effectiveMember') ?? $request->user()->member;
 
         if (!$member || !$member->id) {
             return $this->error('Member profile not found.', 'MEMBER_NOT_FOUND', [], 404);

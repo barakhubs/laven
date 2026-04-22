@@ -47,7 +47,7 @@ class DepositController extends ApiController
      */
     public function accounts(Request $request)
     {
-        $member = $request->user()->member;
+        $member = $request->attributes->get('effectiveMember') ?? $request->user()->member;
 
         if (!$member || !$member->id) {
             return $this->error('Member profile not found.', 'MEMBER_NOT_FOUND', [], 404);
@@ -72,7 +72,7 @@ class DepositController extends ApiController
      */
     public function store(Request $request, $methodId = null)
     {
-        $member = $request->user()->member;
+        $member = $request->attributes->get('effectiveMember') ?? $request->user()->member;
 
         if (!$member || !$member->id) {
             return $this->error('Member profile not found.', 'MEMBER_NOT_FOUND', [], 404);
@@ -168,7 +168,7 @@ class DepositController extends ApiController
      */
     public function history(Request $request)
     {
-        $member = $request->user()->member;
+        $member = $request->attributes->get('effectiveMember') ?? $request->user()->member;
 
         if (!$member || !$member->id) {
             return $this->error('Member profile not found.', 'MEMBER_NOT_FOUND', [], 404);
