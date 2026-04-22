@@ -21,7 +21,7 @@ class StaffClientContext
 {
     public function handle(Request $request, Closure $next)
     {
-        $user = $request->user();
+        $user = $request->user()->loadMissing('role');
 
         if (!$user) {
             return response()->json([
@@ -31,7 +31,7 @@ class StaffClientContext
             ], 401);
         }
 
-        $isStaff = $user->user_type === 'staff';
+        $isStaff = strtolower($user->role->name ?? '') === 'staff';
 
         if ($isStaff) {
             $clientId = $request->header('X-Client-Id');

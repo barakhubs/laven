@@ -36,7 +36,7 @@ class AuthController extends ApiController
             return $this->error('Validation failed', 'VALIDATION_ERROR', $validator->errors()->toArray());
         }
 
-        $user = User::where('email', $request->email)->first();
+        $user = User::with('role')->where('email', $request->email)->first();
 
         // Wrong credentials
         if (!$user || !Hash::check($request->password, $user->password)) {
@@ -48,9 +48,11 @@ class AuthController extends ApiController
             return $this->error('Your account is not active. Please contact support.', 'ACCOUNT_INACTIVE', [], 403);
         }
 
-        // Only customers and staff can use the mobile app
-        if (!in_array($user->user_type, ['customer', 'staff'])) {
-            return $this->error('Mobile access is only available for customer or staff accounts.', 'UNAUTHORIZED_USER_TYPE', [], 403);
+        $isStaff = strtolower($user->role->name ?? '') === 'staff';
+
+        // Allow: customers, staff (role), admins are blocked
+        if ($user->user_type === 'admin' && !$isStaff) {
+            return $this->error('Mobile access is not available for admin accounts.', 'UNAUTHORIZED_USER_TYPE', [], 403);
         }
 
         // Revoke all previous tokens for this device name to prevent token bloat
@@ -325,9 +327,9 @@ class AuthController extends ApiController
     // ----------------------------------------------------------------
     public function clients(Request $request)
     {
-        $user = $request->user();
+        $user = $request->user()->load('role');
 
-        if ($user->user_type !== 'staff') {
+        if (strtolower($user->role->name ?? '') !== 'staff') {
             return $this->error('Access denied.', 'FORBIDDEN', [], 403);
         }
 
@@ -360,14 +362,15 @@ class AuthController extends ApiController
     // ----------------------------------------------------------------
     private function formatUser(User $user): array
     {
-        $member = $user->member;
+        $member  = $user->member;
+        $isStaff = strtolower($user->role->name ?? '') === 'staff';
 
         return [
             'id'        => $user->id,
             'name'      => $user->name,
             'email'     => $user->email,
             'user_type' => $user->user_type,
-            'is_staff'  => $user->user_type === 'staff',
+            'is_staff'  => $isStaff,
             'member_id' => $member->id ?? null,
             'member_no' => $member->member_no ?? null,
             'photo'     => $user->profile_picture
