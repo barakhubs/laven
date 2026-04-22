@@ -48,9 +48,9 @@ class AuthController extends ApiController
             return $this->error('Your account is not active. Please contact support.', 'ACCOUNT_INACTIVE', [], 403);
         }
 
-        // Only customers can use the mobile app
-        if ($user->user_type !== 'customer') {
-            return $this->error('Mobile access is only available for customer accounts.', 'UNAUTHORIZED_USER_TYPE', [], 403);
+        // Only customers and staff can use the mobile app
+        if (!in_array($user->user_type, ['customer', 'staff'])) {
+            return $this->error('Mobile access is only available for customer or staff accounts.', 'UNAUTHORIZED_USER_TYPE', [], 403);
         }
 
         // Revoke all previous tokens for this device name to prevent token bloat
@@ -320,6 +320,42 @@ class AuthController extends ApiController
     }
 
     // ----------------------------------------------------------------
+    // GET /api/v1/staff/clients   (staff only)
+    // Search/list active client members for staff impersonation.
+    // ----------------------------------------------------------------
+    public function clients(Request $request)
+    {
+        $user = $request->user();
+
+        if ($user->user_type !== 'staff') {
+            return $this->error('Access denied.', 'FORBIDDEN', [], 403);
+        }
+
+        $search = $request->get('search', '');
+        $perPage = min((int) $request->get('per_page', 20), 100);
+
+        $query = Member::where('status', 1)
+            ->when($search, function ($q) use ($search) {
+                $q->where(function ($q2) use ($search) {
+                    $q2->where('first_name', 'like', "%{$search}%")
+                       ->orWhere('last_name',  'like', "%{$search}%")
+                       ->orWhere('email',       'like', "%{$search}%")
+                       ->orWhere('member_no',   'like', "%{$search}%")
+                       ->orWhere('mobile',      'like', "%{$search}%");
+                });
+            })
+            ->orderBy('first_name')
+            ->paginate($perPage);
+
+        return $this->success([
+            'clients'      => $query->map(fn($m) => $this->formatMember($m)),
+            'current_page' => $query->currentPage(),
+            'last_page'    => $query->lastPage(),
+            'total'        => $query->total(),
+        ], 'Clients loaded.');
+    }
+
+    // ----------------------------------------------------------------
     // Private helpers
     // ----------------------------------------------------------------
     private function formatUser(User $user): array
@@ -331,6 +367,7 @@ class AuthController extends ApiController
             'name'      => $user->name,
             'email'     => $user->email,
             'user_type' => $user->user_type,
+            'is_staff'  => $user->user_type === 'staff',
             'member_id' => $member->id ?? null,
             'member_no' => $member->member_no ?? null,
             'photo'     => $user->profile_picture
@@ -338,5 +375,18 @@ class AuthController extends ApiController
                 : null,
         ];
     }
-}
 
+    private function formatMember(Member $member): array
+    {
+        return [
+            'id'        => $member->id,
+            'name'      => trim($member->first_name . ' ' . $member->last_name),
+            'email'     => $member->email,
+            'member_no' => $member->member_no,
+            'mobile'    => $member->mobile,
+            'photo'     => $member->photo
+                ? asset('uploads/member/' . $member->photo)
+                : null,
+        ];
+    }
+}

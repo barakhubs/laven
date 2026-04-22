@@ -19,12 +19,7 @@ class DashboardController extends ApiController
 
     public function index(Request $request)
     {
-        $member = $request->user()->member;
-
-        if (!$member || !$member->id) {
-            return $this->error('Member profile not found.', 'MEMBER_NOT_FOUND', [], 404);
-        }
-
+        $member = $request->attributes->get('effectiveMember');
         $memberId = $member->id;
 
         // Savings accounts

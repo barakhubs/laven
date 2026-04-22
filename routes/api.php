@@ -27,7 +27,9 @@ Route::prefix('v1')->group(function () {
 
     Route::middleware(['auth:sanctum', 'api.2fa_verified'])->group(function () {
         Route::get('me',        [AuthController::class, 'me'])->name('api.me');
-        Route::get('dashboard', [DashboardController::class, 'index'])->name('api.dashboard');
+
+        // Staff-only: list/search clients
+        Route::get('staff/clients', [AuthController::class, 'clients'])->name('api.staff.clients');
 
         Route::post('profile/update',          [ProfileController::class, 'apiUpdate'])->name('api.profile.update');
         Route::post('profile/update_password', [ProfileController::class, 'apiUpdatePassword'])->name('api.profile.update_password');
@@ -36,15 +38,20 @@ Route::prefix('v1')->group(function () {
         Route::post('notifications/{id}/read',         [NotificationController::class, 'markRead'])->name('api.notifications.read');
         Route::post('notifications/read-all',          [NotificationController::class, 'markAllRead'])->name('api.notifications.read-all');
 
-        Route::get('loans',           [LoanController::class, 'index'])->name('api.loans.index');
-        Route::post('loans/{id}/pay', [LoanController::class, 'pay'])->name('api.loans.pay');
-        Route::get('loans/{id}',      [LoanController::class, 'show'])->name('api.loans.show');
-        Route::get('transactions',    [TransactionController::class, 'index'])->name('api.transactions.index');
-        Route::get('savings',                     [SavingsController::class, 'index'])->name('api.savings.index');
-        Route::get('savings/{id}/transactions',   [SavingsController::class, 'transactions'])->name('api.savings.transactions');
-        Route::get('deposit/methods',             [DepositController::class, 'methods'])->name('api.deposit.methods');
-        Route::get('deposit/accounts',            [DepositController::class, 'accounts'])->name('api.deposit.accounts');
-        Route::post('deposit/manual/{methodId?}', [DepositController::class, 'store'])->name('api.deposit.store');
-        Route::get('deposit/history',             [DepositController::class, 'history'])->name('api.deposit.history');
+        // All data routes require client context resolution
+        Route::middleware('staff.client.context')->group(function () {
+            Route::get('dashboard', [DashboardController::class, 'index'])->name('api.dashboard');
+
+            Route::get('loans',           [LoanController::class, 'index'])->name('api.loans.index');
+            Route::post('loans/{id}/pay', [LoanController::class, 'pay'])->name('api.loans.pay');
+            Route::get('loans/{id}',      [LoanController::class, 'show'])->name('api.loans.show');
+            Route::get('transactions',    [TransactionController::class, 'index'])->name('api.transactions.index');
+            Route::get('savings',                     [SavingsController::class, 'index'])->name('api.savings.index');
+            Route::get('savings/{id}/transactions',   [SavingsController::class, 'transactions'])->name('api.savings.transactions');
+            Route::get('deposit/methods',             [DepositController::class, 'methods'])->name('api.deposit.methods');
+            Route::get('deposit/accounts',            [DepositController::class, 'accounts'])->name('api.deposit.accounts');
+            Route::post('deposit/manual/{methodId?}', [DepositController::class, 'store'])->name('api.deposit.store');
+            Route::get('deposit/history',             [DepositController::class, 'history'])->name('api.deposit.history');
+        });
     });
 });

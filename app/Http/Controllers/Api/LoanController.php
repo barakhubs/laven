@@ -27,11 +27,7 @@ class LoanController extends ApiController
      */
     public function index(Request $request)
     {
-        $member = $request->user()->member;
-
-        if (!$member || !$member->id) {
-            return $this->error('Member profile not found.', 'MEMBER_NOT_FOUND', [], 404);
-        }
+        $member = $request->attributes->get('effectiveMember');
 
         $query = Loan::with(['loan_product', 'next_payment', 'currency'])
             ->where('borrower_id', $member->id);
@@ -57,11 +53,7 @@ class LoanController extends ApiController
      */
     public function show(Request $request, $id)
     {
-        $member = $request->user()->member;
-
-        if (!$member || !$member->id) {
-            return $this->error('Member profile not found.', 'MEMBER_NOT_FOUND', [], 404);
-        }
+        $member = $request->attributes->get('effectiveMember');
 
         $loan = Loan::with(['loan_product', 'next_payment', 'currency', 'repayments'])
             ->where('id', $id)
@@ -100,11 +92,7 @@ class LoanController extends ApiController
      */
     public function pay(Request $request, $id)
     {
-        $member = $request->user()->member;
-
-        if (!$member || !$member->id) {
-            return $this->error('Member profile not found.', 'MEMBER_NOT_FOUND', [], 404);
-        }
+        $member = $request->attributes->get('effectiveMember');
 
         $validator = Validator::make($request->all(), [
             'account_id' => 'required',

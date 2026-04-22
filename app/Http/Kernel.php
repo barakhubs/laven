@@ -60,6 +60,7 @@ class Kernel extends HttpKernel
         'customer'         => \App\Http\Middleware\Customer::class,
         'Email2FA'         => \App\Http\Middleware\Email2FA::class,
         'demo'             => \App\Http\Middleware\Demo::class,
-        'api.2fa_verified' => \App\Http\Middleware\EnsureTwoFactorVerified::class,
+        'api.2fa_verified'      => \App\Http\Middleware\EnsureTwoFactorVerified::class,
+        'staff.client.context' => \App\Http\Middleware\StaffClientContext::class,
     ];
 }
