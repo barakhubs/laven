@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\DepositController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\SmsController;
 
 Route::prefix('v1')->group(function () {
 
@@ -33,6 +34,8 @@ Route::prefix('v1')->group(function () {
 
         Route::post('profile/update',          [ProfileController::class, 'apiUpdate'])->name('api.profile.update');
         Route::post('profile/update_password', [ProfileController::class, 'apiUpdatePassword'])->name('api.profile.update_password');
+
+        Route::post('send-sms', [SmsController::class, 'send'])->name('api.send-sms');
 
         // All data routes require client context resolution
         Route::middleware('staff.client.context')->group(function () {

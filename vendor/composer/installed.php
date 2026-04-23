@@ -3,13 +3,22 @@
         'name' => 'laravel/laravel',
         'pretty_version' => 'dev-main',
         'version' => 'dev-main',
-        'reference' => '9e4113f4b7ed64691c40ddad455c4472a02e686b',
+        'reference' => 'aae9189d7abb04c6384e15ba7974444860c165de',
         'type' => 'project',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
         'dev' => true,
     ),
     'versions' => array(
+        'africastalking/africastalking' => array(
+            'pretty_version' => 'v3.0.2',
+            'version' => '3.0.2.0',
+            'reference' => '8345423ee70b07b36cedcce61c85c9bc679e3666',
+            'type' => 'library',
+            'install_path' => __DIR__ . '/../africastalking/africastalking',
+            'aliases' => array(),
+            'dev_requirement' => false,
+        ),
         'barryvdh/laravel-dompdf' => array(
             'pretty_version' => 'v2.2.0',
             'version' => '2.2.0.0',
@@ -487,7 +496,7 @@
         'laravel/laravel' => array(
             'pretty_version' => 'dev-main',
             'version' => 'dev-main',
-            'reference' => '9e4113f4b7ed64691c40ddad455c4472a02e686b',
+            'reference' => 'aae9189d7abb04c6384e15ba7974444860c165de',
             'type' => 'project',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),

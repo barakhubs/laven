@@ -256,6 +256,7 @@ class ComposerStaticInit7a3505e55617f8f2db52e08684c4f307
         'A' => 
         array (
             'App\\' => 4,
+            'AfricasTalking\\SDK\\' => 19,
         ),
     );
 
@@ -274,12 +275,12 @@ class ComposerStaticInit7a3505e55617f8f2db52e08684c4f307
         ),
         'Yajra\\DataTables\\' => 
         array (
-            0 => __DIR__ . '/..' . '/yajra/laravel-datatables-oracle/src',
-            1 => __DIR__ . '/..' . '/yajra/laravel-datatables-html/src',
-            2 => __DIR__ . '/..' . '/yajra/laravel-datatables-fractal/src',
-            3 => __DIR__ . '/..' . '/yajra/laravel-datatables-buttons/src',
-            4 => __DIR__ . '/..' . '/yajra/laravel-datatables-export/src',
-            5 => __DIR__ . '/..' . '/yajra/laravel-datatables-editor/src',
+            0 => __DIR__ . '/..' . '/yajra/laravel-datatables-buttons/src',
+            1 => __DIR__ . '/..' . '/yajra/laravel-datatables-editor/src',
+            2 => __DIR__ . '/..' . '/yajra/laravel-datatables-export/src',
+            3 => __DIR__ . '/..' . '/yajra/laravel-datatables-fractal/src',
+            4 => __DIR__ . '/..' . '/yajra/laravel-datatables-html/src',
+            5 => __DIR__ . '/..' . '/yajra/laravel-datatables-oracle/src',
         ),
         'WpOrg\\Requests\\' => 
         array (
@@ -295,8 +296,8 @@ class ComposerStaticInit7a3505e55617f8f2db52e08684c4f307
         ),
         'Vonage\\' => 
         array (
-            0 => __DIR__ . '/..' . '/vonage/jwt/src',
-            1 => __DIR__ . '/..' . '/vonage/client-core/src',
+            0 => __DIR__ . '/..' . '/vonage/client-core/src',
+            1 => __DIR__ . '/..' . '/vonage/jwt/src',
         ),
         'Twilio\\' => 
         array (
@@ -502,8 +503,8 @@ class ComposerStaticInit7a3505e55617f8f2db52e08684c4f307
         ),
         'Psr\\Http\\Message\\' => 
         array (
-            0 => __DIR__ . '/..' . '/psr/http-message/src',
-            1 => __DIR__ . '/..' . '/psr/http-factory/src',
+            0 => __DIR__ . '/..' . '/psr/http-factory/src',
+            1 => __DIR__ . '/..' . '/psr/http-message/src',
         ),
         'Psr\\Http\\Client\\' => 
         array (
@@ -555,8 +556,8 @@ class ComposerStaticInit7a3505e55617f8f2db52e08684c4f307
         ),
         'Nette\\' => 
         array (
-            0 => __DIR__ . '/..' . '/nette/utils/src',
-            1 => __DIR__ . '/..' . '/nette/schema/src',
+            0 => __DIR__ . '/..' . '/nette/schema/src',
+            1 => __DIR__ . '/..' . '/nette/utils/src',
         ),
         'Monolog\\' => 
         array (
@@ -592,8 +593,8 @@ class ComposerStaticInit7a3505e55617f8f2db52e08684c4f307
         ),
         'League\\Uri\\' => 
         array (
-            0 => __DIR__ . '/..' . '/league/uri-interfaces',
-            1 => __DIR__ . '/..' . '/league/uri',
+            0 => __DIR__ . '/..' . '/league/uri',
+            1 => __DIR__ . '/..' . '/league/uri-interfaces',
         ),
         'League\\OAuth1\\Client\\' => 
         array (
@@ -796,6 +797,10 @@ class ComposerStaticInit7a3505e55617f8f2db52e08684c4f307
             0 => __DIR__ . '/../..' . '/app',
             1 => __DIR__ . '/..' . '/laravel/pint/app',
         ),
+        'AfricasTalking\\SDK\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/africastalking/africastalking/src',
+        ),
     );
 
     public static $prefixesPsr0 = array (
@@ -809,6 +814,15 @@ class ComposerStaticInit7a3505e55617f8f2db52e08684c4f307
     );
 
     public static $classMap = array (
+        'AfricasTalking\\SDK\\AfricasTalking' => __DIR__ . '/..' . '/africastalking/africastalking/src/AfricasTalking.php',
+        'AfricasTalking\\SDK\\Airtime' => __DIR__ . '/..' . '/africastalking/africastalking/src/Airtime.php',
+        'AfricasTalking\\SDK\\Application' => __DIR__ . '/..' . '/africastalking/africastalking/src/Application.php',
+        'AfricasTalking\\SDK\\Content' => __DIR__ . '/..' . '/africastalking/africastalking/src/Content.php',
+        'AfricasTalking\\SDK\\MobileData' => __DIR__ . '/..' . '/africastalking/africastalking/src/MobileData.php',
+        'AfricasTalking\\SDK\\SMS' => __DIR__ . '/..' . '/africastalking/africastalking/src/SMS.php',
+        'AfricasTalking\\SDK\\Service' => __DIR__ . '/..' . '/africastalking/africastalking/src/Service.php',
+        'AfricasTalking\\SDK\\Token' => __DIR__ . '/..' . '/africastalking/africastalking/src/Token.php',
+        'AfricasTalking\\SDK\\Voice' => __DIR__ . '/..' . '/africastalking/africastalking/src/Voice.php',
         'App\\Channels\\SMS' => __DIR__ . '/../..' . '/app/Channels/SMS.php',
         'App\\Channels\\SmsMessage' => __DIR__ . '/../..' . '/app/Channels/SmsMessage.php',
         'App\\Console\\Kernel' => __DIR__ . '/../..' . '/app/Console/Kernel.php',
@@ -816,6 +830,15 @@ class ComposerStaticInit7a3505e55617f8f2db52e08684c4f307
         'App\\Cronjobs\\UpcommingLoanNotification' => __DIR__ . '/../..' . '/app/Cronjobs/UpcommingLoanNotification.php',
         'App\\Cronjobs\\YearlyMaintenanceFeePosting' => __DIR__ . '/../..' . '/app/Cronjobs/YearlyMaintenanceFeePosting.php',
         'App\\Exceptions\\Handler' => __DIR__ . '/../..' . '/app/Exceptions/Handler.php',
+        'App\\Http\\Controllers\\Api\\ApiController' => __DIR__ . '/../..' . '/app/Http/Controllers/Api/ApiController.php',
+        'App\\Http\\Controllers\\Api\\AuthController' => __DIR__ . '/../..' . '/app/Http/Controllers/Api/AuthController.php',
+        'App\\Http\\Controllers\\Api\\DashboardController' => __DIR__ . '/../..' . '/app/Http/Controllers/Api/DashboardController.php',
+        'App\\Http\\Controllers\\Api\\DepositController' => __DIR__ . '/../..' . '/app/Http/Controllers/Api/DepositController.php',
+        'App\\Http\\Controllers\\Api\\LoanController' => __DIR__ . '/../..' . '/app/Http/Controllers/Api/LoanController.php',
+        'App\\Http\\Controllers\\Api\\NotificationController' => __DIR__ . '/../..' . '/app/Http/Controllers/Api/NotificationController.php',
+        'App\\Http\\Controllers\\Api\\SavingsController' => __DIR__ . '/../..' . '/app/Http/Controllers/Api/SavingsController.php',
+        'App\\Http\\Controllers\\Api\\SmsController' => __DIR__ . '/../..' . '/app/Http/Controllers/Api/SmsController.php',
+        'App\\Http\\Controllers\\Api\\TransactionController' => __DIR__ . '/../..' . '/app/Http/Controllers/Api/TransactionController.php',
         'App\\Http\\Controllers\\Auth\\ConfirmPasswordController' => __DIR__ . '/../..' . '/app/Http/Controllers/Auth/ConfirmPasswordController.php',
         'App\\Http\\Controllers\\Auth\\ForgotPasswordController' => __DIR__ . '/../..' . '/app/Http/Controllers/Auth/ForgotPasswordController.php',
         'App\\Http\\Controllers\\Auth\\LoginController' => __DIR__ . '/../..' . '/app/Http/Controllers/Auth/LoginController.php',
@@ -888,9 +911,12 @@ class ComposerStaticInit7a3505e55617f8f2db52e08684c4f307
         'App\\Http\\Middleware\\Demo' => __DIR__ . '/../..' . '/app/Http/Middleware/Demo.php',
         'App\\Http\\Middleware\\Email2FA' => __DIR__ . '/../..' . '/app/Http/Middleware/Email2FA.php',
         'App\\Http\\Middleware\\EncryptCookies' => __DIR__ . '/../..' . '/app/Http/Middleware/EncryptCookies.php',
+        'App\\Http\\Middleware\\EnsureTwoFactorVerified' => __DIR__ . '/../..' . '/app/Http/Middleware/EnsureTwoFactorVerified.php',
         'App\\Http\\Middleware\\Permission' => __DIR__ . '/../..' . '/app/Http/Middleware/Permission.php',
         'App\\Http\\Middleware\\PreventRequestsDuringMaintenance' => __DIR__ . '/../..' . '/app/Http/Middleware/PreventRequestsDuringMaintenance.php',
         'App\\Http\\Middleware\\RedirectIfAuthenticated' => __DIR__ . '/../..' . '/app/Http/Middleware/RedirectIfAuthenticated.php',
+        'App\\Http\\Middleware\\RequireTwoFactorVerified' => __DIR__ . '/../..' . '/app/Http/Middleware/RequireTwoFactorVerified.php',
+        'App\\Http\\Middleware\\StaffClientContext' => __DIR__ . '/../..' . '/app/Http/Middleware/StaffClientContext.php',
         'App\\Http\\Middleware\\TrimStrings' => __DIR__ . '/../..' . '/app/Http/Middleware/TrimStrings.php',
         'App\\Http\\Middleware\\TrustHosts' => __DIR__ . '/../..' . '/app/Http/Middleware/TrustHosts.php',
         'App\\Http\\Middleware\\TrustProxies' => __DIR__ . '/../..' . '/app/Http/Middleware/TrustProxies.php',
@@ -927,6 +953,7 @@ class ComposerStaticInit7a3505e55617f8f2db52e08684c4f307
         'App\\Models\\Page' => __DIR__ . '/../..' . '/app/Models/Page.php',
         'App\\Models\\PageTranslation' => __DIR__ . '/../..' . '/app/Models/PageTranslation.php',
         'App\\Models\\PaymentGateway' => __DIR__ . '/../..' . '/app/Models/PaymentGateway.php',
+        'App\\Models\\PersonalAccessToken' => __DIR__ . '/../..' . '/app/Models/PersonalAccessToken.php',
         'App\\Models\\Role' => __DIR__ . '/../..' . '/app/Models/Role.php',
         'App\\Models\\SavingsAccount' => __DIR__ . '/../..' . '/app/Models/SavingsAccount.php',
         'App\\Models\\SavingsProduct' => __DIR__ . '/../..' . '/app/Models/SavingsProduct.php',
@@ -958,6 +985,7 @@ class ComposerStaticInit7a3505e55617f8f2db52e08684c4f307
         'App\\Providers\\BroadcastServiceProvider' => __DIR__ . '/../..' . '/app/Providers/BroadcastServiceProvider.php',
         'App\\Providers\\EventServiceProvider' => __DIR__ . '/../..' . '/app/Providers/EventServiceProvider.php',
         'App\\Providers\\RouteServiceProvider' => __DIR__ . '/../..' . '/app/Providers/RouteServiceProvider.php',
+        'App\\Services\\AfricasTalkingSmsService' => __DIR__ . '/../..' . '/app/Services/AfricasTalkingSmsService.php',
         'App\\Traits\\Branch' => __DIR__ . '/../..' . '/app/Traits/Branch.php',
         'App\\Traits\\Member' => __DIR__ . '/../..' . '/app/Traits/Member.php',
         'App\\Traits\\Translatable' => __DIR__ . '/../..' . '/app/Traits/Translatable.php',

@@ -55,12 +55,11 @@ class SmsHelper {
         $nexmo_api_secret = get_option('nexmo_api_secret');
         $fromName         = get_option('company_name');
 
-        $setup  = new \Vonage\Client\Credentials\Basic($nexmo_api_key, $nexmo_api_secret);
-        $client = new \Vonage\Client($setup);
+        $setup    = new \Vonage\Client\Credentials\Basic($nexmo_api_key, $nexmo_api_secret);
+        $client   = new \Vonage\Client($setup);
         $response = $client->sms()->send(
             new \Vonage\SMS\Message\SMS($to, $fromName, $message)
         );
-        $message = $response->current();
     }
 
     public function infobip($to, $message) {
@@ -91,47 +90,8 @@ class SmsHelper {
     }
 
     public function africasTalking($to, $message) {
-        $username  = get_option('at_username');
-        $api_key   = get_option('at_api_key');
-        $sender_id = get_option('at_sender_id', 'AFRICASTALKING');
-
-        // Ensure number is in international format e.g. +256700000000
-        $to = '+' . ltrim((string) $to, '+');
-
-        $postData = http_build_query([
-            'username' => $username,
-            'to'       => $to,
-            'message'  => $message,
-            'from'     => $sender_id,
-        ]);
-
-        $curl = curl_init();
-        curl_setopt_array($curl, [
-            CURLOPT_URL            => 'https://api.africastalking.com/version1/messaging',
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => $postData,
-            CURLOPT_HTTPHEADER     => [
-                'apiKey: ' . $api_key,
-                'Accept: application/json',
-                'Content-Type: application/x-www-form-urlencoded',
-            ],
-        ]);
-
-        try {
-            $response = curl_exec($curl);
-            $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
-            curl_close($curl);
-
-            Log::info('[AfricasTalking SMS]', [
-                'to'       => $to,
-                'http'     => $httpCode,
-                'response' => $response,
-            ]);
-        } catch (\Exception $e) {
-            Log::error('[AfricasTalking SMS] Error: ' . $e->getMessage());
-            curl_close($curl);
-        }
+        $service = new \App\Services\AfricasTalkingSmsService();
+        $service->sendSMS((string) $to, $message);
     }
 
 }
