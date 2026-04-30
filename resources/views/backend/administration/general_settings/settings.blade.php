@@ -413,6 +413,7 @@
 														<option value="textmagic">{{ _lang('Textmagic') }}</option>
 														<option value="nexmo">{{ _lang('Nexmo') }}</option>
 														<option value="infobip">{{ _lang('Infobip') }}</option>
+														<option value="egosms">{{ _lang('EgoSMS') }}</option>
 													</select>
 												</div>
 											</div>
@@ -466,6 +467,7 @@
 														<option value="textmagic">{{ _lang('Textmagic') }}</option>
 														<option value="nexmo">{{ _lang('Nexmo') }}</option>
 														<option value="infobip">{{ _lang('Infobip') }}</option>
+														<option value="egosms">{{ _lang('EgoSMS') }}</option>
 													</select>
 												</div>
 											</div>
@@ -512,6 +514,7 @@
 														<option value="textmagic">{{ _lang('Textmagic') }}</option>
 														<option value="nexmo">{{ _lang('Nexmo') }}</option>
 														<option value="infobip">{{ _lang('Infobip') }}</option>
+														<option value="egosms">{{ _lang('EgoSMS') }}</option>
 													</select>
 												</div>
 											</div>
@@ -558,6 +561,7 @@
 														<option value="textmagic">{{ _lang('Textmagic') }}</option>
 														<option value="nexmo">{{ _lang('Nexmo') }}</option>
 														<option value="infobip">{{ _lang('Infobip') }}</option>
+														<option value="egosms">{{ _lang('EgoSMS') }}</option>
 													</select>
 												</div>
 											</div>
@@ -585,6 +589,60 @@
 									</div>
 								</div>
 							</div> <!--End Infobip -->
+
+							<div class="card mt-2">
+								<div class="card-header params-panel" data-toggle="collapse" data-target="#collapseFive" aria-expanded="true" aria-controls="collapseFive">
+								  <strong>{{ _lang('EgoSMS') }}</strong>
+								</div>
+
+								<div id="collapseFive" class="collapse" aria-labelledby="headingFive" data-parent="#sms_gateway">
+									<div class="card-body">
+									   <form method="post" class="settings-submit params-panel" autocomplete="off" action="{{ route('settings.update_settings','store') }}" enctype="multipart/form-data">
+											@csrf
+											<div class="form-group row">
+												<label class="col-xl-3 col-lg-4 col-form-label">{{ _lang('SMS Gateway') }}</label>
+												<div class="col-xl-9 col-lg-8">
+													<select class="form-control auto-select" data-selected="{{ get_setting($settings, 'sms_gateway', 'none') }}" name="sms_gateway" required>
+														<option value="none">{{ _lang('None') }}</option>
+														<option value="twilio">{{ _lang('Twilio') }}</option>
+														<option value="textmagic">{{ _lang('Textmagic') }}</option>
+														<option value="nexmo">{{ _lang('Nexmo') }}</option>
+														<option value="infobip">{{ _lang('Infobip') }}</option>
+														<option value="egosms">{{ _lang('EgoSMS') }}</option>
+													</select>
+												</div>
+											</div>
+
+											<div class="form-group row">
+												<label class="col-xl-3 col-lg-4 col-form-label">{{ _lang('Username') }}</label>
+												<div class="col-xl-9 col-lg-8">
+													<input type="text" class="form-control" name="egosms_username" value="{{ get_setting($settings, 'egosms_username') }}">
+												</div>
+											</div>
+
+											<div class="form-group row">
+												<label class="col-xl-3 col-lg-4 col-form-label">{{ _lang('Password') }}</label>
+												<div class="col-xl-9 col-lg-8">
+													<input type="password" class="form-control" name="egosms_password" value="{{ get_setting($settings, 'egosms_password') }}">
+												</div>
+											</div>
+
+											<div class="form-group row">
+												<label class="col-xl-3 col-lg-4 col-form-label">{{ _lang('Sender ID') }}</label>
+												<div class="col-xl-9 col-lg-8">
+													<input type="text" class="form-control" name="egosms_sender_id" value="{{ get_setting($settings, 'egosms_sender_id') }}" maxlength="11" placeholder="{{ _lang('Max 11 characters') }}">
+												</div>
+											</div>
+
+											<div class="form-group row">
+												<div class="col-xl-9 col-lg-8 offset-xl-3 offset-lg-4">
+													<button type="submit" class="btn btn-primary"><i class="ti-check-box"></i>&nbsp;{{ _lang('Save Settings') }}</button>
+												</div>
+											</div>
+										</form>
+									</div>
+								</div>
+							</div> <!--End EgoSMS -->
 
 						</div>
 					</div>
