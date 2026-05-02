@@ -21,6 +21,7 @@
         "laravel/ui": "^4.2",
         "maatwebsite/excel": "^3.1",
         "mollie/mollie-api-php": "^2.0",
+        "pahappa-limited/comms-sdk": "dev-main",
         "phpjuice/paypal-checkout-sdk": "^3.2",
         "razorpay/razorpay": "2.*",
         "spatie/laravel-cookie-consent": "^3.2",
@@ -83,6 +84,6 @@
             "php-http/discovery": true
         }
     },
-    "minimum-stability": "stable",
+    "minimum-stability": "dev",
     "prefer-stable": true
 }

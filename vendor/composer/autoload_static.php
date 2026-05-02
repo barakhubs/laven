@@ -13,8 +13,8 @@ class ComposerStaticInit7a3505e55617f8f2db52e08684c4f307
         '320cde22f66dd4f5d3fd621d3e88b98f' => __DIR__ . '/..' . '/symfony/polyfill-ctype/bootstrap.php',
         '8825ede83f2f289127722d4e842cf7e8' => __DIR__ . '/..' . '/symfony/polyfill-intl-grapheme/bootstrap.php',
         'b6b991a57620e2fb6b2f66f03fe9ddc2' => __DIR__ . '/..' . '/symfony/string/Resources/functions.php',
-        '667aeda72477189d0494fecd327c3641' => __DIR__ . '/..' . '/symfony/var-dumper/Resources/functions/dump.php',
         '7b11c4dc42b3b3023073cb14e519683c' => __DIR__ . '/..' . '/ralouphie/getallheaders/src/getallheaders.php',
+        '667aeda72477189d0494fecd327c3641' => __DIR__ . '/..' . '/symfony/var-dumper/Resources/functions/dump.php',
         '0b47d6d4a00ca9112ba3953b49e7c9a4' => __DIR__ . '/..' . '/yajra/laravel-datatables-oracle/src/helper.php',
         'f598d06aa772fa33d905e87be6398fb1' => __DIR__ . '/..' . '/symfony/polyfill-intl-idn/bootstrap.php',
         '37a3dc5111fe8f707ab4c132ef1dbc62' => __DIR__ . '/..' . '/guzzlehttp/guzzle/src/functions_include.php',
@@ -159,6 +159,7 @@ class ComposerStaticInit7a3505e55617f8f2db52e08684c4f307
             'PayPal\\Http\\' => 12,
             'PayPal\\Checkout\\' => 16,
             'ParagonIE\\ConstantTime\\' => 23,
+            'PahappaLimited\\CommsSDK\\v1\\' => 27,
         ),
         'O' => 
         array (
@@ -545,6 +546,10 @@ class ComposerStaticInit7a3505e55617f8f2db52e08684c4f307
         'ParagonIE\\ConstantTime\\' => 
         array (
             0 => __DIR__ . '/..' . '/paragonie/constant_time_encoding/src',
+        ),
+        'PahappaLimited\\CommsSDK\\v1\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/pahappa-limited/comms-sdk/src/v1',
         ),
         'OpenSpout\\' => 
         array (
@@ -6577,6 +6582,15 @@ class ComposerStaticInit7a3505e55617f8f2db52e08684c4f307
         'PHPUnit\\Util\\Xml' => __DIR__ . '/..' . '/phpunit/phpunit/src/Util/Xml/Xml.php',
         'PHPUnit\\Util\\Xml\\Loader' => __DIR__ . '/..' . '/phpunit/phpunit/src/Util/Xml/Loader.php',
         'PHPUnit\\Util\\Xml\\XmlException' => __DIR__ . '/..' . '/phpunit/phpunit/src/Util/Exception/XmlException.php',
+        'PahappaLimited\\CommsSDK\\v1\\CommsSDK' => __DIR__ . '/..' . '/pahappa-limited/comms-sdk/src/v1/CommsSDK.php',
+        'PahappaLimited\\CommsSDK\\v1\\models\\ApiRequest' => __DIR__ . '/..' . '/pahappa-limited/comms-sdk/src/v1/models/ApiRequest.php',
+        'PahappaLimited\\CommsSDK\\v1\\models\\ApiResponse' => __DIR__ . '/..' . '/pahappa-limited/comms-sdk/src/v1/models/ApiResponse.php',
+        'PahappaLimited\\CommsSDK\\v1\\models\\ApiResponseCode' => __DIR__ . '/..' . '/pahappa-limited/comms-sdk/src/v1/models/ApiResponseCode.php',
+        'PahappaLimited\\CommsSDK\\v1\\models\\MessageModel' => __DIR__ . '/..' . '/pahappa-limited/comms-sdk/src/v1/models/MessageModel.php',
+        'PahappaLimited\\CommsSDK\\v1\\models\\MessagePriority' => __DIR__ . '/..' . '/pahappa-limited/comms-sdk/src/v1/models/MessagePriority.php',
+        'PahappaLimited\\CommsSDK\\v1\\models\\UserData' => __DIR__ . '/..' . '/pahappa-limited/comms-sdk/src/v1/models/UserData.php',
+        'PahappaLimited\\CommsSDK\\v1\\utils\\NumberValidator' => __DIR__ . '/..' . '/pahappa-limited/comms-sdk/src/v1/utils/NumberValidator.php',
+        'PahappaLimited\\CommsSDK\\v1\\utils\\Validator' => __DIR__ . '/..' . '/pahappa-limited/comms-sdk/src/v1/utils/Validator.php',
         'ParagonIE\\ConstantTime\\Base32' => __DIR__ . '/..' . '/paragonie/constant_time_encoding/src/Base32.php',
         'ParagonIE\\ConstantTime\\Base32Hex' => __DIR__ . '/..' . '/paragonie/constant_time_encoding/src/Base32Hex.php',
         'ParagonIE\\ConstantTime\\Base64' => __DIR__ . '/..' . '/paragonie/constant_time_encoding/src/Base64.php',

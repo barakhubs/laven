@@ -3,7 +3,7 @@
         'name' => 'laravel/laravel',
         'pretty_version' => 'dev-main',
         'version' => 'dev-main',
-        'reference' => 'aae9189d7abb04c6384e15ba7974444860c165de',
+        'reference' => '2c91d15e1377c3cfbba85d1e44d481cd02f98462',
         'type' => 'project',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
@@ -496,7 +496,7 @@
         'laravel/laravel' => array(
             'pretty_version' => 'dev-main',
             'version' => 'dev-main',
-            'reference' => 'aae9189d7abb04c6384e15ba7974444860c165de',
+            'reference' => '2c91d15e1377c3cfbba85d1e44d481cd02f98462',
             'type' => 'project',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),
@@ -821,6 +821,17 @@
             'type' => 'library',
             'install_path' => __DIR__ . '/../openspout/openspout',
             'aliases' => array(),
+            'dev_requirement' => false,
+        ),
+        'pahappa-limited/comms-sdk' => array(
+            'pretty_version' => 'dev-main',
+            'version' => 'dev-main',
+            'reference' => '753fe0fe23a925d2fb50d04e5fbfb2de07b0cfe9',
+            'type' => 'library',
+            'install_path' => __DIR__ . '/../pahappa-limited/comms-sdk',
+            'aliases' => array(
+                0 => '9999999-dev',
+            ),
             'dev_requirement' => false,
         ),
         'paragonie/constant_time_encoding' => array(

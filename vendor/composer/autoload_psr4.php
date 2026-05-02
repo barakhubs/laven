@@ -75,6 +75,7 @@ return array(
     'PayPal\\Http\\' => array($vendorDir . '/phpjuice/paypal-http-client/src'),
     'PayPal\\Checkout\\' => array($vendorDir . '/phpjuice/paypal-checkout-sdk/src'),
     'ParagonIE\\ConstantTime\\' => array($vendorDir . '/paragonie/constant_time_encoding/src'),
+    'PahappaLimited\\CommsSDK\\v1\\' => array($vendorDir . '/pahappa-limited/comms-sdk/src/v1'),
     'OpenSpout\\' => array($vendorDir . '/openspout/openspout/src'),
     'NunoMaduro\\Collision\\' => array($vendorDir . '/nunomaduro/collision/src'),
     'Nette\\' => array($vendorDir . '/nette/schema/src', $vendorDir . '/nette/utils/src'),
