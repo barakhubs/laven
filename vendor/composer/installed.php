@@ -3,13 +3,22 @@
         'name' => 'laravel/laravel',
         'pretty_version' => 'dev-main',
         'version' => 'dev-main',
-        'reference' => '9e4113f4b7ed64691c40ddad455c4472a02e686b',
+        'reference' => '2c91d15e1377c3cfbba85d1e44d481cd02f98462',
         'type' => 'project',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
         'dev' => true,
     ),
     'versions' => array(
+        'africastalking/africastalking' => array(
+            'pretty_version' => 'v3.0.2',
+            'version' => '3.0.2.0',
+            'reference' => '8345423ee70b07b36cedcce61c85c9bc679e3666',
+            'type' => 'library',
+            'install_path' => __DIR__ . '/../africastalking/africastalking',
+            'aliases' => array(),
+            'dev_requirement' => false,
+        ),
         'barryvdh/laravel-dompdf' => array(
             'pretty_version' => 'v2.2.0',
             'version' => '2.2.0.0',
@@ -487,7 +496,7 @@
         'laravel/laravel' => array(
             'pretty_version' => 'dev-main',
             'version' => 'dev-main',
-            'reference' => '9e4113f4b7ed64691c40ddad455c4472a02e686b',
+            'reference' => '2c91d15e1377c3cfbba85d1e44d481cd02f98462',
             'type' => 'project',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),
@@ -812,6 +821,17 @@
             'type' => 'library',
             'install_path' => __DIR__ . '/../openspout/openspout',
             'aliases' => array(),
+            'dev_requirement' => false,
+        ),
+        'pahappa-limited/comms-sdk' => array(
+            'pretty_version' => 'dev-main',
+            'version' => 'dev-main',
+            'reference' => '753fe0fe23a925d2fb50d04e5fbfb2de07b0cfe9',
+            'type' => 'library',
+            'install_path' => __DIR__ . '/../pahappa-limited/comms-sdk',
+            'aliases' => array(
+                0 => '9999999-dev',
+            ),
             'dev_requirement' => false,
         ),
         'paragonie/constant_time_encoding' => array(

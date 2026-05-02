@@ -41,6 +41,7 @@
 									<option value="mortgage">{{ _lang('Mortgage amortization') }}</option>
 									<option value="reducing_amount">{{ _lang('Reducing Amount') }}</option>
 									<option value="one_time">{{ _lang('One-time payment') }}</option>
+									<option value="interest_only">{{ _lang('Interest Only (Bullet)') }}</option>
 								</select>
 							</div>
 						</div>

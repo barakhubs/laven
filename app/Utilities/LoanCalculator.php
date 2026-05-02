@@ -151,6 +151,39 @@ class LoanCalculator
         return $data;
     }
 
+    public function get_interest_only()
+    {
+        // Rate is entered as monthly percentage (same as fixed_rate, flat_rate)
+        $monthly_interest = ($this->interest_rate / 100) * $this->amount;
+
+        // Total payable = (interest × all months) + principal at end
+        $this->payable_amount = ($monthly_interest * $this->term) + $this->amount;
+
+        $date    = $this->first_payment_date;
+        $penalty = ($this->late_payment_penalties / 100) * $monthly_interest;
+
+        $data = [];
+        for ($i = 0; $i < $this->term; $i++) {
+            $is_last_payment  = ($i === $this->term - 1);
+            $principal_amount = $is_last_payment ? $this->amount : 0;
+            $amount_to_pay    = $is_last_payment ? ($this->amount + $monthly_interest) : $monthly_interest;
+            $balance          = $is_last_payment ? 0 : $this->amount;
+
+            $data[] = [
+                'date'             => $date,
+                'amount_to_pay'    => $amount_to_pay,
+                'penalty'          => $penalty,
+                'principal_amount' => $principal_amount,
+                'interest'         => $monthly_interest,
+                'balance'          => $balance,
+            ];
+
+            $date = date("Y-m-d", strtotime($this->term_period, strtotime($date)));
+        }
+
+        return $data;
+    }
+
     public function get_reducing_amount()
     {
         $interestRate = $this->interest_rate / 100;

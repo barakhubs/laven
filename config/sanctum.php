@@ -59,6 +59,8 @@ return [
     |
     */
 
+    'personal_access_model' => App\Models\PersonalAccessToken::class,
+
     'middleware' => [
         'verify_csrf_token' => App\Http\Middleware\VerifyCsrfToken::class,
         'encrypt_cookies' => App\Http\Middleware\EncryptCookies::class,

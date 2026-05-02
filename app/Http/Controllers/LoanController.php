@@ -227,6 +227,8 @@ class LoanController extends Controller {
             $repayments = $calculator->get_one_time();
         } else if ($loan->loan_product->interest_type == 'reducing_amount') {
             $repayments = $calculator->get_reducing_amount();
+        } else if ($loan->loan_product->interest_type == 'interest_only') {
+            $repayments = $calculator->get_interest_only();
         }
 
         $loan->total_payable = $calculator->payable_amount;
@@ -392,6 +394,8 @@ class LoanController extends Controller {
             $repayments = $calculator->get_one_time();
         } else if ($interest_type == 'reducing_amount') {
             $repayments = $calculator->get_reducing_amount();
+        } else if ($interest_type == 'interest_only') {
+            $repayments = $calculator->get_interest_only();
         }
 
         $loan->total_payable = $calculator->payable_amount;
@@ -593,6 +597,8 @@ class LoanController extends Controller {
             $repayments = $calculator->get_one_time();
         } else if ($loan->loan_product->interest_type == 'reducing_amount') {
             $repayments = $calculator->get_reducing_amount();
+        } else if ($loan->loan_product->interest_type == 'interest_only') {
+            $repayments = $calculator->get_interest_only();
         }
 
         $loan->total_payable = $calculator->payable_amount;
@@ -755,6 +761,12 @@ class LoanController extends Controller {
 
             $calculator             = new Calculator($apply_amount, $first_payment_date, $interest_rate, $term, $term_period, $late_payment_penalties);
             $table_data             = $calculator->get_reducing_amount();
+            $data['payable_amount'] = $calculator->payable_amount;
+
+        } else if ($interest_type == 'interest_only') {
+
+            $calculator             = new Calculator($apply_amount, $first_payment_date, $interest_rate, $term, $term_period, $late_payment_penalties);
+            $table_data             = $calculator->get_interest_only();
             $data['payable_amount'] = $calculator->payable_amount;
 
         }
