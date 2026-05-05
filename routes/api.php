@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\SmsController;
+use App\Http\Controllers\PhoneOtpController;
 
 Route::prefix('v1')->group(function () {
 
@@ -36,6 +37,10 @@ Route::prefix('v1')->group(function () {
         Route::post('profile/update_password', [ProfileController::class, 'apiUpdatePassword'])->name('api.profile.update_password');
 
         Route::post('send-sms', [SmsController::class, 'send'])->name('api.send-sms');
+
+        // Phone OTP for member registration (staff use, requires auth)
+        Route::post('members/send-otp',   [PhoneOtpController::class, 'send'])->name('api.members.send_otp');
+        Route::post('members/verify-otp', [PhoneOtpController::class, 'verify'])->name('api.members.verify_otp');
 
         // All data routes require client context resolution
         Route::middleware('staff.client.context')->group(function () {

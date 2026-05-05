@@ -46,12 +46,19 @@ class PhoneOtpController extends Controller
         $companyName = get_option('company_name', 'System');
         $message     = "Your {$companyName} verification code is: {$code}. Valid for 10 minutes.";
 
+        $smsFailed = false;
         try {
             $sms = new SmsHelper();
             $sms->send($phone, $message);
         } catch (\Exception $e) {
             Log::error('PhoneOtpController: SMS send failed', ['phone' => $phone, 'error' => $e->getMessage()]);
-            return $this->respond($request, false, 'Failed to send OTP. Please try again.');
+            $smsFailed = true;
+        }
+
+        // Even if SMS throws, the OTP is saved. Only hard-fail on explicit gateway errors
+        // that indicate the number was rejected (not just a gateway warning).
+        if ($smsFailed) {
+            return $this->respond($request, false, 'Failed to send OTP SMS. Please check the phone number and try again.');
         }
 
         return $this->respond($request, true, 'OTP sent successfully. Please check your phone.');

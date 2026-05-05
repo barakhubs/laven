@@ -43,18 +43,34 @@ class MembersImport implements ToCollection, WithStartRow
                 continue;
             }
 
-            // Check Email is unique
+            // Check Email is unique across ALL branches
             if ($row[2] != '') {
-                $member = Member::where('email', $row[2])->first();
+                $member = Member::withoutGlobalScopes()->where('email', $row[2])->first();
                 if ($member) {
                     continue;
                 }
             }
 
-            // Check Member no is unique
-            $member = Member::where('member_no', $row[3])->first();
+            // Check Member no is unique across ALL branches
+            $member = Member::withoutGlobalScopes()->where('member_no', $row[3])->first();
             if ($member) {
                 continue;
+            }
+
+            // Check NIN is unique across ALL branches (column index 14, if provided)
+            if (isset($row[14]) && $row[14] != '') {
+                $member = Member::withoutGlobalScopes()->where('nin', strtoupper(trim($row[14])))->first();
+                if ($member) {
+                    continue;
+                }
+            }
+
+            // Check Mobile is unique across ALL branches (column index 5)
+            if (isset($row[5]) && $row[5] != '') {
+                $member = Member::withoutGlobalScopes()->where('mobile', $row[5])->first();
+                if ($member) {
+                    continue;
+                }
             }
 
             if ($row[13] != null) {
@@ -82,6 +98,7 @@ class MembersImport implements ToCollection, WithStartRow
             $member->address       = $row[11];
             $member->credit_source = $row[12];
             $member->branch_id     = $row[13] != null ? $branch->id : null;
+            $member->nin           = isset($row[14]) && $row[14] != '' ? strtoupper(trim($row[14])) : null;
             $member->status        = 1;
 
             $member->save();

@@ -29,6 +29,15 @@ class LoanController extends ApiController
     {
         $member = $request->attributes->get('effectiveMember');
 
+        if (empty($member->nin)) {
+            return $this->error(
+                'Your NIN (National Identification Number) is required before accessing loans. Please visit your branch to update your profile.',
+                'NIN_REQUIRED',
+                [],
+                403
+            );
+        }
+
         $query = Loan::with(['loan_product', 'next_payment', 'currency'])
             ->where('borrower_id', $member->id);
 
@@ -93,6 +102,15 @@ class LoanController extends ApiController
     public function pay(Request $request, $id)
     {
         $member = $request->attributes->get('effectiveMember');
+
+        if (empty($member->nin)) {
+            return $this->error(
+                'Your NIN is required before making loan payments. Please visit your branch to update your profile.',
+                'NIN_REQUIRED',
+                [],
+                403
+            );
+        }
 
         $validator = Validator::make($request->all(), [
             'account_id' => 'required',

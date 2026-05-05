@@ -155,6 +155,25 @@ class LoanController extends Controller
 
     public function apply_loan(Request $request)
     {
+        // Block entirely if member has no NIN
+        $member = auth()->user()->member;
+        if (! $member || empty($member->nin)) {
+            $msg = _lang('Your NIN (National Identification Number) is required before you can apply for a loan. Please visit your branch to update your profile.');
+            if ($request->isMethod('get')) {
+                return view('backend.customer_portal.loan.apply_loan', [
+                    'alert_col'    => 'col-lg-8 offset-lg-2',
+                    'nin_required' => true,
+                    'nin_message'  => $msg,
+                    'customFields' => collect(),
+                    'accounts'     => collect(),
+                ]);
+            }
+            if ($request->ajax()) {
+                return response()->json(['result' => 'error', 'message' => [$msg]]);
+            }
+            return back()->with('error', $msg);
+        }
+
         if ($request->isMethod('get')) {
             $alert_col    = "col-lg-8 offset-lg-2";
             $customFields = CustomField::where('table', 'loans')

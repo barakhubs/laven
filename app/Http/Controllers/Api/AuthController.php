@@ -108,7 +108,9 @@ class AuthController extends ApiController
             'first_name'   => 'required|string|max:50',
             'last_name'    => 'required|string|max:50',
             'email'        => 'required|email|max:191|unique:users|unique:members',
-            'mobile'       => 'required|numeric|unique:members',
+            'mobile'       => 'required|string|max:30',
+            'nin'          => 'required|string|max:20',
+            'otp_token'    => 'required|string',
             'country_code' => 'required|string',
             'password'     => ['required', 'confirmed', PasswordRule::min(6)],
             'gender'       => 'required|string',
@@ -122,6 +124,25 @@ class AuthController extends ApiController
 
         if ($validator->fails()) {
             return $this->error('Validation failed', 'VALIDATION_ERROR', $validator->errors()->toArray());
+        }
+
+        // Cross-branch uniqueness checks
+        if (Member::withoutGlobalScopes()->where('nin', $request->nin)->exists()) {
+            return $this->error('This NIN is already registered in the system.', 'NIN_DUPLICATE', [], 422);
+        }
+
+        if (Member::withoutGlobalScopes()->where('mobile', $request->mobile)->exists()) {
+            return $this->error('This phone number is already registered in the system.', 'PHONE_DUPLICATE', [], 422);
+        }
+
+        // Validate OTP token
+        $otpValid = \App\Http\Controllers\PhoneOtpController::validateToken(
+            $request->otp_token,
+            $request->mobile
+        );
+
+        if (! $otpValid) {
+            return $this->error('Phone number OTP verification is required.', 'OTP_REQUIRED', [], 422);
         }
 
         DB::beginTransaction();
@@ -144,6 +165,7 @@ class AuthController extends ApiController
             $member->email         = $request->email;
             $member->country_code  = $request->country_code;
             $member->mobile        = $request->mobile;
+            $member->nin           = strtoupper(trim($request->nin));
             $member->business_name = $request->business_name ?? '';
             $member->member_no     = get_option('starting_member_no', null);
             $member->gender        = $request->gender;

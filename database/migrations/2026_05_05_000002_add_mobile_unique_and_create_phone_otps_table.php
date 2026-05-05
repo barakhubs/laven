@@ -17,16 +17,19 @@ class AddMobileUniqueAndCreatePhoneOtpsTable extends Migration
     {
         // Remove duplicate mobile numbers before adding unique constraint
         // (keep the earliest record per mobile, nullify the rest)
+        // PostgreSQL-compatible syntax
         DB::statement("
-            UPDATE members m
-            JOIN (
-                SELECT mobile, MIN(id) AS keep_id
-                FROM members
-                WHERE mobile IS NOT NULL AND mobile != ''
-                GROUP BY mobile
-                HAVING COUNT(*) > 1
-            ) dups ON m.mobile = dups.mobile AND m.id != dups.keep_id
-            SET m.mobile = NULL
+            UPDATE members
+            SET mobile = NULL
+            WHERE id IN (
+                SELECT id FROM (
+                    SELECT id,
+                           ROW_NUMBER() OVER (PARTITION BY mobile ORDER BY id ASC) AS rn
+                    FROM members
+                    WHERE mobile IS NOT NULL AND mobile != ''
+                ) ranked
+                WHERE rn > 1
+            )
         ");
 
         Schema::table('members', function (Blueprint $table) {

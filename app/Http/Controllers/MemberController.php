@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 use DataTables;
 use App\Models\User;
 use App\Models\Member;
+use App\Models\PhoneOtp;
 use App\Mail\GeneralMail;
 use App\Models\CustomField;
 use App\Models\Transaction;
@@ -123,7 +124,9 @@ class MemberController extends Controller {
             'first_name'   => 'required',
             'last_name'    => 'required',
             'email'        => 'nullable|email|unique:members|max:191',
-            'member_no'    => 'required|unique:members|max:50',
+            'member_no'    => 'required|max:50',
+            'nin'          => 'required|string|size:14|alpha_num',
+            'mobile'       => 'required|string|max:30',
             'country_code' => 'required_with:mobile',
             'photo'        => 'nullable|image',
             //User Login Attributes
@@ -158,6 +161,65 @@ class MemberController extends Controller {
                 return redirect()->route('members.create')
                     ->withErrors($validator)
                     ->withInput();
+            }
+        }
+
+        // --- Cross-branch uniqueness checks (bypass Branch global scope) ---
+        $errors = [];
+
+        $ninExists = Member::withoutGlobalScopes()
+            ->whereRaw('UPPER(nin) = ?', [strtoupper(trim($request->nin))])
+            ->exists();
+        if ($ninExists) {
+            $errors[] = 'This NIN is already registered in the system.';
+        }
+
+        $phoneExists = Member::withoutGlobalScopes()
+            ->where('mobile', $request->mobile)
+            ->exists();
+        if ($phoneExists) {
+            $errors[] = 'This phone number is already registered in the system.';
+        }
+
+        $memberNoExists = Member::withoutGlobalScopes()
+            ->where('member_no', $request->member_no)
+            ->exists();
+        if ($memberNoExists) {
+            $errors[] = 'This member number is already in use.';
+        }
+
+        if (! empty($errors)) {
+            if ($request->ajax()) {
+                return response()->json(['result' => 'error', 'message' => $errors]);
+            } else {
+                return redirect()->route('members.create')
+                    ->withErrors($errors)
+                    ->withInput();
+            }
+        }
+
+        // --- OTP verification (admin can override) ---
+        $isAdminOverride = auth()->user()->user_type === 'admin' && $request->boolean('otp_override');
+
+        if ($isAdminOverride) {
+            // Log the override for audit trail
+            \Illuminate\Support\Facades\Log::warning('Member OTP override used', [
+                'by'     => auth()->user()->name,
+                'phone'  => $request->mobile,
+                'reason' => $request->otp_override_reason ?? 'No reason given',
+            ]);
+        } else {
+            $otpToken = $request->input('otp_token');
+            $otpValid = $otpToken
+                ? \App\Http\Controllers\PhoneOtpController::validateToken($otpToken, $request->mobile)
+                : null;
+
+            if (! $otpValid) {
+                $msg = 'Phone number must be verified via OTP before saving a member.';
+                if ($request->ajax()) {
+                    return response()->json(['result' => 'error', 'message' => [$msg]]);
+                }
+                return redirect()->route('members.create')->withErrors([$msg])->withInput();
             }
         }
 
@@ -199,6 +261,7 @@ class MemberController extends Controller {
         $member->email         = $request->input('email');
         $member->country_code  = $request->input('country_code');
         $member->mobile        = $request->input('mobile');
+        $member->nin           = strtoupper(trim($request->input('nin')));
         $member->business_name = $request->input('business_name');
         $member->member_no     = get_option('starting_member_no', $request->input('member_no'));
         $member->gender        = $request->input('gender');
@@ -381,6 +444,19 @@ class MemberController extends Controller {
                 'required',
                 Rule::unique('members')->ignore($id),
             ],
+            'nin'          => [
+                'nullable',
+                'string',
+                'size:14',
+                'alpha_num',
+                Rule::unique('members')->ignore($id),
+            ],
+            'mobile'       => [
+                'nullable',
+                'string',
+                'max:30',
+                Rule::unique('members')->ignore($id),
+            ],
             'country_code' => 'required_with:mobile',
             'photo'        => 'nullable|image',
             'name'         => 'required_if:client_login,1|max:191', // User Login Attribute
@@ -460,6 +536,7 @@ class MemberController extends Controller {
         $member->email         = $request->input('email');
         $member->country_code  = $request->input('country_code');
         $member->mobile        = $request->input('mobile');
+        $member->nin           = $request->input('nin') ? strtoupper(trim($request->input('nin'))) : $member->nin;
         $member->business_name = $request->input('business_name');
         $member->member_no     = $request->input('member_no');
         $member->gender        = $request->input('gender');
@@ -701,5 +778,3 @@ class MemberController extends Controller {
         }
     }
 }
-
-
