@@ -8,7 +8,15 @@
 				<span class="panel-title">{{ _lang('Apply New Loan') }}</span>
 			</div>
 			<div class="card-body">
-				<form method="post" class="validate" autocomplete="off" action="{{ route('loans.apply_loan') }}" enctype="multipart/form-data">
+				@if(!empty($nin_required))
+				<div class="alert alert-danger d-flex align-items-center" role="alert">
+					<i class="ti-id-badge mr-3" style="font-size:2rem;"></i>
+					<div>
+						<strong>{{ _lang('NIN Required') }}</strong><br>
+						{{ $nin_message }}
+					</div>
+				</div>
+				@else
 					{{ csrf_field() }}
 					<div class="row">
 
@@ -98,6 +106,7 @@
 						</div>
 					</div>
 				</form>
+			@endif
 			</div>
 		</div>
 	</div>

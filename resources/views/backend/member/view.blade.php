@@ -126,6 +126,16 @@
                                     <tr><th>{{ _lang('Branch') }}</th><td>{{ $member->branch->name }}</td></tr>
                                     <tr><th>{{ _lang('Email') }}</th><td>{{ $member->email ?: '-' }}</td></tr>
                                     <tr><th>{{ _lang('Mobile') }}</th><td>{{ $member->country_code.$member->mobile }}</td></tr>
+                                    <tr>
+                                        <th>{{ _lang('NIN') }}</th>
+                                        <td>
+                                            @if($member->nin)
+                                                <strong>{{ $member->nin }}</strong>
+                                            @else
+                                                <span class="badge badge-danger">{{ _lang('Not on record') }}</span>
+                                            @endif
+                                        </td>
+                                    </tr>
                                     <tr><th>{{ _lang('Gender') }}</th><td>{{ ucwords($member->gender) }}</td></tr>
                                     <tr><th>{{ _lang('City / State / Zip') }}</th><td>{{ implode(', ', array_filter([$member->city, $member->state, $member->zip])) ?: '-' }}</td></tr>
                                     <tr><th>{{ _lang('Address') }}</th><td>{{ $member->address ?: '-' }}</td></tr>

@@ -167,6 +167,16 @@ class LoanController extends Controller {
             }
         }
 
+        // Block loan if member has no NIN
+        $borrower = \App\Models\Member::withoutGlobalScopes()->find($request->borrower_id);
+        if (! $borrower || empty($borrower->nin)) {
+            $msg = _lang('This member does not have a NIN on record. Please update their profile before creating a loan.');
+            if ($request->ajax()) {
+                return response()->json(['result' => 'error', 'message' => [$msg]]);
+            }
+            return back()->with('error', $msg)->withInput();
+        }
+
         //Check Debit account is valid account
         $account = SavingsAccount::where('id', $request->debit_account_id)
             ->where('member_id', $request->borrower_id)
@@ -785,4 +795,3 @@ class LoanController extends Controller {
     }
 
 }
-

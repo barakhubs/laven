@@ -82,10 +82,61 @@
 
 						<div class="col-md-6">
 							<div class="form-group">
-								<label class="control-label">{{ _lang('Mobile') }}</label>
-								<input type="text" class="form-control" name="mobile" value="{{ old('mobile') }}">
+								<label class="control-label">{{ _lang('Mobile') }} <span class="text-danger">*</span></label>
+								<div class="input-group">
+									<input type="text" class="form-control" name="mobile" id="mobile_input" value="{{ old('mobile') }}" required placeholder="{{ _lang('Enter phone number') }}">
+									<div class="input-group-append">
+										<button type="button" class="btn btn-outline-primary" id="send_otp_btn">{{ _lang('Send OTP') }}</button>
+									</div>
+								</div>
+								<small class="text-muted">{{ _lang('Phone must be verified before saving') }}</small>
 							</div>
 						</div>
+
+						{{-- OTP input --}}
+						<div class="col-md-6" id="otp_section" style="display:none;">
+							<div class="form-group">
+								<label class="control-label">{{ _lang('Enter OTP') }} <span class="text-danger">*</span></label>
+								<div class="input-group">
+									<input type="text" class="form-control" id="otp_code_input" maxlength="6" placeholder="______">
+									<div class="input-group-append">
+										<button type="button" class="btn btn-outline-success" id="verify_otp_btn">{{ _lang('Verify') }}</button>
+									</div>
+								</div>
+								<span id="otp_status" class="small font-weight-bold"></span>
+							</div>
+						</div>
+
+						{{-- Hidden OTP token --}}
+						<input type="hidden" name="otp_token" id="otp_token" value="">
+
+						{{-- NIN Field --}}
+						<div class="col-md-6">
+							<div class="form-group">
+								<label class="control-label">{{ _lang('NIN (National ID Number)') }} <span class="text-danger">*</span></label>
+								<input type="text" class="form-control text-uppercase" name="nin" value="{{ old('nin') }}" required maxlength="20" placeholder="e.g. CM12345678ABCD">
+							</div>
+						</div>
+
+						@if(auth()->user()->user_type === 'admin')
+						{{-- Admin OTP override --}}
+						<div class="col-md-12" id="override_toggle_section">
+							<div class="form-group">
+								<div class="custom-control custom-checkbox">
+									<input type="checkbox" class="custom-control-input" id="otp_override_check" name="otp_override" value="1">
+									<label class="custom-control-label text-warning" for="otp_override_check">
+										{{ _lang('Override phone OTP verification (admin only)') }}
+									</label>
+								</div>
+							</div>
+						</div>
+						<div class="col-md-6" id="override_reason_section" style="display:none;">
+							<div class="form-group">
+								<label class="control-label">{{ _lang('Override Reason') }}</label>
+								<input type="text" class="form-control" name="otp_override_reason" placeholder="{{ _lang('Reason for bypassing OTP') }}">
+							</div>
+						</div>
+						@endif
 
 						<div class="col-md-6">
 							<div class="form-group">
@@ -217,3 +268,98 @@
 	</div>
 </form>
 @endsection
+@push('scripts')
+<script>
+$(function () {
+    var otpVerified = false;
+
+    // Show/hide override reason
+    $(document).on('change', '#otp_override_check', function () {
+        $('#override_reason_section').toggle(this.checked);
+        if (this.checked) {
+            $('#otp_section').hide();
+            $('#otp_status').text('');
+        }
+    });
+
+    // Send OTP
+    $('#send_otp_btn').on('click', function () {
+        var phone = $('#mobile_input').val().trim();
+        if (!phone) {
+            alert('{{ _lang("Please enter a phone number first.") }}');
+            return;
+        }
+
+        var btn = $(this).prop('disabled', true).text('{{ _lang("Sending...") }}');
+
+        $.ajax({
+            url: '{{ route("members.phone.send_otp") }}',
+            method: 'POST',
+            data: { phone: phone, _token: '{{ csrf_token() }}' },
+            success: function (res) {
+                if (res.success) {
+                    $('#otp_section').show();
+                    $('#otp_status').text('').removeClass('text-success text-danger');
+                    btn.text('{{ _lang("Resend OTP") }}').prop('disabled', false);
+                } else {
+                    alert(res.message || '{{ _lang("Failed to send OTP.") }}');
+                    btn.text('{{ _lang("Send OTP") }}').prop('disabled', false);
+                }
+            },
+            error: function (xhr) {
+                var msg = xhr.responseJSON ? xhr.responseJSON.message : '{{ _lang("Error sending OTP.") }}';
+                alert(msg);
+                btn.text('{{ _lang("Send OTP") }}').prop('disabled', false);
+            }
+        });
+    });
+
+    // Verify OTP
+    $('#verify_otp_btn').on('click', function () {
+        var phone = $('#mobile_input').val().trim();
+        var code  = $('#otp_code_input').val().trim();
+
+        if (code.length !== 6) {
+            alert('{{ _lang("Please enter the 6-digit OTP code.") }}');
+            return;
+        }
+
+        var btn = $(this).prop('disabled', true).text('{{ _lang("Verifying...") }}');
+
+        $.ajax({
+            url: '{{ route("members.phone.verify_otp") }}',
+            method: 'POST',
+            data: { phone: phone, code: code, _token: '{{ csrf_token() }}' },
+            success: function (res) {
+                if (res.success) {
+                    otpVerified = true;
+                    $('#otp_token').val(res.otp_token);
+                    $('#otp_status').text('✓ {{ _lang("Phone verified") }}').removeClass('text-danger').addClass('text-success');
+                    $('#verify_otp_btn').hide();
+                    $('#otp_code_input').prop('readonly', true);
+                } else {
+                    $('#otp_status').text(res.message).removeClass('text-success').addClass('text-danger');
+                    btn.text('{{ _lang("Verify") }}').prop('disabled', false);
+                }
+            },
+            error: function (xhr) {
+                var msg = xhr.responseJSON ? xhr.responseJSON.message : '{{ _lang("Verification failed.") }}';
+                $('#otp_status').text(msg).removeClass('text-success').addClass('text-danger');
+                btn.text('{{ _lang("Verify") }}').prop('disabled', false);
+            }
+        });
+    });
+
+    // Block form submission if phone not verified (unless admin override is checked)
+    $('form').on('submit', function (e) {
+        var overrideChecked = $('#otp_override_check').is(':checked');
+        if (!otpVerified && !overrideChecked) {
+            e.preventDefault();
+            alert('{{ _lang("Please verify the phone number via OTP before saving.") }}');
+            $('#mobile_input').focus();
+            return false;
+        }
+    });
+});
+</script>
+@endpush

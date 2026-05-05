@@ -85,6 +85,19 @@
 							<div class="form-group">
 								<label class="control-label">{{ _lang('Mobile') }}</label>
 								<input type="text" class="form-control" name="mobile" value="{{ old('mobile',$member->mobile) }}">
+								@if(empty($member->mobile))
+									<small class="text-warning">{{ _lang('No phone on record') }}</small>
+								@endif
+							</div>
+						</div>
+
+						<div class="col-md-6">
+							<div class="form-group">
+								<label class="control-label">{{ _lang('NIN (National ID Number)') }}</label>
+								<input type="text" class="form-control text-uppercase" name="nin" value="{{ old('nin', $member->nin) }}" maxlength="14" minlength="14" pattern="[A-Za-z0-9]{14}" placeholder="e.g. CM19900101ABCD">
+								@if(empty($member->nin))
+									<small class="text-danger">{{ _lang('NIN not on record — please collect and update') }}</small>
+								@endif
 							</div>
 						</div>
 
