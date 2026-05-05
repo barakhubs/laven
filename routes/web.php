@@ -7,6 +7,7 @@ use App\Http\Controllers\RoleController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\MemberController;
+use App\Http\Controllers\PhoneOtpController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\ProfileController;
@@ -170,6 +171,10 @@ Route::group(['middleware' => ['install']], function () {
                 Route::post('members/send_email', [MemberController::class, 'send_email'])->name('members.send_email');
                 Route::post('members/send_sms', [MemberController::class, 'send_sms'])->name('members.send_sms');
                 Route::resource('members', MemberController::class)->middleware("demo:PUT|PATCH|DELETE");
+
+                // Phone OTP verification for member registration
+                Route::post("members/phone/send-otp",   [PhoneOtpController::class, "send"])->name("members.phone.send_otp");
+                Route::post("members/phone/verify-otp", [PhoneOtpController::class, "verify"])->name("members.phone.verify_otp");
 
                 //Custom Field Controller
                 Route::resource('custom_fields', CustomFieldController::class)->except(['index', 'show'])->middleware("demo");
@@ -361,4 +366,3 @@ Route::post('install/finish', 'Install\InstallController@final_touch');
 //Update System
 Route::get('system/update/{action?}', 'Install\UpdateController@index');
 Route::get('migration/update', 'Install\UpdateController@update_migration');
-
