@@ -71,7 +71,7 @@
 						<div class="col-md-6">
 							<div class="form-group">
 								<label class="control-label">{{ _lang('Country Code') }}</label>
-								<select class="form-control select2" name="country_code">
+								<select class="form-control select2" name="country_code" id="country_code_select">
 									<option value="">{{ _lang('Country Code') }}</option>
 									@foreach(get_country_codes() as $key => $value)
 									<option value="{{ $value['dial_code'] }}" {{ old('country_code') == $value['dial_code'] ? 'selected' : '' }}>{{ $value['country'].' (+'.$value['dial_code'].')' }}</option>
@@ -273,6 +273,21 @@
 $(function () {
     var otpVerified = false;
 
+    // Build the full international phone number (country code + local number)
+    function fullPhone() {
+        var dialCode = $('#country_code_select').val().toString().replace(/\D/g, '');
+        var local    = $('#mobile_input').val().trim().replace(/^\+/, '').replace(/\D/g, '');
+        if (!dialCode) {
+            alert('{{ _lang("Please select a country code first.") }}');
+            return null;
+        }
+        if (!local) {
+            alert('{{ _lang("Please enter a phone number first.") }}');
+            return null;
+        }
+        return '+' + dialCode + local;
+    }
+
     // Show/hide override reason
     $(document).on('change', '#otp_override_check', function () {
         $('#override_reason_section').toggle(this.checked);
@@ -284,11 +299,8 @@ $(function () {
 
     // Send OTP
     $('#send_otp_btn').on('click', function () {
-        var phone = $('#mobile_input').val().trim();
-        if (!phone) {
-            alert('{{ _lang("Please enter a phone number first.") }}');
-            return;
-        }
+        var phone = fullPhone();
+        if (!phone) return;
 
         var btn = $(this).prop('disabled', true).text('{{ _lang("Sending...") }}');
 
@@ -316,7 +328,8 @@ $(function () {
 
     // Verify OTP
     $('#verify_otp_btn').on('click', function () {
-        var phone = $('#mobile_input').val().trim();
+        var phone = fullPhone();
+        if (!phone) return;
         var code  = $('#otp_code_input').val().trim();
 
         if (code.length !== 6) {
