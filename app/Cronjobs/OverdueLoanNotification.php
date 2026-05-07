@@ -12,7 +12,7 @@ class OverdueLoanNotification {
         @set_time_limit(0);
 
         $date          = date('Y-m-d');
-        $dueRepayments = LoanRepayment::selectRaw('loan_repayments.*, MAX(repayment_date) as repayment_date, COUNT(id) as total_due_repayment, SUM(amount_to_pay) as total_due')
+        $dueRepayments = LoanRepayment::selectRaw('MIN(id) as id, loan_id, MAX(repayment_date) as repayment_date, COUNT(id) as total_due_repayment, SUM(amount_to_pay) as total_due, MIN(status) as status, MIN(overdue_notification) as overdue_notification')
             ->with('loan.currency')
             ->whereRaw("repayment_date < '$date'")
             ->where('status', 0)
