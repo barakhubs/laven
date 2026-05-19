@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\Member;
+use App\Models\PhoneOtp;
 use App\Notifications\TwoFactorCode;
 use App\Providers\RouteServiceProvider;
 use App\Utilities\Overrider;
@@ -32,6 +34,12 @@ class LoginController extends Controller {
     protected $redirectTo = RouteServiceProvider::HOME;
 
     /**
+     * Track whether this login was via a verified phone number.
+     * Used in authenticated() to skip 2FA.
+     */
+    protected bool $loginViaVerifiedPhone = false;
+
+    /**
      * Create a new controller instance.
      *
      * @return void
@@ -40,25 +48,104 @@ class LoginController extends Controller {
         $this->middleware('guest')->except('logout');
     }
 
+    /**
+     * Resolve credentials for login.
+     *
+     * Accepts:
+     *  - Email address  → standard email login
+     *  - Local phone    → e.g. 0771445200  (Uganda local format)
+     *  - International  → e.g. +256771445200 or 256771445200
+     *
+     * For phone logins we look up the member by mobile and swap in their
+     * registered email so Laravel's standard auth can proceed.
+     * We also flag $this->loginViaVerifiedPhone if the member's phone
+     * has a verified OTP record, so authenticated() can skip 2FA.
+     */
     protected function credentials(Request $request) {
-        $login = $request->input('email'); // field is still named 'email' in the form
+        $login = trim($request->input('email')); // field is named 'email' in the form
 
-        // If it looks like a phone number, resolve it to an email via the members table
-        if (preg_match('/^[0-9+\s\-]{7,15}$/', $login)) {
-            $member = \App\Models\Member::where('mobile', preg_replace('/\D/', '', $login))
-                ->whereNotNull('user_id')
-                ->with('user')
-                ->first();
+        // Detect phone input: digits only, optionally starting with + or 0,
+        // between 7 and 15 characters (handles local & international formats)
+        $digitsOnly = preg_replace('/\D/', '', $login);
+
+        if ($digitsOnly !== '' && preg_match('/^\+?[\d\s\-]{7,16}$/', $login)) {
+
+            $member = $this->findMemberByPhone($digitsOnly);
+
             if ($member && $member->user) {
-                $login = $member->user->email;
+
+                // Check if this phone has a verified OTP — if so, we can skip 2FA
+                $this->loginViaVerifiedPhone = PhoneOtp::where('phone', $digitsOnly)
+                    ->where('verified', true)
+                    ->exists()
+                    // Also try with country-code stripped (e.g. stored as 0771445200)
+                    || PhoneOtp::where('phone', $member->mobile)
+                        ->where('verified', true)
+                        ->exists();
+
+                return [
+                    'email'    => $member->user->email,
+                    'password' => $request->password,
+                    'status'   => 1,
+                ];
             }
         }
 
+        // Default: treat input as email
+        $this->loginViaVerifiedPhone = false;
         return [
             'email'    => $login,
             'password' => $request->password,
             'status'   => 1,
         ];
+    }
+
+    /**
+     * Look up a member by phone number, trying multiple formats:
+     *  - As stored (local format, e.g. 0771445200)
+     *  - With leading 0 replaced by country code 256 (e.g. 256771445200)
+     *  - With leading 256 stripped back to 0771... form
+     */
+    protected function findMemberByPhone(string $digits): ?Member {
+        // Attempt 1: exact digits as entered
+        $member = Member::where('mobile', $digits)
+            ->whereNotNull('user_id')
+            ->with('user')
+            ->first();
+
+        if ($member) return $member;
+
+        // Attempt 2: if user typed 0771445200, also try 256771445200
+        if (str_starts_with($digits, '0')) {
+            $international = '256' . substr($digits, 1);
+            $member = Member::where('mobile', $international)
+                ->whereNotNull('user_id')
+                ->with('user')
+                ->first();
+            if ($member) return $member;
+        }
+
+        // Attempt 3: if user typed 256771445200, also try 0771445200
+        if (str_starts_with($digits, '256') && strlen($digits) === 12) {
+            $local = '0' . substr($digits, 3);
+            $member = Member::where('mobile', $local)
+                ->whereNotNull('user_id')
+                ->with('user')
+                ->first();
+            if ($member) return $member;
+        }
+
+        // Attempt 4: if user typed +256771445200 (stored as 771445200 — no leading 0 or 256)
+        if (str_starts_with($digits, '256') && strlen($digits) === 12) {
+            $bare = substr($digits, 3); // 771445200
+            $member = Member::where('mobile', $bare)
+                ->whereNotNull('user_id')
+                ->with('user')
+                ->first();
+            if ($member) return $member;
+        }
+
+        return null;
     }
 
     /**
@@ -70,7 +157,6 @@ class LoginController extends Controller {
      * @throws \Illuminate\Validation\ValidationException
      */
     protected function validateLogin(Request $request) {
-
         config(['recaptchav3.sitekey' => get_option('recaptcha_site_key')]);
         config(['recaptchav3.secret' => get_option('recaptcha_secret_key')]);
 
@@ -83,14 +169,33 @@ class LoginController extends Controller {
         ]);
     }
 
+    /**
+     * Handle post-authentication logic.
+     *
+     * - Rejects inactive accounts.
+     * - Skips 2FA entirely when the user logged in via a verified phone number.
+     * - Otherwise runs the normal email 2FA flow.
+     */
     protected function authenticated(Request $request, $user) {
+        // Reject inactive accounts immediately
         if ($user->status != 1) {
             Auth::logout();
             return back()->withInput()->withErrors([
-                $this->username() => _lang('Your account is not active !')
+                $this->username() => _lang('Your account is not active !'),
             ]);
         }
 
+        // If the user logged in with a verified phone number, their identity
+        // is already confirmed — treat it as a passed 2FA check and proceed.
+        if ($this->loginViaVerifiedPhone) {
+            // Clear any stale 2FA code so the Email2FA middleware won't redirect them
+            if ($user->two_factor_code) {
+                $user->resetTwoFactorCode();
+            }
+            return redirect()->intended($this->redirectTo);
+        }
+
+        // Standard email 2FA flow
         if (get_option('email_2fa_status', 0) == 1) {
             Overrider::load("Settings");
             date_default_timezone_set(get_option('timezone', 'Asia/Dhaka'));
@@ -101,7 +206,7 @@ class LoginController extends Controller {
             } catch (\Exception $e) {
                 return back()->with('error', 'SMTP Configuration is incorrect !');
             }
-            return redirect()->route('verify_2fa.index'); // ← THIS LINE WAS MISSING
+            return redirect()->route('verify_2fa.index');
         }
     }
 
@@ -126,3 +231,4 @@ class LoginController extends Controller {
             ->withErrors($errors);
     }
 }
+
