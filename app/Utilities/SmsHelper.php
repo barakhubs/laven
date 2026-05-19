@@ -114,27 +114,31 @@ class SmsHelper {
 		$egosms_password = get_option('egosms_password');
 		$egosms_sender   = get_option('egosms_sender_id');
 
-		Log::channel('daily')->info('SmsHelper [EgoSMS]: preparing request via Comms SDK', [
+		Log::channel('daily')->info('SmsHelper [EgoSMS]: preparing request', [
 			'username' => $egosms_username,
 			'sender'   => $egosms_sender,
 			'to'       => $to,
 		]);
 
 		try {
+			ob_start();
 			$sdk = CommsSDK::authenticate($egosms_username, $egosms_password);
 			$sdk = $sdk->withSenderId($egosms_sender);
-
 			$response = $sdk->querySendSMS([$to], $message, $egosms_sender, '0');
+			$sdkOutput = ob_get_clean(); // capture what SDK printed
 
+			Log::channel('daily')->info('SmsHelper [EgoSMS]: SDK stdout captured', [
+				'stdout' => $sdkOutput, // log it so you can see it
+			]);
 			Log::channel('daily')->info('SmsHelper [EgoSMS]: response received', [
-				'status'  => $response->status  ?? 'unknown',
-				'message' => $response->message ?? '',
-				'cost'    => $response->cost    ?? '',
+				'response' => json_encode($response),
 			]);
 
 		} catch (\Exception $e) {
+			ob_end_clean();
 			Log::channel('daily')->error('SmsHelper [EgoSMS]: exception', [
 				'error' => $e->getMessage(),
+				'trace' => $e->getTraceAsString(),
 			]);
 		}
 	}
