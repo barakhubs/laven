@@ -109,6 +109,7 @@
 
 						{{-- Hidden OTP token --}}
 						<input type="hidden" name="otp_token" id="otp_token" value="">
+						<input type="hidden" name="otp_phone" id="otp_phone" value="">
 
 						{{-- NIN Field --}}
 						<div class="col-md-6">
@@ -347,6 +348,7 @@ $(function () {
                 if (res.success) {
                     otpVerified = true;
                     $('#otp_token').val(res.otp_token);
+                    $('#otp_phone').val(phone);
                     $('#otp_status').text('✓ {{ _lang("Phone verified") }}').removeClass('text-danger').addClass('text-success');
                     $('#verify_otp_btn').hide();
                     $('#otp_code_input').prop('readonly', true);

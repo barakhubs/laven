@@ -209,28 +209,48 @@ class MemberController extends Controller {
                 'reason' => $request->otp_override_reason ?? 'No reason given',
             ]);
         } else {
-            // Reconstruct the full international phone number the same way the frontend does:
-            // country_code contains the dial code e.g. "+256" or "256", mobile is the local number
-            $dialCode  = preg_replace('/\D/', '', $request->input('country_code'));
-            $localNum  = preg_replace('/\D/', '', $request->input('mobile'));
-            $fullPhone = '+' . $dialCode . $localNum;
+            $fullPhone = $request->input('otp_phone');
+            $otpToken  = $request->input('otp_token');
 
-            $otpToken = $request->input('otp_token');
-
-            Log::info('MemberController: OTP token validation attempt', [
-                'otp_token'  => $otpToken,
-                'full_phone' => $fullPhone,
-                'mobile_raw' => $request->input('mobile'),
-                'country_code_raw' => $request->input('country_code'),
+            \Log::debug('OTP DEBUG', [
+                'otp_phone' => $fullPhone,
+                'otp_token' => $otpToken,
+                'valid'     => \App\Http\Controllers\PhoneOtpController::validateToken($otpToken ?? '', $fullPhone ?? '') ? 'YES' : 'NO',
             ]);
 
-            $otpValid = $otpToken
+            // --- TEMPORARY DEEP DEBUG ---
+            [$id, $sig] = array_pad(explode('.', $otpToken ?? '', 2), 2, '');
+            $otpRecord = \App\Models\PhoneOtp::find((int) $id);
+            \Log::debug('OTP DEEP DEBUG', [
+                'record_found'   => $otpRecord ? 'YES' : 'NO',
+                'is_verified'    => $otpRecord ? ($otpRecord->verified ? 'YES' : 'NO') : 'N/A',
+                'is_expired'     => $otpRecord ? ($otpRecord->isExpired() ? 'YES' : 'NO') : 'N/A',
+                'phone_match'    => $otpRecord ? ($otpRecord->phone === $fullPhone ? 'YES' : 'NO') : 'N/A',
+                'db_phone'       => $otpRecord ? $otpRecord->phone : 'N/A',
+                'input_phone'    => $fullPhone,
+                'sig_match'      => $otpRecord ? (hash_equals(\App\Http\Controllers\PhoneOtpController::sign((int)$id, $fullPhone), $sig) ? 'YES' : 'NO') : 'N/A',
+            ]);
+
+            [$id, $sig] = array_pad(explode('.', $otpToken ?? '', 2), 2, '');
+            \Log::debug('OTP SUBMIT DEBUG', [
+                'token_id'   => $id,
+                'otp_phone'  => $fullPhone,
+                'otp_token'  => $otpToken,
+            ]);
+
+            [$id, $sig] = array_pad(explode('.', $otpToken ?? '', 2), 2, '');
+            $otpRecord = \App\Models\PhoneOtp::find((int) $id);
+            \Log::debug('OTP TIMEZONE DEBUG', [
+                'now'        => now()->toDateTimeString(),
+                'timezone'   => config('app.timezone'),
+                'expires_at' => $otpRecord?->expires_at->toDateTimeString(),
+                'expired'    => $otpRecord?->isExpired() ? 'YES' : 'NO',
+            ]);
+            // --- END DEEP DEBUG ---
+
+            $otpValid = ($otpToken && $fullPhone)
                 ? \App\Http\Controllers\PhoneOtpController::validateToken($otpToken, $fullPhone)
                 : null;
-
-            Log::info('MemberController: OTP token validation result', [
-                'valid' => $otpValid ? true : false,
-            ]);
 
             if (! $otpValid) {
                 $msg = 'Phone number must be verified via OTP before saving a member.';
