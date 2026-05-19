@@ -246,9 +246,8 @@
 
 
 						<div class="col-md-12">
-							<div class="form-group">
-								<label class="control-label">{{ _lang('Password') }}</label>
-								<input type="password" class="form-control" name="password">
+							<div class="alert alert-info py-2 mb-0">
+								<small>{{ _lang('A password will be auto-generated and sent to the member\'s phone via SMS.') }}</small>
 							</div>
 						</div>
 

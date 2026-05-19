@@ -41,8 +41,21 @@ class LoginController extends Controller {
     }
 
     protected function credentials(Request $request) {
+        $login = $request->input('email'); // field is still named 'email' in the form
+
+        // If it looks like a phone number, resolve it to an email via the members table
+        if (preg_match('/^[0-9+\s\-]{7,15}$/', $login)) {
+            $member = \App\Models\Member::where('mobile', preg_replace('/\D/', '', $login))
+                ->whereNotNull('user_id')
+                ->with('user')
+                ->first();
+            if ($member && $member->user) {
+                $login = $member->user->email;
+            }
+        }
+
         return [
-            'email'    => $request->{$this->username()},
+            'email'    => $login,
             'password' => $request->password,
             'status'   => 1,
         ];
