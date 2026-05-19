@@ -56,6 +56,11 @@ class User extends Authenticatable {
         return $this->belongsTo('App\Models\Branch', 'branch_id')->withDefault();
     }
 
+    public function isSuperAdmin(): bool
+        {
+            return $this->role?->name === 'Super Admin';
+        }
+
     public function generateTwoFactorCode() {
         $this->timestamps            = false;
         $this->two_factor_code       = rand(100000, 999999);
