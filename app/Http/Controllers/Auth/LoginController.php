@@ -72,10 +72,10 @@ class LoginController extends Controller {
 
     protected function authenticated(Request $request, $user) {
         if ($user->status != 1) {
-            $errors = [$this->username() => _lang('Your account is not active !')];
             Auth::logout();
-            return back()->withInput($request->only($this->username(), 'remember'))
-                ->withErrors($errors);
+            return back()->withInput()->withErrors([
+                $this->username() => _lang('Your account is not active !')
+            ]);
         }
 
         if (get_option('email_2fa_status', 0) == 1) {
@@ -88,8 +88,8 @@ class LoginController extends Controller {
             } catch (\Exception $e) {
                 return back()->with('error', 'SMTP Configuration is incorrect !');
             }
+            return redirect()->route('verify_2fa.index'); // ← THIS LINE WAS MISSING
         }
-
     }
 
     /**
