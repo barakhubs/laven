@@ -289,7 +289,7 @@ class MemberController extends Controller {
             $fullPhone = '+' . preg_replace('/\D/', '', $request->input('country_code'))
                     . preg_replace('/\D/', '', $request->input('mobile'));
             try {
-                send_sms($fullPhone, _lang('Your login password is: ') . $plainPassword);
+                (new SmsHelper())->send($fullPhone, _lang('Your login password is: ') . $plainPassword);
             } catch (\Exception $e) {
                 \Log::warning('Failed to send password SMS', ['phone' => $fullPhone, 'error' => $e->getMessage()]);
             }
@@ -307,8 +307,8 @@ class MemberController extends Controller {
             $member->user_id = $user->id;
         }
         $member->email         = $request->input('email');
-        $member->country_code  = auth()->user()->isSuperAdmin() ? $request->input('country_code') : $member->country_code;
-        $member->mobile        = auth()->user()->isSuperAdmin() ? $request->input('mobile') : $member->mobile;
+        $member->country_code  = $request->input('country_code');
+        $member->mobile        = $request->input('mobile');
         $member->nin           = strtoupper(trim($request->input('nin')));
         $member->business_name = $request->input('business_name');
         $member->member_no     = get_option('starting_member_no', $request->input('member_no'));
@@ -825,4 +825,3 @@ class MemberController extends Controller {
         }
     }
 }
-
