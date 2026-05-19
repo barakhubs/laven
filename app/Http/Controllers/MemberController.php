@@ -18,6 +18,7 @@ use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Facades\Excel;
 use Illuminate\Support\Facades\Validator;
 use App\Notifications\MemberRequestAccepted;
@@ -202,17 +203,34 @@ class MemberController extends Controller {
         $isAdminOverride = auth()->user()->user_type === 'admin' && $request->boolean('otp_override');
 
         if ($isAdminOverride) {
-            // Log the override for audit trail
-            \Illuminate\Support\Facades\Log::warning('Member OTP override used', [
+            Log::warning('Member OTP override used', [
                 'by'     => auth()->user()->name,
                 'phone'  => $request->mobile,
                 'reason' => $request->otp_override_reason ?? 'No reason given',
             ]);
         } else {
+            // Reconstruct the full international phone number the same way the frontend does:
+            // country_code contains the dial code e.g. "+256" or "256", mobile is the local number
+            $dialCode  = preg_replace('/\D/', '', $request->input('country_code'));
+            $localNum  = preg_replace('/\D/', '', $request->input('mobile'));
+            $fullPhone = '+' . $dialCode . $localNum;
+
             $otpToken = $request->input('otp_token');
+
+            Log::info('MemberController: OTP token validation attempt', [
+                'otp_token'  => $otpToken,
+                'full_phone' => $fullPhone,
+                'mobile_raw' => $request->input('mobile'),
+                'country_code_raw' => $request->input('country_code'),
+            ]);
+
             $otpValid = $otpToken
-                ? \App\Http\Controllers\PhoneOtpController::validateToken($otpToken, $request->mobile)
+                ? \App\Http\Controllers\PhoneOtpController::validateToken($otpToken, $fullPhone)
                 : null;
+
+            Log::info('MemberController: OTP token validation result', [
+                'valid' => $otpValid ? true : false,
+            ]);
 
             if (! $otpValid) {
                 $msg = 'Phone number must be verified via OTP before saving a member.';
@@ -282,7 +300,7 @@ class MemberController extends Controller {
         }
 
         $this->generateAccounts($member->id);
-        
+
         DB::commit();
 
         if (! $request->ajax()) {
@@ -434,7 +452,6 @@ class MemberController extends Controller {
         $validationRules = [
             'first_name'   => 'required',
             'last_name'    => 'required',
-            //'branch_id'    => 'required',
             'email'        => [
                 'nullable',
                 'email',
@@ -778,3 +795,4 @@ class MemberController extends Controller {
         }
     }
 }
+
