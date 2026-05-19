@@ -144,7 +144,7 @@ class PhoneOtpController extends Controller
         return $otpId . '.' . self::sign($otpId, $phone);
     }
 
-    private static function sign(int $otpId, string $phone): string
+    public static function sign(int $otpId, string $phone): string
     {
         return hash_hmac('sha256', $otpId . '|' . $phone, config('app.key'));
     }
