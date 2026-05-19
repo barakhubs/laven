@@ -119,8 +119,8 @@
 							</div>
 						</div>
 
-						@if(auth()->user()->user_type === 'admin')
-						{{-- Admin OTP override --}}
+						
+						@if(auth()->user()->isSuperAdmin())
 						<div class="col-md-12" id="override_toggle_section">
 							<div class="form-group">
 								<div class="custom-control custom-checkbox">

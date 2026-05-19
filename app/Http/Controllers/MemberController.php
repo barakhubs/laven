@@ -200,7 +200,7 @@ class MemberController extends Controller {
         }
 
         // --- OTP verification (admin can override) ---
-        $isAdminOverride = auth()->user()->user_type === 'admin' && $request->boolean('otp_override');
+        $isAdminOverride = auth()->user()->isSuperAdmin() && $request->boolean('otp_override');
 
         if ($isAdminOverride) {
             Log::warning('Member OTP override used', [
@@ -297,8 +297,8 @@ class MemberController extends Controller {
             $member->user_id = $user->id;
         }
         $member->email         = $request->input('email');
-        $member->country_code  = $request->input('country_code');
-        $member->mobile        = $request->input('mobile');
+        $member->country_code  = auth()->user()->isSuperAdmin() ? $request->input('country_code') : $member->country_code;
+        $member->mobile        = auth()->user()->isSuperAdmin() ? $request->input('mobile') : $member->mobile;
         $member->nin           = strtoupper(trim($request->input('nin')));
         $member->business_name = $request->input('business_name');
         $member->member_no     = get_option('starting_member_no', $request->input('member_no'));
@@ -573,9 +573,9 @@ class MemberController extends Controller {
         $member->email         = $request->input('email');
         $member->country_code  = $request->input('country_code');
         $member->mobile        = $request->input('mobile');
-        $member->nin           = $request->input('nin') ? strtoupper(trim($request->input('nin'))) : $member->nin;
+        $member->nin           = auth()->user()->isSuperAdmin() && $request->input('nin') ? strtoupper(trim($request->input('nin'))) : $member->nin;
         $member->business_name = $request->input('business_name');
-        $member->member_no     = $request->input('member_no');
+        $member->member_no     = auth()->user()->isSuperAdmin() ? $request->input('member_no') : $member->member_no;
         $member->gender        = $request->input('gender');
         $member->city          = $request->input('city');
         $member->state         = $request->input('state');
@@ -725,7 +725,7 @@ class MemberController extends Controller {
             DB::beginTransaction();
 
             $member            = Member::withoutGlobalScopes(['status'])->find($id);
-            $member->member_no = $request->member_no;
+            $member->member_no = auth()->user()->isSuperAdmin() ? $request->member_no : $member->member_no;
             $member->status    = 1;
             $member->save();
 
