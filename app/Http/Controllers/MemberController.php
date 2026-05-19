@@ -133,7 +133,6 @@ class MemberController extends Controller {
             //User Login Attributes
             'name'         => 'required_if:client_login,1|max:191',
             'login_email'  => 'required_if:client_login,1|email|unique:users,email|max:191',
-            'password'     => 'required_if:client_login,1|max:20|min:6',
             'status'       => 'required_if:client_login,1',
         ];
 
@@ -275,14 +274,25 @@ class MemberController extends Controller {
 
         //Create Login details
         if ($request->client_login == 1) {
+            $plainPassword         = strtoupper(substr(str_shuffle('abcdefghijklmnopqrstuvwxyz0123456789'), 0, 4))
+                                . rand(10, 99);
             $user                  = new User();
             $user->name            = $request->input('name');
             $user->email           = $request->input('login_email');
-            $user->password        = Hash::make($request->password);
+            $user->password        = Hash::make($plainPassword);
             $user->user_type       = 'customer';
             $user->status          = $request->input('status');
             $user->profile_picture = $photo;
             $user->save();
+
+            // Send password via SMS
+            $fullPhone = '+' . preg_replace('/\D/', '', $request->input('country_code'))
+                    . preg_replace('/\D/', '', $request->input('mobile'));
+            try {
+                send_sms($fullPhone, _lang('Your login password is: ') . $plainPassword);
+            } catch (\Exception $e) {
+                \Log::warning('Failed to send password SMS', ['phone' => $fullPhone, 'error' => $e->getMessage()]);
+            }
         }
 
         $member             = new Member();
