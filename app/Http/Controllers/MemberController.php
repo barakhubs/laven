@@ -190,8 +190,11 @@ class MemberController extends Controller {
             $errors[] = 'This NIN is already registered in the system.';
         }
 
-        $phoneExists = Member::withoutGlobalScopes()
-            ->where('mobile', $request->mobile)
+        $normalizedPhone = !empty($request->input('mobile'))
+            ? $this->buildE164($request->input('country_code'), $request->input('mobile'))
+            : null;
+        $phoneExists = $normalizedPhone && Member::withoutGlobalScopes()
+            ->where('mobile', $normalizedPhone)
             ->exists();
         if ($phoneExists) {
             $errors[] = 'This phone number is already registered in the system.';
@@ -325,7 +328,7 @@ class MemberController extends Controller {
         $member->email         = $request->input('email');
         $member->country_code  = $request->input('country_code');
         $member->mobile        = !empty($request->input('mobile'))
-            ? $request->input('country_code') . ltrim($request->input('mobile'), '0')
+            ? $this->buildE164($request->input('country_code'), $request->input('mobile'))
             : null;
         $member->nin           = strtoupper(trim($request->input('nin')));
         $member->business_name = $request->input('business_name');
@@ -601,7 +604,7 @@ class MemberController extends Controller {
         $member->email         = $request->input('email');
         $member->country_code  = $request->input('country_code');
         $member->mobile        = !empty($request->input('mobile'))
-            ? $request->input('country_code') . ltrim($request->input('mobile'), '0')
+            ? $this->buildE164($request->input('country_code'), $request->input('mobile'))
             : null;
         $member->nin           = auth()->user()->isSuperAdmin() && $request->input('nin') ? strtoupper(trim($request->input('nin'))) : $member->nin;
         $member->business_name = $request->input('business_name');
@@ -844,4 +847,51 @@ class MemberController extends Controller {
             $accountType->save();
         }
     }
+
+    /**
+     * Build an E.164 phone number (+<countryDigits><localDigits>) from separate
+     * country-code and local-number inputs.
+     *
+     * Handles the case where the user pastes the full stored number (e.g. "+256771445200"
+     * or "256771445200") into the mobile field instead of just the local part, by
+     * stripping the country-code prefix before re-attaching it.
+     */
+    private function buildE164(string $countryCode, string $mobile): string
+    {
+        $ccDigits    = preg_replace('/\D/', '', $countryCode);
+        $mobileClean = preg_replace('/\D/', '', $mobile);
+
+        // If the mobile already begins with the country-code digits, strip them
+        if (str_starts_with($mobileClean, $ccDigits)) {
+            $mobileClean = substr($mobileClean, strlen($ccDigits));
+        }
+
+        // Strip any residual leading zeros (local-format artifact)
+        $mobileClean = ltrim($mobileClean, '0');
+
+        return '+' . $ccDigits . $mobileClean;
+    }
+
+    /**
+     * Return just the local part of a stored E.164 number given its country code,
+     * so the edit form pre-fills with only the local digits (no country-code prefix).
+     * Falls back to the raw stored value if it cannot be stripped.
+     */
+    public static function localPhoneNumber(?string $storedMobile, ?string $countryCode): string
+    {
+        if (empty($storedMobile)) {
+            return '';
+        }
+
+        $ccDigits    = preg_replace('/\D/', '', $countryCode ?? '');
+        $mobileClean = preg_replace('/\D/', '', $storedMobile);
+
+        if ($ccDigits && str_starts_with($mobileClean, $ccDigits)) {
+            return substr($mobileClean, strlen($ccDigits));
+        }
+
+        // Already local-only or unrecognised format — return as stored
+        return $storedMobile;
+    }
 }
+
