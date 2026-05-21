@@ -305,7 +305,7 @@ class MemberController extends Controller {
             $fullPhone = '+' . preg_replace('/\D/', '', $request->input('country_code'))
                     . preg_replace('/\D/', '', $request->input('mobile'));
             try {
-                (new SmsHelper())->send($fullPhone, _lang('Your login password is: ') . $plainPassword);
+                (new SmsHelper())->send($fullPhone, _lang('Your login password to Laven App is: ') . $plainPassword);
             } catch (\Exception $e) {
                 \Log::warning('Failed to send password SMS', ['phone' => $fullPhone, 'error' => $e->getMessage()]);
             }
@@ -324,7 +324,9 @@ class MemberController extends Controller {
         }
         $member->email         = $request->input('email');
         $member->country_code  = $request->input('country_code');
-        $member->mobile        = $request->input('mobile');
+        $member->mobile        = !empty($request->input('mobile'))
+            ? $request->input('country_code') . ltrim($request->input('mobile'), '0')
+            : null;
         $member->nin           = strtoupper(trim($request->input('nin')));
         $member->business_name = $request->input('business_name');
         $member->member_no     = get_option('starting_member_no', $request->input('member_no'));
@@ -598,7 +600,9 @@ class MemberController extends Controller {
         }
         $member->email         = $request->input('email');
         $member->country_code  = $request->input('country_code');
-        $member->mobile        = $request->input('mobile');
+        $member->mobile        = !empty($request->input('mobile'))
+            ? $request->input('country_code') . ltrim($request->input('mobile'), '0')
+            : null;
         $member->nin           = auth()->user()->isSuperAdmin() && $request->input('nin') ? strtoupper(trim($request->input('nin'))) : $member->nin;
         $member->business_name = $request->input('business_name');
         $member->member_no     = auth()->user()->isSuperAdmin() ? $request->input('member_no') : $member->member_no;

@@ -264,7 +264,7 @@ class AuthController extends ApiController
             return $this->error('Could not send OTP email.', 'OTP_SEND_FAILED', [], 500);
         }
 
-        return $this->success(null, 'A new OTP has been sent to your email.');
+        return $this->success(null, 'A new OTP has been sent to your registered phone and email.');
     }
 
     // ----------------------------------------------------------------

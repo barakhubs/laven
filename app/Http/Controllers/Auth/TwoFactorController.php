@@ -62,6 +62,6 @@ class TwoFactorController extends Controller {
             return back()->with('error', 'SMTP Configuration is incorrect !');
         }
 
-        return redirect()->back()->withMessage(_lang('New OTP has been sent to your email !'));
+        return redirect()->back()->withMessage(_lang('A new OTP has been sent to your registered phone and email.'));
     }
 }
