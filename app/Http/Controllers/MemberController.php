@@ -45,13 +45,16 @@ class MemberController extends Controller {
 
     public function get_table_data() {
         $members = Member::select('members.*')
-            ->with('branch')
+            ->withCount(['loans as total_loans'])
+            ->withCount(['loans as active_loans' => function ($q) {
+                $q->where('status', 1);
+            }])
+            ->with(['loans' => function ($q) {
+                $q->where('status', 1)->select('id', 'borrower_id', 'total_payable', 'total_paid');
+            }])
             ->orderBy("members.id", "desc");
 
         return Datatables::eloquent($members)
-            ->editColumn('branch.name', function ($member) {
-                return $member->branch->name;
-            })
             ->editColumn('photo', function ($member) {
                 $photo = $member->photo != null ? profile_picture($member->photo) : asset('backend/images/avatar.png');
                 return '<div class="profile_picture text-center">'
@@ -65,6 +68,19 @@ class MemberController extends Controller {
             })
             ->editColumn('last_name', function ($member) {
                 return '<a href="' . route('members.show', $member->id) . '">' . $member->last_name . '</a>';
+            })
+            ->addColumn('mobile', function ($member) {
+                return $member->mobile ?? '-';
+            })
+            ->addColumn('loan_summary', function ($member) {
+                $activeBalance = $member->loans->sum(fn($l) => $l->total_payable - $l->total_paid);
+                $totalPaid     = $member->loans->sum('total_paid');
+                return '<small>'
+                    . '<b>' . _lang('Loans') . ':</b> ' . $member->total_loans . ' &nbsp;|&nbsp; '
+                    . '<b>' . _lang('Active') . ':</b> ' . $member->active_loans . '<br>'
+                    . '<b>' . _lang('Balance') . ':</b> ' . number_format($activeBalance, 2) . ' &nbsp;|&nbsp; '
+                    . '<b>' . _lang('Paid') . ':</b> ' . number_format($totalPaid, 2)
+                    . '</small>';
             })
             ->addColumn('action', function ($member) {
                 return '<div class="dropdown text-center">'
@@ -87,7 +103,7 @@ class MemberController extends Controller {
             ->setRowId(function ($member) {
                 return "row_" . $member->id;
             })
-            ->rawColumns(['photo', 'first_name', 'last_name', 'action'])
+            ->rawColumns(['photo', 'first_name', 'last_name', 'loan_summary', 'action'])
             ->make(true);
     }
 

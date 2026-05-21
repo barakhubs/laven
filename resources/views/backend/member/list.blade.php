@@ -17,13 +17,13 @@
 				<table id="members_table" class="table table-bordered">
 					<thead>
 					    <tr>
-							<th class="text-center">{{ _lang('Photo') }}</th>
-							<th>{{ _lang('Member No') }}</th>
+						    <th class="text-center">{{ _lang('Photo') }}</th>
+						    <th>{{ _lang('Member No') }}</th>
 						    <th>{{ _lang('First Name') }}</th>
 							<th>{{ _lang('Last Name') }}</th>
-							<th>{{ _lang('Email') }}</th>
-							<th>{{ _lang('Branch') }}</th>
-							<th class="text-center">{{ _lang('Action') }}</th>
+							<th>{{ _lang('Mobile') }}</th>
+							<th>{{ _lang('Loan Summary') }}</th>
+						    <th class="text-center">{{ _lang('Action') }}</th>
 					    </tr>
 					</thead>
 					<tbody>
@@ -50,8 +50,8 @@
 			{ data : 'member_no', name : 'member_no' },
 			{ data : 'first_name', name : 'first_name' },
 			{ data : 'last_name', name : 'last_name' },
-			{ data : 'email', name : 'email' },
-			{ data : 'branch.name', name : 'branch.name' },
+			{ data : 'mobile', name : 'mobile' },
+			{ data : 'loan_summary', name : 'loan_summary', orderable: false, searchable: false },
 			{ data : "action", name : "action" },
 		],
 		responsive: true,
