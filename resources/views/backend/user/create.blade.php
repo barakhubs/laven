@@ -44,6 +44,9 @@
                                     <select class="form-control auto-select" data-selected="{{ old('user_type') }}"
                                         name="user_type" id="user_type" required>
                                         <option value="">{{ _lang('Select One') }}</option>
+                                        @if(auth()->user()->isSuperAdmin())
+                                            <option value="superadmin">{{ _lang('Super Admin') }}</option>
+                                        @endif
                                         <option value="admin">{{ _lang('Admin') }}</option>
                                         <option value="user">{{ _lang('User') }}</option>
                                     </select>
