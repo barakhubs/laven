@@ -11,11 +11,19 @@ class TwoFactorCode extends Notification {
     use Queueable;
 
     private function getPhone($notifiable): ?string {
-        if ($notifiable->user_type === 'customer' && !empty($notifiable->member->mobile)) {
-            return $notifiable->member->mobile;
+    if ($notifiable->user_type === 'customer') {
+        $member = $notifiable->member;
+        if ($member && !empty($member->mobile)) {
+            $cc = $member->country_code ?? '+256';
+            // avoid double prefix
+            if (str_starts_with($member->mobile, '+')) {
+                return $member->mobile;
+            }
+            return $cc . ltrim($member->mobile, '0');
         }
-        return $notifiable->phone ?: null;
     }
+    return $notifiable->phone ?: null;
+}
 
     public function via($notifiable) {
         $channels = ['mail'];

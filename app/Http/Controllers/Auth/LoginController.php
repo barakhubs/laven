@@ -107,45 +107,38 @@ class LoginController extends Controller {
      *  - With leading 256 stripped back to 0771... form
      */
     protected function findMemberByPhone(string $digits): ?Member {
-        // Attempt 1: exact digits as entered
-        $member = Member::where('mobile', $digits)
+        // Build all possible formats from the input
+        $formats = [$digits, '+' . $digits];
+
+        if (str_starts_with($digits, '0')) {
+            $intl = '256' . substr($digits, 1);
+            array_push($formats, $intl, '+' . $intl, substr($digits, 1));
+        }
+
+        if (str_starts_with($digits, '256') && strlen($digits) === 12) {
+            $bare = substr($digits, 3);
+            array_push($formats, '0' . $bare, $bare, '+' . $digits);
+        }
+
+        // Try matching on mobile column alone
+        $member = Member::whereIn('mobile', $formats)
             ->whereNotNull('user_id')
             ->with('user')
             ->first();
-
         if ($member) return $member;
 
-        // Attempt 2: if user typed 0771445200, also try 256771445200
-        if (str_starts_with($digits, '0')) {
-            $international = '256' . substr($digits, 1);
-            $member = Member::where('mobile', $international)
-                ->whereNotNull('user_id')
-                ->with('user')
-                ->first();
-            if ($member) return $member;
-        }
-
-        // Attempt 3: if user typed 256771445200, also try 0771445200
-        if (str_starts_with($digits, '256') && strlen($digits) === 12) {
-            $local = '0' . substr($digits, 3);
-            $member = Member::where('mobile', $local)
-                ->whereNotNull('user_id')
-                ->with('user')
-                ->first();
-            if ($member) return $member;
-        }
-
-        // Attempt 4: if user typed +256771445200 (stored as 771445200 — no leading 0 or 256)
-        if (str_starts_with($digits, '256') && strlen($digits) === 12) {
-            $bare = substr($digits, 3); // 771445200
-            $member = Member::where('mobile', $bare)
-                ->whereNotNull('user_id')
-                ->with('user')
-                ->first();
-            if ($member) return $member;
-        }
-
-        return null;
+        // Try matching on country_code + mobile combined (how the form saves it)
+        return Member::whereNotNull('user_id')
+            ->whereNotNull('mobile')
+            ->with('user')
+            ->get()
+            ->first(function ($m) use ($formats) {
+                $full = ltrim($m->country_code ?? '', '+') . ltrim($m->mobile, '0');
+                $fullWithPlus = '+' . $full;
+                return in_array($full, $formats)
+                    || in_array($fullWithPlus, $formats)
+                    || in_array($m->mobile, $formats);
+            });
     }
 
     /**
