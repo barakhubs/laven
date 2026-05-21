@@ -11,7 +11,7 @@
                             <div class="card-body">                      
                                 <img class="logo" src="{{ get_logo() }}">
                                 
-                                <h6 class="text-center py-4">{{ _lang('One time password has been sent to your email address.') }}</h6> 
+                                <h6 class="text-center py-4">{{ _lang('One time password has been sent to your registered phone and email address.') }}</h6> 
 
                                 @if (session('message'))
                                     <div class="alert alert-success text-center" role="alert">
