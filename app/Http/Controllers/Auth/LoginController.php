@@ -34,12 +34,6 @@ class LoginController extends Controller {
     protected $redirectTo = RouteServiceProvider::HOME;
 
     /**
-     * Track whether this login was via a verified phone number.
-     * Used in authenticated() to skip 2FA.
-     */
-    protected bool $loginViaVerifiedPhone = false;
-
-    /**
      * Create a new controller instance.
      *
      * @return void
@@ -74,15 +68,6 @@ class LoginController extends Controller {
 
             if ($member && $member->user) {
 
-                // Check if this phone has a verified OTP — if so, we can skip 2FA
-                $this->loginViaVerifiedPhone = PhoneOtp::where('phone', $digitsOnly)
-                    ->where('verified', true)
-                    ->exists()
-                    // Also try with country-code stripped (e.g. stored as 0771445200)
-                    || PhoneOtp::where('phone', $member->mobile)
-                        ->where('verified', true)
-                        ->exists();
-
                 return [
                     'email'    => $member->user->email,
                     'password' => $request->password,
@@ -92,7 +77,6 @@ class LoginController extends Controller {
         }
 
         // Default: treat input as email
-        $this->loginViaVerifiedPhone = false;
         return [
             'email'    => $login,
             'password' => $request->password,
@@ -166,8 +150,9 @@ class LoginController extends Controller {
      * Handle post-authentication logic.
      *
      * - Rejects inactive accounts.
-     * - Skips 2FA entirely when the user logged in via a verified phone number.
-     * - Otherwise runs the normal email 2FA flow.
+     * - Sends 2FA OTP (via email + SMS) to all users when 2FA is enabled.
+     *   Phone logins and email logins are treated identically here — both
+     *   receive the OTP on their registered email and mobile number.
      */
     protected function authenticated(Request $request, $user) {
         // Reject inactive accounts immediately
@@ -178,17 +163,7 @@ class LoginController extends Controller {
             ]);
         }
 
-        // If the user logged in with a verified phone number, their identity
-        // is already confirmed — treat it as a passed 2FA check and proceed.
-        if ($this->loginViaVerifiedPhone) {
-            // Clear any stale 2FA code so the Email2FA middleware won't redirect them
-            if ($user->two_factor_code) {
-                $user->resetTwoFactorCode();
-            }
-            return redirect()->intended($this->redirectTo);
-        }
-
-        // Standard email 2FA flow
+        // Unified 2FA flow — applies to all login methods (email or phone)
         if (get_option('email_2fa_status', 0) == 1) {
             Overrider::load("Settings");
             date_default_timezone_set(get_option('timezone', 'Asia/Dhaka'));
@@ -197,7 +172,7 @@ class LoginController extends Controller {
             try {
                 $user->notify(new TwoFactorCode());
             } catch (\Exception $e) {
-                return back()->with('error', 'SMTP Configuration is incorrect !');
+                return back()->with('error', 'Could not send OTP. Please check your SMTP/SMS configuration.');
             }
             return redirect()->route('verify_2fa.index');
         }
@@ -224,4 +199,3 @@ class LoginController extends Controller {
             ->withErrors($errors);
     }
 }
-
