@@ -15,7 +15,7 @@ class User extends Authenticatable {
      * @var array
      */
     protected $fillable = [
-        'name', 'email', 'password', 'user_type', 'status', 'profile_picture', 'two_factor_code', 'two_factor_expires_at',
+        'name', 'email', 'phone', 'password', 'user_type', 'status', 'profile_picture', 'two_factor_code', 'two_factor_expires_at',
     ];
 
     /**
@@ -55,11 +55,6 @@ class User extends Authenticatable {
     public function branch() {
         return $this->belongsTo('App\Models\Branch', 'branch_id')->withDefault();
     }
-
-    public function isSuperAdmin(): bool
-        {
-            return $this->role?->name === 'Super Admin';
-        }
 
     public function generateTwoFactorCode() {
         $this->timestamps            = false;
