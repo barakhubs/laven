@@ -87,7 +87,8 @@
 						<div class="col-md-6">
 							<div class="form-group">
 								<label class="control-label">{{ _lang('Mobile') }}</label>
-								<input type="text" class="form-control" name="mobile" value="{{ old('mobile',$member->mobile) }}"
+								<input type="text" class="form-control" name="mobile"
+									value="{{ old('mobile', \App\Http\Controllers\MemberController::localPhoneNumber($member->mobile, $member->country_code)) }}"
 									{{ auth()->user()->isSuperAdmin() ? '' : 'readonly' }}>
 								@if(!auth()->user()->isSuperAdmin())
 									<small class="text-muted">{{ _lang('Only Super Admin can edit phone number') }}</small>

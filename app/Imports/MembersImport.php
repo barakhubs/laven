@@ -67,7 +67,11 @@ class MembersImport implements ToCollection, WithStartRow
 
             // Check Mobile is unique across ALL branches (column index 5)
             if (isset($row[5]) && $row[5] != '') {
-                $member = Member::withoutGlobalScopes()->where('mobile', $row[5])->first();
+                $normalizedImportPhone = !empty($row[4])
+                    ? '+' . ltrim(preg_replace('/\D/', '', $row[4]), '0')
+                      . ltrim(preg_replace('/\D/', '', $row[5]), '0')
+                    : preg_replace('/\D/', '', $row[5]);
+                $member = Member::withoutGlobalScopes()->where('mobile', $normalizedImportPhone)->first();
                 if ($member) {
                     continue;
                 }
@@ -89,7 +93,10 @@ class MembersImport implements ToCollection, WithStartRow
             $member->email         = $row[2];
             $member->member_no     = $row[3];
             $member->country_code  = $row[4];
-            $member->mobile        = $row[5];
+            $member->mobile        = !empty($row[5])
+                ? '+' . ltrim(preg_replace('/\D/', '', $row[4]), '0')
+                  . ltrim(preg_replace('/\D/', '', $row[5]), '0')
+                : null;
             $member->business_name = $row[6];
             $member->gender        = strtolower($row[7]);
             $member->city          = $row[8];
@@ -132,3 +139,4 @@ class MembersImport implements ToCollection, WithStartRow
     }
 
 }
+
