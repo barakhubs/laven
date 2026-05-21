@@ -153,7 +153,7 @@ $upcomming_repayments = request_count('upcomming_repayments', true);
 	</ul>
 </li>
 
-{{-- <li>
+<li>
 	<a href="javascript: void(0);"><i class="ti-settings"></i><span>{{ _lang('System Settings') }}</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
 	<ul class="nav-second-level" aria-expanded="false">
 		<li class="nav-item"><a class="nav-link" href="{{ route('settings.update_settings') }}">{{ _lang('General Settings') }}</a></li>
@@ -161,5 +161,5 @@ $upcomming_repayments = request_count('upcomming_repayments', true);
 		<li class="nav-item"><a class="nav-link" href="{{ route('notification_templates.index') }}">{{ _lang('Notification Templates') }}</a></li>
 		<li class="nav-item"><a class="nav-link" href="{{ route('database_backups.list') }}">{{ _lang('Database Backup') }}</a></li>
 	</ul>
-</li> --}}
+</li>
 

@@ -25,6 +25,7 @@ class UserController extends Controller {
      */
     public function index() {
         $users = User::where('user_type', 'admin')
+            ->orWhere('user_type', 'superadmin')
             ->orWhere('user_type', 'user')
             ->orderBy('name', 'asc')
             ->get();

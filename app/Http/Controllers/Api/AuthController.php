@@ -51,7 +51,7 @@ class AuthController extends ApiController
         $isStaff = strtolower($user->role->name ?? '') === 'staff';
 
         // Allow: customers, staff (role), admins are blocked
-        if ($user->user_type === 'admin' && !$isStaff) {
+        if ($user->isAdmin() && !$isStaff) {
             return $this->error('Mobile access is not available for admin accounts.', 'UNAUTHORIZED_USER_TYPE', [], 403);
         }
 
