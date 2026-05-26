@@ -75,12 +75,27 @@ class MemberController extends Controller {
             ->addColumn('loan_summary', function ($member) {
                 $activeBalance = $member->loans->sum(fn($l) => $l->total_payable - $l->total_paid);
                 $totalPaid     = $member->loans->sum('total_paid');
-                return '<small>'
-                    . '<b>' . _lang('Loans') . ':</b> ' . $member->total_loans . ' &nbsp;|&nbsp; '
-                    . '<b>' . _lang('Active') . ':</b> ' . $member->active_loans . '<br>'
-                    . '<b>' . _lang('Balance') . ':</b> ' . number_format($activeBalance, 2) . ' &nbsp;|&nbsp; '
-                    . '<b>' . _lang('Paid') . ':</b> ' . number_format($totalPaid, 2)
-                    . '</small>';
+                $hasActive     = $member->active_loans > 0;
+
+                return '
+                <div style="display:flex; flex-direction:column; gap:6px;">
+                    <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                        <span style="background:#e8f0fe; color:#3b5bdb; border-radius:20px; padding:2px 10px; font-size:11.5px; font-weight:600;">
+                            📋 ' . _lang('Loans') . ': ' . $member->total_loans . '
+                        </span>
+                        <span style="background:' . ($hasActive ? '#d3f9d8' : '#f1f3f5') . '; color:' . ($hasActive ? '#2f9e44' : '#868e96') . '; border-radius:20px; padding:2px 10px; font-size:11.5px; font-weight:600;">
+                            ✅ ' . _lang('Active') . ': ' . $member->active_loans . '
+                        </span>
+                    </div>
+                    <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                        <span style="background:' . ($activeBalance > 0 ? '#fff4e6' : '#f1f3f5') . '; color:' . ($activeBalance > 0 ? '#e8590c' : '#868e96') . '; border-radius:20px; padding:2px 10px; font-size:11.5px; font-weight:600;">
+                            💰 ' . _lang('Balance') . ': ' . number_format($activeBalance, 2) . '
+                        </span>
+                        <span style="background:#ebfbee; color:#2f9e44; border-radius:20px; padding:2px 10px; font-size:11.5px; font-weight:600;">
+                            💳 ' . _lang('Paid') . ': ' . number_format($totalPaid, 2) . '
+                        </span>
+                    </div>
+                </div>';
             })
             ->addColumn('action', function ($member) {
                 return '<div class="dropdown text-center">'
