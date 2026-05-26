@@ -25,7 +25,7 @@ class Overrider
 
         if ($email_protocol == 'smtp') {
             config(['mail.mailers.smtp.host' => get_option('smtp_host')]);
-            config(['mail.mailers.smtp.port' => get_option('smtp_port')]);
+            config(['mail.mailers.smtp.port' => (int) get_option('smtp_port')]);
             config(['mail.mailers.smtp.username' => get_option('smtp_username')]);
             config(['mail.mailers.smtp.password' => get_option('smtp_password')]);
             config(['mail.mailers.smtp.encryption' => get_option('smtp_encryption')]); 

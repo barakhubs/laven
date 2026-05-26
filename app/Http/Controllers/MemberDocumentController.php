@@ -49,7 +49,7 @@ class MemberDocumentController extends Controller {
         $validator = Validator::make($request->all(), [
             'member_id' => 'required',
             'name'      => 'required',
-            'document'  => 'required|mimes:png,jpg,jpeg,pdf|max:10000',
+            'document'  => 'required|mimes:png,jpg,jpeg,pdf|max:51200',
         ]);
 
         if ($validator->fails()) {
@@ -114,7 +114,7 @@ class MemberDocumentController extends Controller {
         $validator = Validator::make($request->all(), [
             'member_id' => 'required',
             'name'      => 'required',
-            'document'  => 'nullable|mimes:png,jpg,jpeg,pdf|max:10000',
+            'document'  => 'nullable|mimes:png,jpg,jpeg,pdf|max:51200',
         ]);
 
         if ($validator->fails()) {
