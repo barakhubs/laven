@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Models\Member;
 use App\Models\PhoneOtp;
 use App\Mail\GeneralMail;
+use App\Models\AuditLog;
 use App\Models\CustomField;
 use App\Models\Transaction;
 use App\Utilities\Overrider;
@@ -27,8 +28,6 @@ class MemberController extends Controller {
 
     /**
      * Create a new controller instance.
-     *
-     * @return void
      */
     public function __construct() {
         date_default_timezone_set(get_option('timezone', 'Asia/Dhaka'));
@@ -36,8 +35,6 @@ class MemberController extends Controller {
 
     /**
      * Display a listing of the resource.
-     *
-     * @return \Illuminate\Http\Response
      */
     public function index() {
         return view('backend.member.list');
@@ -134,8 +131,6 @@ class MemberController extends Controller {
 
     /**
      * Show the form for creating a new resource.
-     *
-     * @return \Illuminate\Http\Response
      */
     public function create(Request $request) {
         $customFields = CustomField::where('table', 'members')
@@ -149,9 +144,6 @@ class MemberController extends Controller {
 
     /**
      * Store a newly created resource in storage.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\Response
      */
     public function store(Request $request) {
         $validationRules = [
@@ -163,7 +155,7 @@ class MemberController extends Controller {
             'mobile'       => 'required|string|max:30',
             'country_code' => 'required_with:mobile',
             'photo'        => 'nullable|image',
-            //User Login Attributes
+            // User Login Attributes
             'name'         => 'required_if:client_login,1|max:191',
             'login_email'  => 'required_if:client_login,1|email|unique:users,email|max:191',
             'status'       => 'required_if:client_login,1',
@@ -234,7 +226,7 @@ class MemberController extends Controller {
             }
         }
 
-        // --- OTP verification (admin can override) ---
+        // --- OTP verification (superadmin can override) ---
         $isAdminOverride = auth()->user()->isSuperAdmin() && $request->boolean('otp_override');
 
         if ($isAdminOverride) {
@@ -308,7 +300,7 @@ class MemberController extends Controller {
         // Store custom field data
         $customFieldsData = store_custom_field_data($customFields);
 
-        //Create Login details
+        // Create Login details
         if ($request->client_login == 1) {
             $plainPassword         = strtoupper(substr(str_shuffle('abcdefghijklmnopqrstuvwxyz0123456789'), 0, 4))
                                 . rand(10, 99);
@@ -361,7 +353,7 @@ class MemberController extends Controller {
 
         $member->save();
 
-        //Increment Member No
+        // Increment Member No
         $memberNo = get_option('starting_member_no');
         if ($memberNo != '') {
             update_option('starting_member_no', $memberNo + 1);
@@ -370,6 +362,17 @@ class MemberController extends Controller {
         $this->generateAccounts($member->id);
 
         DB::commit();
+
+        // --- Audit Log ---
+        AuditLog::log(
+            'created',
+            'Member',
+            $member->id,
+            "Member: {$member->first_name} {$member->last_name} ({$member->member_no})",
+            null,
+            $member->only(['first_name', 'last_name', 'email', 'mobile', 'nin', 'member_no', 'branch_id']),
+            "New member registered: {$member->first_name} {$member->last_name} | NIN: {$member->nin} | Phone: {$member->mobile} | By: " . auth()->user()->name
+        );
 
         if (! $request->ajax()) {
             return redirect()->route('members.show', $member->id)->with('success', _lang('Saved Successfully'));
@@ -380,9 +383,6 @@ class MemberController extends Controller {
 
     /**
      * Display the specified resource.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
      */
     public function show(Request $request, $id) {
         $member       = Member::withoutGlobalScopes(['status'])->find($id);
@@ -492,9 +492,6 @@ class MemberController extends Controller {
 
     /**
      * Show the form for editing the specified resource.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
      */
     public function edit(Request $request, $id) {
         $customFields = CustomField::where('table', 'members')
@@ -511,10 +508,6 @@ class MemberController extends Controller {
 
     /**
      * Update the specified resource in storage.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
      */
     public function update(Request $request, $id) {
         $member = Member::withoutGlobalScopes(['status'])->find($id);
@@ -546,13 +539,13 @@ class MemberController extends Controller {
             ],
             'country_code' => 'required_with:mobile',
             'photo'        => 'nullable|image',
-            'name'         => 'required_if:client_login,1|max:191', // User Login Attribute
+            'name'         => 'required_if:client_login,1|max:191',
             'login_email'  => [
                 'required_if:client_login,1',
                 Rule::unique('users', 'email')->ignore($member->user_id),
-            ],                                              // User Login Attribute
-            'password'     => 'nullable|max:20|min:6',      // User Login Attribute
-            'status'       => 'required_if:client_login,1', // User Login Attribute
+            ],
+            'password'     => 'nullable|max:20|min:6',
+            'status'       => 'required_if:client_login,1',
         ];
 
         $validationMessages = [
@@ -590,6 +583,12 @@ class MemberController extends Controller {
         }
 
         DB::beginTransaction();
+
+        // Snapshot old values BEFORE any changes
+        $oldValues = $member->only([
+            'first_name', 'last_name', 'email', 'mobile',
+            'nin', 'member_no', 'branch_id', 'status', 'address', 'city', 'state',
+        ]);
 
         // Store custom field data
         $customFieldsData = store_custom_field_data($customFields, json_decode($member->custom_fields, true));
@@ -643,6 +642,21 @@ class MemberController extends Controller {
 
         DB::commit();
 
+        // --- Audit Log ---
+        $newValues = $member->only([
+            'first_name', 'last_name', 'email', 'mobile',
+            'nin', 'member_no', 'branch_id', 'status', 'address', 'city', 'state',
+        ]);
+        AuditLog::log(
+            'updated',
+            'Member',
+            $member->id,
+            "Member: {$member->first_name} {$member->last_name} ({$member->member_no})",
+            $oldValues,
+            $newValues,
+            "Member profile updated by " . auth()->user()->name . " (ID: " . auth()->id() . ")"
+        );
+
         if (! $request->ajax()) {
             return redirect()->route('members.index')->with('success', _lang('Updated Successfully'));
         } else {
@@ -671,7 +685,6 @@ class MemberController extends Controller {
             }
         }
 
-        //Send email
         $subject = $request->input("subject");
         $message = $request->input("message");
 
@@ -714,7 +727,6 @@ class MemberController extends Controller {
             }
         }
 
-        //Send message
         $message = $request->input("message");
 
         if (get_option('sms_gateway') == 'none') {
@@ -741,19 +753,37 @@ class MemberController extends Controller {
 
     /**
      * Remove the specified resource from storage.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
      */
     public function destroy($id) {
         if (! auth()->user()->isSuperAdmin()) {
             abort(403, 'Only Super Admins can delete records.');
         }
+
         $member = Member::find($id);
+
+        // Snapshot before deletion
+        $memberLabel = "{$member->first_name} {$member->last_name} ({$member->member_no})";
+        $memberSnap  = $member->only([
+            'first_name', 'last_name', 'email', 'mobile',
+            'nin', 'member_no', 'branch_id', 'status',
+        ]);
+
         if ($member->user) {
             $member->user->delete();
         }
         $member->delete();
+
+        // --- Audit Log ---
+        AuditLog::log(
+            'deleted',
+            'Member',
+            $id,
+            "Member: {$memberLabel}",
+            $memberSnap,
+            null,
+            "Member permanently deleted by " . auth()->user()->name . " (ID: " . auth()->id() . ")"
+        );
+
         return redirect()->route('members.index')->with('success', _lang('Deleted Successfully'));
     }
 
@@ -791,6 +821,17 @@ class MemberController extends Controller {
 
             DB::commit();
 
+            // --- Audit Log ---
+            AuditLog::log(
+                'approved',
+                'Member',
+                $member->id,
+                "Member: {$member->first_name} {$member->last_name} ({$member->member_no})",
+                ['status' => 0],
+                ['status' => 1],
+                "Member request approved by " . auth()->user()->name
+            );
+
             if ($member->status == 1) {
                 try {
                     $member->notify(new MemberRequestAccepted($member));
@@ -802,12 +843,23 @@ class MemberController extends Controller {
             } else {
                 return response()->json(['result' => 'success', 'action' => 'update', 'message' => _lang('Member Request Accepted'), 'data' => $member, 'table' => '#members_table']);
             }
-
         }
     }
 
     public function reject_request($id) {
         $member = Member::withoutGlobalScopes(['status'])->find($id);
+
+        // --- Audit Log ---
+        AuditLog::log(
+            'rejected',
+            'Member',
+            $id,
+            "Member: {$member->first_name} {$member->last_name}",
+            ['status' => 0],
+            null,
+            "Member request rejected and record deleted by " . auth()->user()->name
+        );
+
         $member->user->delete();
         $member->delete();
         return redirect()->back()->with('error', _lang('Member Request Rejected'));
@@ -843,6 +895,17 @@ class MemberController extends Controller {
 
             DB::commit();
 
+            // --- Audit Log ---
+            AuditLog::log(
+                'created',
+                'Member',
+                null,
+                "Bulk Import",
+                null,
+                ['rows_imported' => $new_rows],
+                "Bulk member import: {$new_rows} rows imported by " . auth()->user()->name
+            );
+
             if ($new_rows == 0) {
                 return back()->with('error', _lang('Nothing Imported, Data may already exists !'));
             }
@@ -864,7 +927,7 @@ class MemberController extends Controller {
 
             $savingsaccount->save();
 
-            //Increment account number
+            // Increment account number
             $accountType->starting_account_number = $accountType->starting_account_number + 1;
             $accountType->save();
         }
@@ -873,31 +936,23 @@ class MemberController extends Controller {
     /**
      * Build an E.164 phone number (+<countryDigits><localDigits>) from separate
      * country-code and local-number inputs.
-     *
-     * Handles the case where the user pastes the full stored number (e.g. "+256771445200"
-     * or "256771445200") into the mobile field instead of just the local part, by
-     * stripping the country-code prefix before re-attaching it.
      */
     private function buildE164(string $countryCode, string $mobile): string
     {
         $ccDigits    = preg_replace('/\D/', '', $countryCode);
         $mobileClean = preg_replace('/\D/', '', $mobile);
 
-        // If the mobile already begins with the country-code digits, strip them
         if (str_starts_with($mobileClean, $ccDigits)) {
             $mobileClean = substr($mobileClean, strlen($ccDigits));
         }
 
-        // Strip any residual leading zeros (local-format artifact)
         $mobileClean = ltrim($mobileClean, '0');
 
         return '+' . $ccDigits . $mobileClean;
     }
 
     /**
-     * Return just the local part of a stored E.164 number given its country code,
-     * so the edit form pre-fills with only the local digits (no country-code prefix).
-     * Falls back to the raw stored value if it cannot be stripped.
+     * Return just the local part of a stored E.164 number given its country code.
      */
     public static function localPhoneNumber(?string $storedMobile, ?string $countryCode): string
     {
@@ -912,7 +967,6 @@ class MemberController extends Controller {
             return substr($mobileClean, strlen($ccDigits));
         }
 
-        // Already local-only or unrecognised format — return as stored
         return $storedMobile;
     }
 }
