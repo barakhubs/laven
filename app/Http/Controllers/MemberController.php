@@ -15,6 +15,7 @@ use App\Imports\MembersImport;
 use App\Models\SavingsAccount;
 use App\Models\SavingsProduct;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
@@ -353,9 +354,10 @@ class MemberController extends Controller {
         $member->state         = $request->input('state');
         $member->zip           = $request->input('zip');
         $member->address       = $request->input('address');
-        $member->credit_source = $request->input('credit_source');
-        $member->photo         = $photo;
-        $member->custom_fields = json_encode($customFieldsData);
+        $member->credit_source    = $request->input('credit_source');
+        $member->photo            = $photo;
+        $member->custom_fields    = json_encode($customFieldsData);
+        $member->created_user_id  = Auth::id();
 
         $member->save();
 

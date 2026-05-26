@@ -6,12 +6,36 @@
          <div class="card-header d-sm-flex align-items-center justify-content-between">
             <div class="panel-title">{{ _lang('View Loan Details') }}</div>
             @if($loan->status == 0)
+            @php
+                $currentUserId    = auth()->id();
+                $memberCreator    = optional($loan->borrower)->created_user_id;
+                $loanCreator      = $loan->created_user_id;
+                $blockedFromApprove = ! auth()->user()->isSuperAdmin()
+                                   && (($loanCreator && $loanCreator == $currentUserId)
+                                   || ($memberCreator && $memberCreator == $currentUserId));
+            @endphp
             <div>
-               <a class="btn btn-primary btn-xs" href="{{ route('loans.approve', $loan['id']) }}">
-                  <i class="fas fa-check-circle mr-1"></i>{{ _lang('Click to Approve') }}</a>
-               <a class="btn btn-danger btn-xs confirm-alert" data-message="{{ _lang('Are you sure you want to reject this loan application?') }}" href="#">
-                  <i class="fas fa-times-circle mr-1"></i>{{ _lang('Click to Reject') }}
-               </a>
+               @if($blockedFromApprove)
+                  <span class="badge badge-warning p-2" style="font-size:12px;">
+                     <i class="fas fa-lock mr-1"></i>
+                     {{ _lang('You cannot approve this loan') }} &mdash;
+                     @if($loanCreator == $currentUserId)
+                        {{ _lang('you created this loan application') }}
+                     @else
+                        {{ _lang('you registered this member') }}
+                     @endif
+                  </span>
+               @else
+                  <a class="btn btn-primary btn-xs" href="{{ route('loans.approve', $loan['id']) }}">
+                     <i class="fas fa-check-circle mr-1"></i>{{ _lang('Click to Approve') }}</a>
+               @endif
+               @if(! auth()->user()->isSuperAdmin() && (($loan->created_user_id && $loan->created_user_id == auth()->id()) || (optional($loan->borrower)->created_user_id && optional($loan->borrower)->created_user_id == auth()->id())))
+                  {{-- Reject button hidden: blocked by segregation of duties --}}
+               @else
+                  <a class="btn btn-danger btn-xs confirm-alert" data-message="{{ _lang('Are you sure you want to reject this loan application?') }}" href="#">
+                     <i class="fas fa-times-circle mr-1"></i>{{ _lang('Click to Reject') }}
+                  </a>
+               @endif
             </div>
             @endif
          </div>
