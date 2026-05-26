@@ -30,7 +30,7 @@ class DashboardController extends Controller
     public function index()
     {
         $user      = auth()->user();
-        $user_type = $user->user_type;
+        $user_type = $user->user_type === 'superadmin' ? 'admin' : $user->user_type;
         $date      = date('Y-m-d');
         $data      = [];
 
