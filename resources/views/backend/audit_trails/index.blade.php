@@ -139,7 +139,7 @@
 
 @endsection
 
-@section('js')
+@section('js-script')
 <script>
 $(function () {
 
