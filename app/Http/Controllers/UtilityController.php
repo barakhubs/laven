@@ -407,6 +407,9 @@ class UtilityController extends Controller
      */
     public function destroy_database_backup($id)
     {
+        if (! auth()->user()->isSuperAdmin()) {
+            abort(403, 'Only Super Admins can delete records.');
+        }
         $databasebackup = \App\Models\DatabaseBackup::find($id);
         $file           = public_path('backup/' . $databasebackup->file);
         $databasebackup->delete();

@@ -158,6 +158,9 @@ class BranchController extends Controller {
      * @return \Illuminate\Http\Response
      */
     public function destroy($id) {
+        if (! auth()->user()->isSuperAdmin()) {
+            abort(403, 'Only Super Admins can delete records.');
+        }
         $branch = Branch::find($id);
         $branch->delete();
         return redirect()->route('branches.index')->with('success', _lang('Deleted Successfully'));

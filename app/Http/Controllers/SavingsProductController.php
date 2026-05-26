@@ -228,8 +228,12 @@ class SavingsProductController extends Controller {
      * @return \Illuminate\Http\Response
      */
     public function destroy($id) {
+        if (! auth()->user()->isSuperAdmin()) {
+            abort(403, 'Only Super Admins can delete records.');
+        }
         $savingsproduct = SavingsProduct::find($id);
         $savingsproduct->delete();
         return redirect()->route('savings_products.index')->with('success', _lang('Deleted Successfully'));
     }
 }
+
