@@ -154,6 +154,10 @@ $upcomming_repayments = request_count('upcomming_repayments', true);
 </li>
 
 <li>
+    <a href="{{ route('audit_trails.index') }}"><i class="fas fa-shield-alt text-danger"></i><span>{{ _lang('Audit Trails') }} <span class="badge badge-pill badge-danger" style="font-size:9px;vertical-align:middle;">SA</span></span></a>
+</li>
+
+<li>
 	<a href="javascript: void(0);"><i class="ti-settings"></i><span>{{ _lang('System Settings') }}</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
 	<ul class="nav-second-level" aria-expanded="false">
 		<li class="nav-item"><a class="nav-link" href="{{ route('settings.update_settings') }}">{{ _lang('General Settings') }}</a></li>
