@@ -177,6 +177,16 @@ class LoanController extends Controller {
             return back()->with('error', $msg)->withInput();
         }
 
+        // Segregation of Duties: the person who registered the member cannot also create their loan
+        // Superadmin is exempt from this restriction
+        if (! Auth::user()->isSuperAdmin() && $borrower->created_user_id && $borrower->created_user_id == Auth::id()) {
+            $msg = _lang('You cannot create a loan for a member you registered. This action must be performed by a different staff member.');
+            if ($request->ajax()) {
+                return response()->json(['result' => 'error', 'message' => [$msg]]);
+            }
+            return back()->with('error', $msg)->withInput();
+        }
+
         //Check Debit account is valid account
         $account = SavingsAccount::where('id', $request->debit_account_id)
             ->where('member_id', $request->borrower_id)
@@ -322,6 +332,19 @@ class LoanController extends Controller {
                 return back()->with('error', _lang('Loan ID and Release date must required !'));
             }
 
+            // Segregation of Duties: block direct URL access to approve page for ineligible users
+            if (! Auth::user()->isSuperAdmin()) {
+                $borrower = \App\Models\Member::withoutGlobalScopes()->find($loan->borrower_id);
+                if ($loan->created_user_id && $loan->created_user_id == Auth::id()) {
+                    return redirect()->route('loans.show', $id)
+                        ->with('error', _lang('You cannot approve a loan you created. This action must be performed by a different staff member.'));
+                }
+                if ($borrower && $borrower->created_user_id && $borrower->created_user_id == Auth::id()) {
+                    return redirect()->route('loans.show', $id)
+                        ->with('error', _lang('You cannot approve a loan for a member you registered. This action must be performed by a different staff member.'));
+                }
+            }
+
             return view('backend.loan.approve', compact('loan', 'accounts', 'alert_col'));
         }
 
@@ -335,6 +358,19 @@ class LoanController extends Controller {
 
         if ($loan->loan_id == NULL || $loan->release_date == NULL) {
             return back()->with('error', _lang('Loan ID and Release date must required !'));
+        }
+
+        // Segregation of Duties: loan creator cannot approve their own loan
+        // Superadmin is exempt from this restriction
+        if (! Auth::user()->isSuperAdmin() && $loan->created_user_id && $loan->created_user_id == Auth::id()) {
+            return back()->with('error', _lang('You cannot approve a loan you created. This action must be performed by a different staff member.'));
+        }
+
+        // Segregation of Duties: the person who registered the member cannot approve the loan
+        // Superadmin is exempt from this restriction
+        $borrower = \App\Models\Member::withoutGlobalScopes()->find($loan->borrower_id);
+        if (! Auth::user()->isSuperAdmin() && $borrower && $borrower->created_user_id && $borrower->created_user_id == Auth::id()) {
+            return back()->with('error', _lang('You cannot approve a loan for a member you registered. This action must be performed by a different staff member.'));
         }
 
         //Deduct Loan Processing Fee
@@ -462,6 +498,18 @@ class LoanController extends Controller {
         if ($loan->status != 0) {
             abort(403);
         }
+
+        // Segregation of Duties: loan creator and member registrar cannot reject either
+        if (! Auth::user()->isSuperAdmin()) {
+            $borrower = \App\Models\Member::withoutGlobalScopes()->find($loan->borrower_id);
+            if ($loan->created_user_id && $loan->created_user_id == Auth::id()) {
+                return back()->with('error', _lang('You cannot reject a loan you created. This action must be performed by a different staff member.'));
+            }
+            if ($borrower && $borrower->created_user_id && $borrower->created_user_id == Auth::id()) {
+                return back()->with('error', _lang('You cannot reject a loan for a member you registered. This action must be performed by a different staff member.'));
+            }
+        }
+
         $loan->status = 3; //Cancelled
         $loan->save();
 
@@ -482,6 +530,14 @@ class LoanController extends Controller {
         $loan = Loan::find($id);
         if ($loan->status == 2) {
             return back()->with('error', _lang('Sorry, This Loan is already completed'));
+        }
+
+        // Segregation of Duties: member registrar cannot edit a loan for a member they registered
+        if (! Auth::user()->isSuperAdmin()) {
+            $borrower = \App\Models\Member::withoutGlobalScopes()->find($loan->borrower_id);
+            if ($borrower && $borrower->created_user_id && $borrower->created_user_id == Auth::id()) {
+                return back()->with('error', _lang('You cannot edit a loan for a member you registered. This action must be performed by a different staff member.'));
+            }
         }
 
         $customFields = CustomField::where('table', 'loans')
@@ -510,6 +566,14 @@ class LoanController extends Controller {
         $loan = Loan::find($id);
         if ($loan->status == 2) {
             return back()->with('error', _lang('Sorry, This Loan is already completed'));
+        }
+
+        // Segregation of Duties: member registrar cannot update a loan for a member they registered
+        if (! Auth::user()->isSuperAdmin()) {
+            $borrower = \App\Models\Member::withoutGlobalScopes()->find($loan->borrower_id);
+            if ($borrower && $borrower->created_user_id && $borrower->created_user_id == Auth::id()) {
+                return back()->with('error', _lang('You cannot edit a loan for a member you registered. This action must be performed by a different staff member.'));
+            }
         }
         if ($loan->status != 0) {
             $loan->description = $request->input('description');
