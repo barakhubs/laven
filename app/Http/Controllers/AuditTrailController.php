@@ -64,7 +64,7 @@ class AuditTrailController extends Controller
             $query->search($request->search_term);
         }
 
-        return DataTables::eloquent($query)
+        return Datatables::eloquent($query)
             ->addColumn('action_badge', function ($log) {
                 return '<span class="badge ' . $log->action_badge . ' px-2 py-1">'
                     . strtoupper(htmlspecialchars($log->action)) . '</span>';
