@@ -160,6 +160,9 @@ class MemberDocumentController extends Controller {
      * @return \Illuminate\Http\Response
      */
     public function destroy($id) {
+        if (! auth()->user()->isSuperAdmin()) {
+            abort(403, 'Only Super Admins can delete records.');
+        }
         $document = MemberDocument::find($id);
         if (file_exists(public_path('uploads/documents/' . $document->document))) {
             unlink(public_path('uploads/documents/' . $document->document));
@@ -168,3 +171,4 @@ class MemberDocumentController extends Controller {
         return back()->with('success', _lang('Deleted Successfully'));
     }
 }
+

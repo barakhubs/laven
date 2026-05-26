@@ -203,6 +203,9 @@ class LoanProductController extends Controller {
      * @return \Illuminate\Http\Response
      */
     public function destroy($id) {
+        if (! auth()->user()->isSuperAdmin()) {
+            abort(403, 'Only Super Admins can delete records.');
+        }
         $loanproduct = LoanProduct::find($id);
         $loanproduct->delete();
         return redirect()->route('loan_products.index')->with('success', _lang('Deleted successfully'));

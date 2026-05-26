@@ -57,11 +57,13 @@ class SavingsAccountController extends Controller {
                 . '<div class="dropdown-menu">'
                 . '<a class="dropdown-item ajax-modal" href="' . route('savings_accounts.edit', $savingsaccount['id']) . '" data-title="' . _lang('Account Details') . '"><i class="ti-pencil-alt"></i> ' . _lang('Edit') . '</a>'
                 . '<a class="dropdown-item ajax-modal" href="' . route('savings_accounts.show', $savingsaccount['id']) . '" data-title="' . _lang('Update Account') . '"><i class="ti-eye"></i>  ' . _lang('View') . '</a>'
-                . '<form action="' . route('savings_accounts.destroy', $savingsaccount['id']) . '" method="post">'
-                . csrf_field()
-                . '<input name="_method" type="hidden" value="DELETE">'
-                . '<button class="dropdown-item btn-remove" type="submit"><i class="ti-trash"></i> ' . _lang('Delete') . '</button>'
+                . (auth()->user()->isSuperAdmin()
+                    ? '<form action="' . route('savings_accounts.destroy', $savingsaccount['id']) . '" method="post">'
+                    . csrf_field()
+                    . '<input name="_method" type="hidden" value="DELETE">'
+                    . '<button class="dropdown-item btn-remove" type="submit"><i class="ti-trash"></i> ' . _lang('Delete') . '</button>'
                     . '</form>'
+                    : '')
                     . '</div>'
                     . '</div>';
             })
@@ -253,6 +255,9 @@ class SavingsAccountController extends Controller {
      * @return \Illuminate\Http\Response
      */
     public function destroy($id) {
+        if (! auth()->user()->isSuperAdmin()) {
+            abort(403, 'Only Super Admins can delete records.');
+        }
         $savingsaccount = SavingsAccount::withoutGlobalScopes(['status'])->find($id);
         $savingsaccount->delete();
         return redirect()->route('savings_accounts.index')->with('success', _lang('Deleted Successfully'));

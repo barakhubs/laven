@@ -234,6 +234,9 @@ class UserController extends Controller {
      * @return \Illuminate\Http\Response
      */
     public function destroy($id) {
+        if (! auth()->user()->isSuperAdmin()) {
+            abort(403, 'Only Super Admins can delete records.');
+        }
         $user = User::find($id);
         $user->delete();
         return redirect()->route('users.index')->with('success', _lang('Deleted Sucessfully'));

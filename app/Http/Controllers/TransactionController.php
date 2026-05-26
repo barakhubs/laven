@@ -74,11 +74,13 @@ class TransactionController extends Controller
                 . '<a class="dropdown-item" href="' . route('transactions.show', $transaction['id']) . '"><i class="ti-eye"></i>  ' . _lang('Details') . '</a>'
                 . '<a class="dropdown-item" href="' . route('transactions.show', $transaction['id']) . '?print=general" target="_blank"><i class="fas fa-print"></i>  ' . _lang('Regular Print') . '</a>'
                 . '<a class="dropdown-item" href="' . route('transactions.show', $transaction['id']) . '?print=pos" target="_blank"><i class="fas fa-print"></i>  ' . _lang('POS Receipt') . '</a>'
-                . '<form action="' . route('transactions.destroy', $transaction['id']) . '" method="post">'
-                . csrf_field()
-                . '<input name="_method" type="hidden" value="DELETE">'
-                . '<button class="dropdown-item btn-remove" type="submit"><i class="ti-trash"></i> ' . _lang('Delete') . '</button>'
+                . (auth()->user()->isSuperAdmin()
+                    ? '<form action="' . route('transactions.destroy', $transaction['id']) . '" method="post">'
+                    . csrf_field()
+                    . '<input name="_method" type="hidden" value="DELETE">'
+                    . '<button class="dropdown-item btn-remove" type="submit"><i class="ti-trash"></i> ' . _lang('Delete') . '</button>'
                     . '</form>'
+                    : '')
                     . '</div>'
                     . '</div>';
             })
@@ -329,6 +331,9 @@ class TransactionController extends Controller
      */
     public function destroy($id)
     {
+        if (! auth()->user()->isSuperAdmin()) {
+            abort(403, 'Only Super Admins can delete records.');
+        }
         DB::beginTransaction();
 
         $transaction = Transaction::find($id);
@@ -347,3 +352,4 @@ class TransactionController extends Controller
         return redirect()->route('transactions.index')->with('success', _lang('Deleted Successfully'));
     }
 }
+

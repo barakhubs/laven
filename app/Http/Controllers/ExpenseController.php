@@ -46,11 +46,13 @@ class ExpenseController extends Controller {
                 . '<div class="dropdown-menu">'
                 . '<a class="dropdown-item ajax-modal" href="' . route('expenses.edit', $expense['id']) . '" data-title="' . _lang('Expense Details') . '"><i class="ti-pencil-alt"></i> ' . _lang('Edit') . '</a>'
                 . '<a class="dropdown-item ajax-modal" href="' . route('expenses.show', $expense['id']) . '" data-title="' . _lang('Update Expense') . '"><i class="ti-eye"></i>  ' . _lang('View') . '</a>'
-                . '<form action="' . route('expenses.destroy', $expense['id']) . '" method="post">'
-                . csrf_field()
-                . '<input name="_method" type="hidden" value="DELETE">'
-                . '<button class="dropdown-item btn-remove" type="submit"><i class="ti-trash"></i> ' . _lang('Delete') . '</button>'
+                . (auth()->user()->isSuperAdmin()
+                    ? '<form action="' . route('expenses.destroy', $expense['id']) . '" method="post">'
+                    . csrf_field()
+                    . '<input name="_method" type="hidden" value="DELETE">'
+                    . '<button class="dropdown-item btn-remove" type="submit"><i class="ti-trash"></i> ' . _lang('Delete') . '</button>'
                     . '</form>'
+                    : '')
                     . '</div>'
                     . '</div>';
             })
@@ -217,6 +219,9 @@ class ExpenseController extends Controller {
      * @return \Illuminate\Http\Response
      */
     public function destroy($id) {
+        if (! auth()->user()->isSuperAdmin()) {
+            abort(403, 'Only Super Admins can delete records.');
+        }
         $expense = Expense::find($id);
         $expense->delete();
         return redirect()->route('expenses.index')->with('success', _lang('Deleted Successfully'));

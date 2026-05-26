@@ -52,11 +52,13 @@ class BankTransactionController extends Controller {
                 . '<div class="dropdown-menu">'
                 . '<a class="dropdown-item ajax-modal" href="' . route('bank_transactions.edit', $bankTransaction['id']) . '" data-title="' . _lang('Update Bank Transaction') . '"><i class="fas fa-pencil-alt"></i> ' . _lang('Edit') . '</a>'
                 . '<a class="dropdown-item ajax-modal" href="' . route('bank_transactions.show', $bankTransaction['id']) . '" data-title="' . _lang('Bank Transaction Details') . '"><i class="fas fa-eye"></i> ' . _lang('Details') . '</a>'
-                . '<form action="' . route('bank_transactions.destroy', $bankTransaction['id']) . '" method="post">'
-                . csrf_field()
-                . '<input name="_method" type="hidden" value="DELETE">'
-                . '<button class="dropdown-item btn-remove" type="submit"><i class="fas fa-trash-alt"></i> ' . _lang('Delete') . '</button>'
+                . (auth()->user()->isSuperAdmin()
+                    ? '<form action="' . route('bank_transactions.destroy', $bankTransaction['id']) . '" method="post">'
+                    . csrf_field()
+                    . '<input name="_method" type="hidden" value="DELETE">'
+                    . '<button class="dropdown-item btn-remove" type="submit"><i class="fas fa-trash-alt"></i> ' . _lang('Delete') . '</button>'
                     . '</form>'
+                    : '')
                     . '</div>'
                     . '</div>';
             })
@@ -269,8 +271,12 @@ class BankTransactionController extends Controller {
      * @return \Illuminate\Http\Response
      */
     public function destroy($id) {
+        if (! auth()->user()->isSuperAdmin()) {
+            abort(403, 'Only Super Admins can delete records.');
+        }
         $banktransaction = BankTransaction::find($id);
         $banktransaction->delete();
         return redirect()->route('bank_transactions.index')->with('success', _lang('Deleted Successfully'));
     }
 }
+

@@ -193,6 +193,9 @@ class LoanCollateralController extends Controller {
      * @return \Illuminate\Http\Response
      */
     public function destroy($id) {
+        if (! auth()->user()->isSuperAdmin()) {
+            abort(403, 'Only Super Admins can delete records.');
+        }
         $loancollateral = LoanCollateral::find($id);
         $loancollateral->delete();
         return back()->with('success', _lang('Deleted successfully'));

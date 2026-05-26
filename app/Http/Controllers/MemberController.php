@@ -15,7 +15,6 @@ use App\Imports\MembersImport;
 use App\Models\SavingsAccount;
 use App\Models\SavingsProduct;
 use Illuminate\Validation\Rule;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
@@ -108,11 +107,13 @@ class MemberController extends Controller {
                 . '<a class="dropdown-item" href="' . route('members.show', $member->id) . '?tab=savings_overview"><i class="ti-wallet"></i>  ' . _lang('Savings') . '</a>'
                 . '<a class="dropdown-item" href="' . route('members.show', $member->id) . '?tab=loan_summary"><i class="ti-credit-card"></i>  ' . _lang('Loans') . '</a>'
                 . '<a class="dropdown-item" href="' . route('member_documents.index', $member->id) . '"><i class="ti-files"></i>  ' . _lang('Documents') . '</a>'
-                . '<form action="' . route('members.destroy', $member->id) . '" method="post">'
-                . csrf_field()
-                . '<input name="_method" type="hidden" value="DELETE">'
-                . '<button class="dropdown-item btn-remove" type="submit"><i class="ti-trash"></i> ' . _lang('Delete') . '</button>'
+                . (auth()->user()->isSuperAdmin()
+                    ? '<form action="' . route('members.destroy', $member->id) . '" method="post">'
+                    . csrf_field()
+                    . '<input name="_method" type="hidden" value="DELETE">'
+                    . '<button class="dropdown-item btn-remove" type="submit"><i class="ti-trash"></i> ' . _lang('Delete') . '</button>'
                     . '</form>'
+                    : '')
                     . '</div>'
                     . '</div>';
             })
@@ -354,10 +355,9 @@ class MemberController extends Controller {
         $member->state         = $request->input('state');
         $member->zip           = $request->input('zip');
         $member->address       = $request->input('address');
-        $member->credit_source    = $request->input('credit_source');
-        $member->photo            = $photo;
-        $member->custom_fields    = json_encode($customFieldsData);
-        $member->created_user_id  = Auth::id();
+        $member->credit_source = $request->input('credit_source');
+        $member->photo         = $photo;
+        $member->custom_fields = json_encode($customFieldsData);
 
         $member->save();
 
@@ -473,11 +473,13 @@ class MemberController extends Controller {
                 . '<div class="dropdown-menu">'
                 . '<a class="dropdown-item" href="' . route('transactions.edit', $transaction['id']) . '"><i class="ti-pencil-alt"></i> ' . _lang('Edit') . '</a>'
                 . '<a class="dropdown-item" href="' . route('transactions.show', $transaction['id']) . '"><i class="ti-eye"></i>  ' . _lang('View') . '</a>'
-                . '<form action="' . route('transactions.destroy', $transaction['id']) . '" method="post">'
-                . csrf_field()
-                . '<input name="_method" type="hidden" value="DELETE">'
-                . '<button class="dropdown-item btn-remove" type="submit"><i class="ti-trash"></i> ' . _lang('Delete') . '</button>'
+                . (auth()->user()->isSuperAdmin()
+                    ? '<form action="' . route('transactions.destroy', $transaction['id']) . '" method="post">'
+                    . csrf_field()
+                    . '<input name="_method" type="hidden" value="DELETE">'
+                    . '<button class="dropdown-item btn-remove" type="submit"><i class="ti-trash"></i> ' . _lang('Delete') . '</button>'
                     . '</form>'
+                    : '')
                     . '</div>'
                     . '</div>';
             })
@@ -744,6 +746,9 @@ class MemberController extends Controller {
      * @return \Illuminate\Http\Response
      */
     public function destroy($id) {
+        if (! auth()->user()->isSuperAdmin()) {
+            abort(403, 'Only Super Admins can delete records.');
+        }
         $member = Member::find($id);
         if ($member->user) {
             $member->user->delete();

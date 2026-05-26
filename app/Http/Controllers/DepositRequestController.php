@@ -65,8 +65,10 @@ class DepositRequestController extends Controller
                 $actions .= $deposit_request->status != 2 ? '<a href="' . route('deposit_requests.approve', $deposit_request['id']) . '" class="btn btn-outline-success btn-xs"><i class="ti-check-box"></i> ' . _lang('Approve') . '</a>&nbsp;' : '';
                 $actions .= $deposit_request->status != 0 ? '<a href="' . route('deposit_requests.reject', $deposit_request['id']) . '" class="btn btn-outline-warning btn-xs"><i class="ti-close"></i> ' . _lang('Reject') . '</a>&nbsp;' : '';
                 $actions .= csrf_field();
-                $actions .= '<input name="_method" type="hidden" value="DELETE">';
-                $actions .= '<button class="btn btn-outline-danger btn-xs btn-remove" type="submit"><i class="ti-trash"></i> ' . _lang('Delete') . '</button>';
+                if (auth()->user()->isSuperAdmin()) {
+                    $actions .= '<input name="_method" type="hidden" value="DELETE">';
+                    $actions .= '<button class="btn btn-outline-danger btn-xs btn-remove" type="submit"><i class="ti-trash"></i> ' . _lang('Delete') . '</button>';
+                }
                 $actions .= '</form>';
 
                 return $actions;
@@ -168,6 +170,9 @@ class DepositRequestController extends Controller
      */
     public function destroy($id)
     {
+        if (! auth()->user()->isSuperAdmin()) {
+            abort(403, 'Only Super Admins can delete records.');
+        }
         $depositRequest = DepositRequest::find($id);
         if ($depositRequest->transaction_id != null) {
             $transaction = Transaction::find($depositRequest->transaction_id);
@@ -179,3 +184,4 @@ class DepositRequestController extends Controller
         return redirect()->route('deposit_requests.index')->with('success', _lang('Deleted Successfully'));
     }
 }
+
