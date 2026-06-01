@@ -297,6 +297,18 @@ $(function () {
         }
     });
 
+    // Lock phone fields so the number can't change after OTP is sent
+    function lockPhoneFields() {
+        $('#country_code_select').prop('disabled', true);
+        $('#mobile_input').prop('readonly', true);
+    }
+
+    // Unlock phone fields (used when Resend resets the flow)
+    function unlockPhoneFields() {
+        $('#country_code_select').prop('disabled', false);
+        $('#mobile_input').prop('readonly', false);
+    }
+
     // Send OTP
     $('#send_otp_btn').on('click', function () {
         var phone = fullPhone();
@@ -310,6 +322,13 @@ $(function () {
             data: { phone: phone, _token: '{{ csrf_token() }}' },
             success: function (res) {
                 if (res.success) {
+                    lockPhoneFields();
+                    // Reset verification state so a resend always requires re-entry
+                    otpVerified = false;
+                    $('#otp_token').val('');
+                    $('#otp_phone').val('');
+                    $('#otp_code_input').val('').prop('readonly', false);
+                    $('#verify_otp_btn').show().prop('disabled', false).text('{{ _lang("Verify") }}');
                     $('#otp_section').show();
                     $('#otp_status').text('').removeClass('text-success text-danger');
                     btn.text('{{ _lang("Resend OTP") }}').prop('disabled', false);
@@ -328,6 +347,9 @@ $(function () {
 
     // Verify OTP
     $('#verify_otp_btn').on('click', function () {
+        // Guard: do nothing if already verified
+        if (otpVerified) return;
+
         var phone = fullPhone();
         if (!phone) return;
         var code  = $('#otp_code_input').val().trim();
@@ -349,7 +371,8 @@ $(function () {
                     $('#otp_token').val(res.otp_token);
                     $('#otp_phone').val(phone);
                     $('#otp_status').text('✓ {{ _lang("Phone verified") }}').removeClass('text-danger').addClass('text-success');
-                    $('#verify_otp_btn').hide();
+                    // Disable (not just hide) the verify button so it cannot be clicked again
+                    $('#verify_otp_btn').prop('disabled', true).text('{{ _lang("Verified") }}');
                     $('#otp_code_input').prop('readonly', true);
                 } else {
                     $('#otp_status').text(res.message).removeClass('text-success').addClass('text-danger');

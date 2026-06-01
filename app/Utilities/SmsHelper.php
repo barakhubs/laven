@@ -10,7 +10,7 @@ use PahappaLimited\CommsSDK\v1\CommsSDK;
 class SmsHelper {
 
 	public function send($to, $message) {
-		if ($to < 8) {
+		if (strlen($to) < 8) {
 			Log::channel('daily')->warning('SmsHelper: skipped sending, recipient too short', ['to' => $to]);
 			return;
 		}
@@ -113,6 +113,9 @@ class SmsHelper {
 		$egosms_username = get_option('egosms_username');
 		$egosms_password = get_option('egosms_password');
 		$egosms_sender   = get_option('egosms_sender_id');
+
+		// EgoSMS/CommsSDK expects digits only — strip any leading +
+		$to = ltrim($to, '+');
 
 		Log::channel('daily')->info('SmsHelper [EgoSMS]: preparing request', [
 			'username' => $egosms_username,
