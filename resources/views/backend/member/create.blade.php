@@ -299,15 +299,23 @@ $(function () {
 
     // Lock phone fields so the number can't change after OTP is sent
     function lockPhoneFields() {
-        $('#country_code_select').prop('disabled', true);
-        $('#mobile_input').prop('readonly', true);
-    }
+		// Visually lock Select2 without removing it from form submission
+		$('#country_code_select').prop('disabled', true).next('.select2-container').css('pointer-events','none').css('opacity','0.65');
+		// Keep a hidden field with the same name so the value IS submitted
+		if ($('#country_code_hidden').length === 0) {
+			$('<input type="hidden" id="country_code_hidden" name="country_code">')
+				.val($('#country_code_select').val())
+				.insertAfter('#country_code_select');
+		}
+		$('#mobile_input').prop('readonly', true);
+	}
 
-    // Unlock phone fields (used when Resend resets the flow)
-    function unlockPhoneFields() {
-        $('#country_code_select').prop('disabled', false);
-        $('#mobile_input').prop('readonly', false);
-    }
+	function unlockPhoneFields() {
+		$('#country_code_select').prop('disabled', false).next('.select2-container').css('pointer-events','').css('opacity','');
+		$('#country_code_hidden').remove();
+		$('#mobile_input').prop('readonly', false);
+	}
+
 
     // Send OTP
     $('#send_otp_btn').on('click', function () {
@@ -366,15 +374,18 @@ $(function () {
             method: 'POST',
             data: { phone: phone, code: code, _token: '{{ csrf_token() }}' },
             success: function (res) {
-                if (res.success) {
-                    otpVerified = true;
-                    $('#otp_token').val(res.otp_token);
-                    $('#otp_phone').val(phone);
-                    $('#otp_status').text('✓ {{ _lang("Phone verified") }}').removeClass('text-danger').addClass('text-success');
-                    // Disable (not just hide) the verify button so it cannot be clicked again
-                    $('#verify_otp_btn').prop('disabled', true).text('{{ _lang("Verified") }}');
-                    $('#otp_code_input').prop('readonly', true);
-                } else {
+				if (res.success) {
+					otpVerified = true;
+					$('#otp_token').val(res.otp_token);
+					$('#otp_phone').val(phone);
+					$('#otp_status').text('✓ {{ _lang("Phone verified") }}').removeClass('text-danger').addClass('text-success');
+					$('#verify_otp_btn').prop('disabled', true).text('{{ _lang("Verified") }}');
+					$('#otp_code_input').prop('readonly', true);
+
+					$('#send_otp_btn').prop('disabled', true).text('{{ _lang("Verified") }}');
+					// Optionally change the button style to green to signal success:
+					$('#send_otp_btn').removeClass('btn-outline-primary').addClass('btn-outline-success');
+				} else {
                     $('#otp_status').text(res.message).removeClass('text-success').addClass('text-danger');
                     btn.text('{{ _lang("Verify") }}').prop('disabled', false);
                 }
