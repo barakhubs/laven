@@ -27,6 +27,17 @@ class MemberDocumentController extends Controller {
     }
 
     /**
+     * GET /admin/member_documents/check/{member_id}
+     * Returns JSON: { has_documents: true|false }
+     * Used by the loan create form to warn when a member has no documents.
+     */
+    public function checkDocuments($member_id)
+    {
+        $count = MemberDocument::where('member_id', $member_id)->count();
+        return response()->json(['has_documents' => $count > 0]);
+    }
+
+    /**
      * Show the form for creating a new resource.
      *
      * @return \Illuminate\Http\Response

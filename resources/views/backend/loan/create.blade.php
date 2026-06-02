@@ -42,6 +42,36 @@
 							</div>
 						</div>
 
+						{{-- Document warning banner (shown dynamically via JS when member has no docs) --}}
+						<div class="col-lg-12" id="doc_warning_banner" style="display:none;">
+							<div class="alert alert-warning mb-0" role="alert">
+								<i class="ti-alert mr-1"></i>
+								<strong>{{ _lang('No documents on file.') }}</strong>
+								{{ _lang('This member has no documents uploaded. Please upload at least one document before creating a loan.') }}
+								<a id="doc_upload_link" href="#" target="_blank" class="ml-1 font-weight-bold">{{ _lang('Upload Documents →') }}</a>
+							</div>
+						</div>
+
+						@if($isSuperAdmin)
+						{{-- Superadmin override: only visible when warning is showing --}}
+						<div class="col-lg-12" id="doc_override_section" style="display:none;">
+							<div class="form-group mb-0">
+								<div class="custom-control custom-checkbox">
+									<input type="checkbox" class="custom-control-input" id="doc_override_check" name="doc_override" value="1">
+									<label class="custom-control-label text-warning" for="doc_override_check">
+										{{ _lang('Override document requirement (superadmin only)') }}
+									</label>
+								</div>
+							</div>
+						</div>
+						<div class="col-lg-6" id="doc_override_reason_section" style="display:none;">
+							<div class="form-group">
+								<label class="control-label">{{ _lang('Override Reason') }}</label>
+								<input type="text" class="form-control" name="doc_override_reason" placeholder="{{ _lang('Reason for bypassing document requirement') }}">
+							</div>
+						</div>
+						@endif
+
 						<div class="col-lg-6">
 							<div class="form-group">
 								<label class="control-label">{{ _lang('Currency') }}</label>
@@ -169,7 +199,15 @@
 
 	$(document).on('change','#borrower_id',function(){
 		var member_id = $(this).val();
+
+		// Reset document warning & override on every member change
+		$('#doc_warning_banner').hide();
+		$('#doc_override_section').hide();
+		$('#doc_override_reason_section').hide();
+		$('#doc_override_check').prop('checked', false);
+
 		if(member_id != ''){
+			// Load savings accounts
 			$.ajax({
 				url: "{{ url('admin/savings_accounts/get_account_by_member_id/') }}/" + member_id,
 				success: function(data){
@@ -178,10 +216,30 @@
 					$.each(json['accounts'], function(i, account) {
 						$("#debit_account").append(`<option value="${account.id}">${account.account_number} (${account.savings_type.name} - ${account.savings_type.currency.name})</option>`);
 					});
+				}
+			});
 
+			// Check whether the member has any documents on file
+			$.ajax({
+				url: "{{ url('admin/member_documents/check/') }}/" + member_id,
+				method: 'GET',
+				success: function(res) {
+					if (res.has_documents === false) {
+						// Show warning with a direct link to upload page
+						$('#doc_upload_link').attr('href', "{{ url('admin/member_documents') }}/" + member_id);
+						$('#doc_warning_banner').show();
+						@if($isSuperAdmin)
+						$('#doc_override_section').show();
+						@endif
+					}
 				}
 			});
 		}
+	});
+
+	// Superadmin override checkbox — show/hide reason field
+	$(document).on('change', '#doc_override_check', function() {
+		$('#doc_override_reason_section').toggle(this.checked);
 	});
 
 	$(document).on('change', '#loan_product_id', function(){
@@ -235,3 +293,4 @@
 })(jQuery);
 </script>
 @endsection
+

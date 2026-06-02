@@ -184,6 +184,7 @@ Route::group(['middleware' => ['install']], function () {
                 // Member Documents
                 Route::get('member_documents/{member_id}', [MemberDocumentController::class, 'index'])->name('member_documents.index');
                 Route::get('member_documents/create/{member_id}', [MemberDocumentController::class, 'create'])->name('member_documents.create');
+                Route::get('member_documents/check/{member_id}', [MemberDocumentController::class, 'checkDocuments'])->name('member_documents.check');
                 Route::resource('member_documents', MemberDocumentController::class)->except(['index', 'create', 'show']);
 
                 // Savings Accounts
