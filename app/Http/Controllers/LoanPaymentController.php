@@ -231,6 +231,8 @@ class LoanPaymentController extends Controller
                     $repayments = $calculator->get_one_time();
                 } else if ($interest_type == 'reducing_amount') {
                     $repayments = $calculator->get_reducing_amount();
+                } else if ($interest_type == 'interest_only') {
+                    $repayments = $calculator->get_interest_only();
                 }
 
                 $index = 0;
