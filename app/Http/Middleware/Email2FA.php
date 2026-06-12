@@ -31,6 +31,12 @@ class Email2FA {
             }
 
             if (!$request->is('verify_2fa.*')) {
+                if ($request->expectsJson() || $request->ajax()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => '2FA verification required. Please refresh the page.',
+                    ], 403);
+                }
                 return redirect()->route('verify_2fa.index');
             }
         }

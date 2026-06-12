@@ -23,7 +23,7 @@
                             @endif
                             @if($member->mobile)
                             &nbsp;&bull;&nbsp;
-                            <i class="ti-mobile mr-1"></i>{{ $member->country_code.$member->mobile }}
+                            <i class="ti-mobile mr-1"></i>{{ $member->mobile }}
                             @endif
                         </small>
                     </div>
@@ -125,7 +125,17 @@
                                     <tr><th>{{ _lang('Business Name') }}</th><td>{{ $member->business_name ?: '-' }}</td></tr>
                                     <tr><th>{{ _lang('Branch') }}</th><td>{{ $member->branch->name }}</td></tr>
                                     <tr><th>{{ _lang('Email') }}</th><td>{{ $member->email ?: '-' }}</td></tr>
-                                    <tr><th>{{ _lang('Mobile') }}</th><td>{{ $member->country_code.$member->mobile }}</td></tr>
+                                    <tr><th>{{ _lang('Mobile') }}</th><td>{{ $member->mobile }}</td></tr>
+                                    <tr>
+                                        <th>{{ _lang('NIN') }}</th>
+                                        <td>
+                                            @if($member->nin)
+                                                <strong>{{ $member->nin }}</strong>
+                                            @else
+                                                <span class="badge badge-danger">{{ _lang('Not on record') }}</span>
+                                            @endif
+                                        </td>
+                                    </tr>
                                     <tr><th>{{ _lang('Gender') }}</th><td>{{ ucwords($member->gender) }}</td></tr>
                                     <tr><th>{{ _lang('City / State / Zip') }}</th><td>{{ implode(', ', array_filter([$member->city, $member->state, $member->zip])) ?: '-' }}</td></tr>
                                     <tr><th>{{ _lang('Address') }}</th><td>{{ $member->address ?: '-' }}</td></tr>
@@ -514,7 +524,7 @@
                         <form method="post" class="validate" autocomplete="off" action="{{ route('members.send_sms') }}" enctype="multipart/form-data">
                             {{ csrf_field() }}
                             <div class="row">
-                                <div class="col-md-12"><div class="form-group"><label>{{ _lang('User Mobile') }}</label><input type="text" class="form-control" name="phone" value="{{ $member->country_code.$member->mobile }}" required readonly></div></div>
+                                <div class="col-md-12"><div class="form-group"><label>{{ _lang('User Mobile') }}</label><input type="text" class="form-control" name="phone" value="{{ $member->mobile }}" required readonly></div></div>
                                 <div class="col-md-12"><div class="form-group"><label>{{ _lang('Message') }}</label><textarea class="form-control" name="message" rows="6" required>{{ old('message') }}</textarea></div></div>
                                 <div class="col-md-12"><button type="submit" class="btn btn-primary btn-block"><i class="ti-check-box mr-1"></i>{{ _lang('Send') }}</button></div>
                             </div>

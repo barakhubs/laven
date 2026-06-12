@@ -27,6 +27,17 @@ class MemberDocumentController extends Controller {
     }
 
     /**
+     * GET /admin/member_documents/check/{member_id}
+     * Returns JSON: { has_documents: true|false }
+     * Used by the loan create form to warn when a member has no documents.
+     */
+    public function checkDocuments($member_id)
+    {
+        $count = MemberDocument::where('member_id', $member_id)->count();
+        return response()->json(['has_documents' => $count > 0]);
+    }
+
+    /**
      * Show the form for creating a new resource.
      *
      * @return \Illuminate\Http\Response
@@ -160,6 +171,9 @@ class MemberDocumentController extends Controller {
      * @return \Illuminate\Http\Response
      */
     public function destroy($id) {
+        if (! auth()->user()->isSuperAdmin()) {
+            abort(403, 'Only Super Admins can delete records.');
+        }
         $document = MemberDocument::find($id);
         if (file_exists(public_path('uploads/documents/' . $document->document))) {
             unlink(public_path('uploads/documents/' . $document->document));
@@ -168,3 +182,4 @@ class MemberDocumentController extends Controller {
         return back()->with('success', _lang('Deleted Successfully'));
     }
 }
+

@@ -137,6 +137,9 @@ class LanguageController extends Controller
      */
     public function destroy($id)
     {
+        if (! auth()->user()->isSuperAdmin()) {
+            abort(403, 'Only Super Admins can delete records.');
+        }
         if (file_exists(resource_path() . "/language/$id.php")) {
             unlink(resource_path() . "/language/$id.php");
             return redirect()->route('languages.index')->with('success', _lang('Removed successfully'));

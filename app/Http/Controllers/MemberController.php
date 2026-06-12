@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 use DataTables;
 use App\Models\User;
 use App\Models\Member;
+use App\Models\PhoneOtp;
 use App\Mail\GeneralMail;
+use App\Models\AuditLog;
 use App\Models\CustomField;
 use App\Models\Transaction;
 use App\Utilities\Overrider;
@@ -17,6 +19,7 @@ use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Facades\Excel;
 use Illuminate\Support\Facades\Validator;
 use App\Notifications\MemberRequestAccepted;
@@ -25,8 +28,6 @@ class MemberController extends Controller {
 
     /**
      * Create a new controller instance.
-     *
-     * @return void
      */
     public function __construct() {
         date_default_timezone_set(get_option('timezone', 'Asia/Dhaka'));
@@ -34,8 +35,6 @@ class MemberController extends Controller {
 
     /**
      * Display a listing of the resource.
-     *
-     * @return \Illuminate\Http\Response
      */
     public function index() {
         return view('backend.member.list');
@@ -43,13 +42,16 @@ class MemberController extends Controller {
 
     public function get_table_data() {
         $members = Member::select('members.*')
-            ->with('branch')
+            ->withCount(['loans as total_loans'])
+            ->withCount(['loans as active_loans' => function ($q) {
+                $q->where('status', 1);
+            }])
+            ->with(['loans' => function ($q) {
+                $q->where('status', 1)->select('id', 'borrower_id', 'total_payable', 'total_paid');
+            }])
             ->orderBy("members.id", "desc");
 
         return Datatables::eloquent($members)
-            ->editColumn('branch.name', function ($member) {
-                return $member->branch->name;
-            })
             ->editColumn('photo', function ($member) {
                 $photo = $member->photo != null ? profile_picture($member->photo) : asset('backend/images/avatar.png');
                 return '<div class="profile_picture text-center">'
@@ -64,6 +66,34 @@ class MemberController extends Controller {
             ->editColumn('last_name', function ($member) {
                 return '<a href="' . route('members.show', $member->id) . '">' . $member->last_name . '</a>';
             })
+            ->addColumn('mobile', function ($member) {
+                return $member->mobile ?? '-';
+            })
+            ->addColumn('loan_summary', function ($member) {
+                $activeBalance = $member->loans->sum(fn($l) => $l->total_payable - $l->total_paid);
+                $totalPaid     = $member->loans->sum('total_paid');
+                $hasActive     = $member->active_loans > 0;
+
+                return '
+                <div style="display:flex; flex-direction:column; gap:6px;">
+                    <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                        <span style="background:#e8f0fe; color:#3b5bdb; border-radius:20px; padding:2px 10px; font-size:11.5px; font-weight:600;">
+                            📋 ' . _lang('Loans') . ': ' . $member->total_loans . '
+                        </span>
+                        <span style="background:' . ($hasActive ? '#d3f9d8' : '#f1f3f5') . '; color:' . ($hasActive ? '#2f9e44' : '#868e96') . '; border-radius:20px; padding:2px 10px; font-size:11.5px; font-weight:600;">
+                            ✅ ' . _lang('Active') . ': ' . $member->active_loans . '
+                        </span>
+                    </div>
+                    <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                        <span style="background:' . ($activeBalance > 0 ? '#fff4e6' : '#f1f3f5') . '; color:' . ($activeBalance > 0 ? '#e8590c' : '#868e96') . '; border-radius:20px; padding:2px 10px; font-size:11.5px; font-weight:600;">
+                            💰 ' . _lang('Balance') . ': ' . number_format($activeBalance, 2) . '
+                        </span>
+                        <span style="background:#ebfbee; color:#2f9e44; border-radius:20px; padding:2px 10px; font-size:11.5px; font-weight:600;">
+                            💳 ' . _lang('Paid') . ': ' . number_format($totalPaid, 2) . '
+                        </span>
+                    </div>
+                </div>';
+            })
             ->addColumn('action', function ($member) {
                 return '<div class="dropdown text-center">'
                 . '<button class="btn btn-primary btn-xs dropdown-toggle" type="button" data-toggle="dropdown">' . _lang('Action')
@@ -74,18 +104,20 @@ class MemberController extends Controller {
                 . '<a class="dropdown-item" href="' . route('members.show', $member->id) . '?tab=savings_overview"><i class="ti-wallet"></i>  ' . _lang('Savings') . '</a>'
                 . '<a class="dropdown-item" href="' . route('members.show', $member->id) . '?tab=loan_summary"><i class="ti-credit-card"></i>  ' . _lang('Loans') . '</a>'
                 . '<a class="dropdown-item" href="' . route('member_documents.index', $member->id) . '"><i class="ti-files"></i>  ' . _lang('Documents') . '</a>'
-                . '<form action="' . route('members.destroy', $member->id) . '" method="post">'
-                . csrf_field()
-                . '<input name="_method" type="hidden" value="DELETE">'
-                . '<button class="dropdown-item btn-remove" type="submit"><i class="ti-trash"></i> ' . _lang('Delete') . '</button>'
+                . (auth()->user()->isSuperAdmin()
+                    ? '<form action="' . route('members.destroy', $member->id) . '" method="post">'
+                    . csrf_field()
+                    . '<input name="_method" type="hidden" value="DELETE">'
+                    . '<button class="dropdown-item btn-remove" type="submit"><i class="ti-trash"></i> ' . _lang('Delete') . '</button>'
                     . '</form>'
+                    : '')
                     . '</div>'
                     . '</div>';
             })
             ->setRowId(function ($member) {
                 return "row_" . $member->id;
             })
-            ->rawColumns(['photo', 'first_name', 'last_name', 'action'])
+            ->rawColumns(['photo', 'first_name', 'last_name', 'loan_summary', 'action'])
             ->make(true);
     }
 
@@ -99,8 +131,6 @@ class MemberController extends Controller {
 
     /**
      * Show the form for creating a new resource.
-     *
-     * @return \Illuminate\Http\Response
      */
     public function create(Request $request) {
         $customFields = CustomField::where('table', 'members')
@@ -114,22 +144,20 @@ class MemberController extends Controller {
 
     /**
      * Store a newly created resource in storage.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\Response
      */
     public function store(Request $request) {
         $validationRules = [
             'first_name'   => 'required',
             'last_name'    => 'required',
             'email'        => 'nullable|email|unique:members|max:191',
-            'member_no'    => 'required|unique:members|max:50',
+            'member_no'    => 'required|max:50',
+            'nin'          => 'required|string|size:14|alpha_num',
+            'mobile'       => 'required|string|max:30',
             'country_code' => 'required_with:mobile',
             'photo'        => 'nullable|image',
-            //User Login Attributes
+            // User Login Attributes
             'name'         => 'required_if:client_login,1|max:191',
             'login_email'  => 'required_if:client_login,1|email|unique:users,email|max:191',
-            'password'     => 'required_if:client_login,1|max:20|min:6',
             'status'       => 'required_if:client_login,1',
         ];
 
@@ -161,6 +189,105 @@ class MemberController extends Controller {
             }
         }
 
+        // --- Cross-branch uniqueness checks (bypass Branch global scope) ---
+        $errors = [];
+
+        $ninExists = Member::withoutGlobalScopes()
+            ->whereRaw('UPPER(nin) = ?', [strtoupper(trim($request->nin))])
+            ->exists();
+        if ($ninExists) {
+            $errors[] = 'This NIN is already registered in the system.';
+        }
+
+        $normalizedPhone = !empty($request->input('mobile'))
+            ? $this->buildE164($request->input('country_code'), $request->input('mobile'))
+            : null;
+        $phoneExists = $normalizedPhone && Member::withoutGlobalScopes()
+            ->where('mobile', $normalizedPhone)
+            ->exists();
+        if ($phoneExists) {
+            $errors[] = 'This phone number is already registered in the system.';
+        }
+
+        $memberNoExists = Member::withoutGlobalScopes()
+            ->where('member_no', $request->member_no)
+            ->exists();
+        if ($memberNoExists) {
+            $errors[] = 'This member number is already in use.';
+        }
+
+        if (! empty($errors)) {
+            if ($request->ajax()) {
+                return response()->json(['result' => 'error', 'message' => $errors]);
+            } else {
+                return redirect()->route('members.create')
+                    ->withErrors($errors)
+                    ->withInput();
+            }
+        }
+
+        // --- OTP verification (superadmin can override) ---
+        $isAdminOverride = auth()->user()->isSuperAdmin() && $request->boolean('otp_override');
+
+        if ($isAdminOverride) {
+            Log::warning('Member OTP override used', [
+                'by'     => auth()->user()->name,
+                'phone'  => $request->mobile,
+                'reason' => $request->otp_override_reason ?? 'No reason given',
+            ]);
+        } else {
+            $fullPhone = $request->input('otp_phone');
+            $otpToken  = $request->input('otp_token');
+
+            \Log::debug('OTP DEBUG', [
+                'otp_phone' => $fullPhone,
+                'otp_token' => $otpToken,
+                'valid'     => \App\Http\Controllers\PhoneOtpController::validateToken($otpToken ?? '', $fullPhone ?? '') ? 'YES' : 'NO',
+            ]);
+
+            // --- TEMPORARY DEEP DEBUG ---
+            [$id, $sig] = array_pad(explode('.', $otpToken ?? '', 2), 2, '');
+            $otpRecord = \App\Models\PhoneOtp::find((int) $id);
+            \Log::debug('OTP DEEP DEBUG', [
+                'record_found'   => $otpRecord ? 'YES' : 'NO',
+                'is_verified'    => $otpRecord ? ($otpRecord->verified ? 'YES' : 'NO') : 'N/A',
+                'is_expired'     => $otpRecord ? ($otpRecord->isExpired() ? 'YES' : 'NO') : 'N/A',
+                'phone_match'    => $otpRecord ? ($otpRecord->phone === $fullPhone ? 'YES' : 'NO') : 'N/A',
+                'db_phone'       => $otpRecord ? $otpRecord->phone : 'N/A',
+                'input_phone'    => $fullPhone,
+                'sig_match'      => $otpRecord ? (hash_equals(\App\Http\Controllers\PhoneOtpController::sign((int)$id, $fullPhone), $sig) ? 'YES' : 'NO') : 'N/A',
+            ]);
+
+            [$id, $sig] = array_pad(explode('.', $otpToken ?? '', 2), 2, '');
+            \Log::debug('OTP SUBMIT DEBUG', [
+                'token_id'   => $id,
+                'otp_phone'  => $fullPhone,
+                'otp_token'  => $otpToken,
+            ]);
+
+            [$id, $sig] = array_pad(explode('.', $otpToken ?? '', 2), 2, '');
+            $otpRecord = \App\Models\PhoneOtp::find((int) $id);
+            \Log::debug('OTP TIMEZONE DEBUG', [
+                'now'        => now()->toDateTimeString(),
+                'timezone'   => config('app.timezone'),
+                'expires_at' => $otpRecord?->expires_at->toDateTimeString(),
+                'expired'    => $otpRecord?->isExpired() ? 'YES' : 'NO',
+            ]);
+            // --- END DEEP DEBUG ---
+
+            $otpValid = ($otpToken && $fullPhone)
+                ? \App\Http\Controllers\PhoneOtpController::validateToken($otpToken, $fullPhone)
+                : null;
+
+            if (! $otpValid) {
+                $msg = 'Phone number must be verified via OTP before saving a member.';
+                if ($request->ajax()) {
+                    return response()->json(['result' => 'error', 'message' => [$msg]]);
+                }
+                return redirect()->route('members.create')->withErrors([$msg])->withInput();
+            }
+        }
+
         $photo = 'default.png';
         if ($request->hasfile('photo')) {
             $file  = $request->file('photo');
@@ -173,16 +300,27 @@ class MemberController extends Controller {
         // Store custom field data
         $customFieldsData = store_custom_field_data($customFields);
 
-        //Create Login details
+        // Create Login details
         if ($request->client_login == 1) {
+            $plainPassword         = strtoupper(substr(str_shuffle('abcdefghijklmnopqrstuvwxyz0123456789'), 0, 4))
+                                . rand(10, 99);
             $user                  = new User();
             $user->name            = $request->input('name');
             $user->email           = $request->input('login_email');
-            $user->password        = Hash::make($request->password);
+            $user->password        = Hash::make($plainPassword);
             $user->user_type       = 'customer';
             $user->status          = $request->input('status');
             $user->profile_picture = $photo;
             $user->save();
+
+            // Send password via SMS
+            $fullPhone = '+' . preg_replace('/\D/', '', $request->input('country_code'))
+                    . preg_replace('/\D/', '', $request->input('mobile'));
+            try {
+                (new SmsHelper())->send($fullPhone, _lang('Your login password to Laven App is: ') . $plainPassword);
+            } catch (\Exception $e) {
+                \Log::warning('Failed to send password SMS', ['phone' => $fullPhone, 'error' => $e->getMessage()]);
+            }
         }
 
         $member             = new Member();
@@ -198,7 +336,10 @@ class MemberController extends Controller {
         }
         $member->email         = $request->input('email');
         $member->country_code  = $request->input('country_code');
-        $member->mobile        = $request->input('mobile');
+        $member->mobile        = !empty($request->input('mobile'))
+            ? $this->buildE164($request->input('country_code'), $request->input('mobile'))
+            : null;
+        $member->nin           = strtoupper(trim($request->input('nin')));
         $member->business_name = $request->input('business_name');
         $member->member_no     = get_option('starting_member_no', $request->input('member_no'));
         $member->gender        = $request->input('gender');
@@ -212,15 +353,26 @@ class MemberController extends Controller {
 
         $member->save();
 
-        //Increment Member No
+        // Increment Member No
         $memberNo = get_option('starting_member_no');
         if ($memberNo != '') {
             update_option('starting_member_no', $memberNo + 1);
         }
 
         $this->generateAccounts($member->id);
-        
+
         DB::commit();
+
+        // --- Audit Log ---
+        AuditLog::log(
+            'created',
+            'Member',
+            $member->id,
+            "Member: {$member->first_name} {$member->last_name} ({$member->member_no})",
+            null,
+            $member->only(['first_name', 'last_name', 'email', 'mobile', 'nin', 'member_no', 'branch_id']),
+            "New member registered: {$member->first_name} {$member->last_name} | NIN: {$member->nin} | Phone: {$member->mobile} | By: " . auth()->user()->name
+        );
 
         if (! $request->ajax()) {
             return redirect()->route('members.show', $member->id)->with('success', _lang('Saved Successfully'));
@@ -231,9 +383,6 @@ class MemberController extends Controller {
 
     /**
      * Display the specified resource.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
      */
     public function show(Request $request, $id) {
         $member       = Member::withoutGlobalScopes(['status'])->find($id);
@@ -324,11 +473,13 @@ class MemberController extends Controller {
                 . '<div class="dropdown-menu">'
                 . '<a class="dropdown-item" href="' . route('transactions.edit', $transaction['id']) . '"><i class="ti-pencil-alt"></i> ' . _lang('Edit') . '</a>'
                 . '<a class="dropdown-item" href="' . route('transactions.show', $transaction['id']) . '"><i class="ti-eye"></i>  ' . _lang('View') . '</a>'
-                . '<form action="' . route('transactions.destroy', $transaction['id']) . '" method="post">'
-                . csrf_field()
-                . '<input name="_method" type="hidden" value="DELETE">'
-                . '<button class="dropdown-item btn-remove" type="submit"><i class="ti-trash"></i> ' . _lang('Delete') . '</button>'
+                . (auth()->user()->isSuperAdmin()
+                    ? '<form action="' . route('transactions.destroy', $transaction['id']) . '" method="post">'
+                    . csrf_field()
+                    . '<input name="_method" type="hidden" value="DELETE">'
+                    . '<button class="dropdown-item btn-remove" type="submit"><i class="ti-trash"></i> ' . _lang('Delete') . '</button>'
                     . '</form>'
+                    : '')
                     . '</div>'
                     . '</div>';
             })
@@ -341,9 +492,6 @@ class MemberController extends Controller {
 
     /**
      * Show the form for editing the specified resource.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
      */
     public function edit(Request $request, $id) {
         $customFields = CustomField::where('table', 'members')
@@ -360,10 +508,6 @@ class MemberController extends Controller {
 
     /**
      * Update the specified resource in storage.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
      */
     public function update(Request $request, $id) {
         $member = Member::withoutGlobalScopes(['status'])->find($id);
@@ -371,7 +515,6 @@ class MemberController extends Controller {
         $validationRules = [
             'first_name'   => 'required',
             'last_name'    => 'required',
-            //'branch_id'    => 'required',
             'email'        => [
                 'nullable',
                 'email',
@@ -381,15 +524,28 @@ class MemberController extends Controller {
                 'required',
                 Rule::unique('members')->ignore($id),
             ],
+            'nin'          => [
+                'nullable',
+                'string',
+                'size:14',
+                'alpha_num',
+                Rule::unique('members')->ignore($id),
+            ],
+            'mobile'       => [
+                'nullable',
+                'string',
+                'max:30',
+                Rule::unique('members')->ignore($id),
+            ],
             'country_code' => 'required_with:mobile',
             'photo'        => 'nullable|image',
-            'name'         => 'required_if:client_login,1|max:191', // User Login Attribute
+            'name'         => 'required_if:client_login,1|max:191',
             'login_email'  => [
                 'required_if:client_login,1',
                 Rule::unique('users', 'email')->ignore($member->user_id),
-            ],                                              // User Login Attribute
-            'password'     => 'nullable|max:20|min:6',      // User Login Attribute
-            'status'       => 'required_if:client_login,1', // User Login Attribute
+            ],
+            'password'     => 'nullable|max:20|min:6',
+            'status'       => 'required_if:client_login,1',
         ];
 
         $validationMessages = [
@@ -428,6 +584,12 @@ class MemberController extends Controller {
 
         DB::beginTransaction();
 
+        // Snapshot old values BEFORE any changes
+        $oldValues = $member->only([
+            'first_name', 'last_name', 'email', 'mobile',
+            'nin', 'member_no', 'branch_id', 'status', 'address', 'city', 'state',
+        ]);
+
         // Store custom field data
         $customFieldsData = store_custom_field_data($customFields, json_decode($member->custom_fields, true));
 
@@ -459,9 +621,12 @@ class MemberController extends Controller {
         }
         $member->email         = $request->input('email');
         $member->country_code  = $request->input('country_code');
-        $member->mobile        = $request->input('mobile');
+        $member->mobile        = !empty($request->input('mobile'))
+            ? $this->buildE164($request->input('country_code'), $request->input('mobile'))
+            : null;
+        $member->nin           = auth()->user()->isSuperAdmin() && $request->input('nin') ? strtoupper(trim($request->input('nin'))) : $member->nin;
         $member->business_name = $request->input('business_name');
-        $member->member_no     = $request->input('member_no');
+        $member->member_no     = auth()->user()->isSuperAdmin() ? $request->input('member_no') : $member->member_no;
         $member->gender        = $request->input('gender');
         $member->city          = $request->input('city');
         $member->state         = $request->input('state');
@@ -476,6 +641,21 @@ class MemberController extends Controller {
         $member->save();
 
         DB::commit();
+
+        // --- Audit Log ---
+        $newValues = $member->only([
+            'first_name', 'last_name', 'email', 'mobile',
+            'nin', 'member_no', 'branch_id', 'status', 'address', 'city', 'state',
+        ]);
+        AuditLog::log(
+            'updated',
+            'Member',
+            $member->id,
+            "Member: {$member->first_name} {$member->last_name} ({$member->member_no})",
+            $oldValues,
+            $newValues,
+            "Member profile updated by " . auth()->user()->name . " (ID: " . auth()->id() . ")"
+        );
 
         if (! $request->ajax()) {
             return redirect()->route('members.index')->with('success', _lang('Updated Successfully'));
@@ -505,7 +685,6 @@ class MemberController extends Controller {
             }
         }
 
-        //Send email
         $subject = $request->input("subject");
         $message = $request->input("message");
 
@@ -548,7 +727,6 @@ class MemberController extends Controller {
             }
         }
 
-        //Send message
         $message = $request->input("message");
 
         if (get_option('sms_gateway') == 'none') {
@@ -575,16 +753,37 @@ class MemberController extends Controller {
 
     /**
      * Remove the specified resource from storage.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
      */
     public function destroy($id) {
+        if (! auth()->user()->isSuperAdmin()) {
+            abort(403, 'Only Super Admins can delete records.');
+        }
+
         $member = Member::find($id);
+
+        // Snapshot before deletion
+        $memberLabel = "{$member->first_name} {$member->last_name} ({$member->member_no})";
+        $memberSnap  = $member->only([
+            'first_name', 'last_name', 'email', 'mobile',
+            'nin', 'member_no', 'branch_id', 'status',
+        ]);
+
         if ($member->user) {
             $member->user->delete();
         }
         $member->delete();
+
+        // --- Audit Log ---
+        AuditLog::log(
+            'deleted',
+            'Member',
+            $id,
+            "Member: {$memberLabel}",
+            $memberSnap,
+            null,
+            "Member permanently deleted by " . auth()->user()->name . " (ID: " . auth()->id() . ")"
+        );
+
         return redirect()->route('members.index')->with('success', _lang('Deleted Successfully'));
     }
 
@@ -611,7 +810,7 @@ class MemberController extends Controller {
             DB::beginTransaction();
 
             $member            = Member::withoutGlobalScopes(['status'])->find($id);
-            $member->member_no = $request->member_no;
+            $member->member_no = auth()->user()->isSuperAdmin() ? $request->member_no : $member->member_no;
             $member->status    = 1;
             $member->save();
 
@@ -621,6 +820,17 @@ class MemberController extends Controller {
             $this->generateAccounts($member->id);
 
             DB::commit();
+
+            // --- Audit Log ---
+            AuditLog::log(
+                'approved',
+                'Member',
+                $member->id,
+                "Member: {$member->first_name} {$member->last_name} ({$member->member_no})",
+                ['status' => 0],
+                ['status' => 1],
+                "Member request approved by " . auth()->user()->name
+            );
 
             if ($member->status == 1) {
                 try {
@@ -633,12 +843,23 @@ class MemberController extends Controller {
             } else {
                 return response()->json(['result' => 'success', 'action' => 'update', 'message' => _lang('Member Request Accepted'), 'data' => $member, 'table' => '#members_table']);
             }
-
         }
     }
 
     public function reject_request($id) {
         $member = Member::withoutGlobalScopes(['status'])->find($id);
+
+        // --- Audit Log ---
+        AuditLog::log(
+            'rejected',
+            'Member',
+            $id,
+            "Member: {$member->first_name} {$member->last_name}",
+            ['status' => 0],
+            null,
+            "Member request rejected and record deleted by " . auth()->user()->name
+        );
+
         $member->user->delete();
         $member->delete();
         return redirect()->back()->with('error', _lang('Member Request Rejected'));
@@ -674,6 +895,17 @@ class MemberController extends Controller {
 
             DB::commit();
 
+            // --- Audit Log ---
+            AuditLog::log(
+                'created',
+                'Member',
+                null,
+                "Bulk Import",
+                null,
+                ['rows_imported' => $new_rows],
+                "Bulk member import: {$new_rows} rows imported by " . auth()->user()->name
+            );
+
             if ($new_rows == 0) {
                 return back()->with('error', _lang('Nothing Imported, Data may already exists !'));
             }
@@ -695,11 +927,47 @@ class MemberController extends Controller {
 
             $savingsaccount->save();
 
-            //Increment account number
+            // Increment account number
             $accountType->starting_account_number = $accountType->starting_account_number + 1;
             $accountType->save();
         }
     }
-}
 
+    /**
+     * Build an E.164 phone number (+<countryDigits><localDigits>) from separate
+     * country-code and local-number inputs.
+     */
+    private function buildE164(string $countryCode, string $mobile): string
+    {
+        $ccDigits    = preg_replace('/\D/', '', $countryCode);
+        $mobileClean = preg_replace('/\D/', '', $mobile);
+
+        if (str_starts_with($mobileClean, $ccDigits)) {
+            $mobileClean = substr($mobileClean, strlen($ccDigits));
+        }
+
+        $mobileClean = ltrim($mobileClean, '0');
+
+        return '+' . $ccDigits . $mobileClean;
+    }
+
+    /**
+     * Return just the local part of a stored E.164 number given its country code.
+     */
+    public static function localPhoneNumber(?string $storedMobile, ?string $countryCode): string
+    {
+        if (empty($storedMobile)) {
+            return '';
+        }
+
+        $ccDigits    = preg_replace('/\D/', '', $countryCode ?? '');
+        $mobileClean = preg_replace('/\D/', '', $storedMobile);
+
+        if ($ccDigits && str_starts_with($mobileClean, $ccDigits)) {
+            return substr($mobileClean, strlen($ccDigits));
+        }
+
+        return $storedMobile;
+    }
+}
 

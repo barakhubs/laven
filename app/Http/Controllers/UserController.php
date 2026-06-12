@@ -25,6 +25,7 @@ class UserController extends Controller {
      */
     public function index() {
         $users = User::where('user_type', 'admin')
+            ->orWhere('user_type', 'superadmin')
             ->orWhere('user_type', 'user')
             ->orderBy('name', 'asc')
             ->get();
@@ -37,6 +38,9 @@ class UserController extends Controller {
      * @return \Illuminate\Http\Response
      */
     public function create(Request $request) {
+        if (!auth()->user()->isSuperAdmin()) {
+            abort(403, 'Only Super Admin can create users.');
+        }
         if (! $request->ajax()) {
             return view('backend.user.create');
         } else {
@@ -51,9 +55,14 @@ class UserController extends Controller {
      * @return \Illuminate\Http\Response
      */
     public function store(Request $request) {
+        if (!auth()->user()->isSuperAdmin()) {
+            abort(403, 'Only Super Admin can create users.');
+        }
+
         $validator = Validator::make($request->all(), [
             'name'            => 'required|max:255',
             'email'           => 'required|email|unique:users|max:255',
+            'phone'           => 'nullable|string|max:20',
             'user_type'       => 'required',
             'status'          => 'required',
             'profile_picture' => 'nullable|image',
@@ -80,6 +89,7 @@ class UserController extends Controller {
         $user            = new User();
         $user->name      = $request->input('name');
         $user->email     = $request->input('email');
+        $user->phone     = $request->input('phone');
         $user->user_type = $request->input('user_type');
         $user->role_id   = $request->input('role_id');
 
@@ -108,7 +118,6 @@ class UserController extends Controller {
         } else {
             return response()->json(['result' => 'success', 'action' => 'store', 'message' => _lang('Saved Sucessfully'), 'data' => $user, 'table' => '#users_table']);
         }
-
     }
 
     /**
@@ -156,6 +165,7 @@ class UserController extends Controller {
                 'email',
                 Rule::unique('users')->ignore($id),
             ],
+            'phone'           => 'nullable|string|max:20',
             'user_type'       => 'required',
             'status'          => 'required',
             'profile_picture' => 'nullable|image',
@@ -181,20 +191,23 @@ class UserController extends Controller {
         $user            = User::find($id);
         $user->name      = $request->input('name');
         $user->email     = $request->input('email');
+        $user->phone     = $request->input('phone');
         $user->user_type = $request->input('user_type');
         $user->role_id   = $request->input('role_id');
+
         if ($request->branch_id == 'all_branch') {
             $user->branch_id         = null;
             $user->all_branch_access = 1;
         } else {
             $user->branch_id = $request->input('branch_id');
         }
-        $user->status    = $request->input('status');
+
+        $user->status = $request->input('status');
 
         if ($request->hasfile('profile_picture')) {
             $user->profile_picture = $profile_picture;
         }
-        
+
         if ($request->password) {
             $user->password = Hash::make($request->password);
         }
@@ -212,7 +225,6 @@ class UserController extends Controller {
         } else {
             return response()->json(['result' => 'success', 'action' => 'update', 'message' => _lang('Updated Sucessfully'), 'data' => $user, 'table' => '#users_table']);
         }
-
     }
 
     /**
@@ -222,6 +234,9 @@ class UserController extends Controller {
      * @return \Illuminate\Http\Response
      */
     public function destroy($id) {
+        if (! auth()->user()->isSuperAdmin()) {
+            abort(403, 'Only Super Admins can delete records.');
+        }
         $user = User::find($id);
         $user->delete();
         return redirect()->route('users.index')->with('success', _lang('Deleted Sucessfully'));

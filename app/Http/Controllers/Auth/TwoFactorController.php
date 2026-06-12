@@ -15,10 +15,8 @@ class TwoFactorController extends Controller {
      */
     public function __construct() {
         $this->middleware(function ($request, $next) {
-            if (get_option('email_2fa_status', 0) == 0) {
-                return back()->with('error', 'Invalid Operation !');
-            }
-
+            // Only block access if no 2FA code is pending — regardless of
+            // whether the user logged in via email or phone.
             if (auth()->check() && auth()->user()->two_factor_code == null) {
                 return back()->with('error', 'Invalid Operation !');
             }
@@ -62,6 +60,6 @@ class TwoFactorController extends Controller {
             return back()->with('error', 'SMTP Configuration is incorrect !');
         }
 
-        return redirect()->back()->withMessage(_lang('New OTP has been sent to your email !'));
+        return redirect()->back()->withMessage(_lang('A new OTP has been sent to your registered phone and email.'));
     }
 }

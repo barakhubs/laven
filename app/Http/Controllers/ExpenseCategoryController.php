@@ -142,8 +142,12 @@ class ExpenseCategoryController extends Controller {
      * @return \Illuminate\Http\Response
      */
     public function destroy($id) {
+        if (! auth()->user()->isSuperAdmin()) {
+            abort(403, 'Only Super Admins can delete records.');
+        }
         $expensecategory = ExpenseCategory::find($id);
         $expensecategory->delete();
         return redirect()->route('expense_categories.index')->with('success', _lang('Deleted Successfully'));
     }
 }
+

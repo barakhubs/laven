@@ -43,18 +43,38 @@ class MembersImport implements ToCollection, WithStartRow
                 continue;
             }
 
-            // Check Email is unique
+            // Check Email is unique across ALL branches
             if ($row[2] != '') {
-                $member = Member::where('email', $row[2])->first();
+                $member = Member::withoutGlobalScopes()->where('email', $row[2])->first();
                 if ($member) {
                     continue;
                 }
             }
 
-            // Check Member no is unique
-            $member = Member::where('member_no', $row[3])->first();
+            // Check Member no is unique across ALL branches
+            $member = Member::withoutGlobalScopes()->where('member_no', $row[3])->first();
             if ($member) {
                 continue;
+            }
+
+            // Check NIN is unique across ALL branches (column index 14, if provided)
+            if (isset($row[14]) && $row[14] != '') {
+                $member = Member::withoutGlobalScopes()->where('nin', strtoupper(trim($row[14])))->first();
+                if ($member) {
+                    continue;
+                }
+            }
+
+            // Check Mobile is unique across ALL branches (column index 5)
+            if (isset($row[5]) && $row[5] != '') {
+                $normalizedImportPhone = !empty($row[4])
+                    ? '+' . ltrim(preg_replace('/\D/', '', $row[4]), '0')
+                      . ltrim(preg_replace('/\D/', '', $row[5]), '0')
+                    : preg_replace('/\D/', '', $row[5]);
+                $member = Member::withoutGlobalScopes()->where('mobile', $normalizedImportPhone)->first();
+                if ($member) {
+                    continue;
+                }
             }
 
             if ($row[13] != null) {
@@ -73,7 +93,10 @@ class MembersImport implements ToCollection, WithStartRow
             $member->email         = $row[2];
             $member->member_no     = $row[3];
             $member->country_code  = $row[4];
-            $member->mobile        = $row[5];
+            $member->mobile        = !empty($row[5])
+                ? '+' . ltrim(preg_replace('/\D/', '', $row[4]), '0')
+                  . ltrim(preg_replace('/\D/', '', $row[5]), '0')
+                : null;
             $member->business_name = $row[6];
             $member->gender        = strtolower($row[7]);
             $member->city          = $row[8];
@@ -82,6 +105,7 @@ class MembersImport implements ToCollection, WithStartRow
             $member->address       = $row[11];
             $member->credit_source = $row[12];
             $member->branch_id     = $row[13] != null ? $branch->id : null;
+            $member->nin           = isset($row[14]) && $row[14] != '' ? strtoupper(trim($row[14])) : null;
             $member->status        = 1;
 
             $member->save();
@@ -115,3 +139,4 @@ class MembersImport implements ToCollection, WithStartRow
     }
 
 }
+

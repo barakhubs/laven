@@ -9,29 +9,14 @@ use Laravel\Sanctum\HasApiTokens;
 class User extends Authenticatable {
     use Notifiable, HasApiTokens;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var array
-     */
     protected $fillable = [
-        'name', 'email', 'password', 'user_type', 'status', 'profile_picture', 'two_factor_code', 'two_factor_expires_at',
+        'name', 'email', 'phone', 'password', 'user_type', 'status', 'profile_picture', 'two_factor_code', 'two_factor_expires_at',
     ];
 
-    /**
-     * The attributes that should be hidden for arrays.
-     *
-     * @var array
-     */
     protected $hidden = [
         'password', 'remember_token',
     ];
 
-    /**
-     * The attributes that should be cast to native types.
-     *
-     * @var array
-     */
     protected $casts = [
         'email_verified_at'     => 'datetime',
         'two_factor_expires_at' => 'datetime',
@@ -42,6 +27,16 @@ class User extends Authenticatable {
         $date_format = get_date_format();
         $time_format = get_time_format();
         return \Carbon\Carbon::parse($value)->format("$date_format $time_format");
+    }
+
+    /** Only the top-level super admin */
+    public function isSuperAdmin(): bool {
+        return $this->user_type === 'superadmin';
+    }
+
+    /** Both superadmin and regular admin — use for general backend access checks */
+    public function isAdmin(): bool {
+        return in_array($this->user_type, ['admin', 'superadmin']);
     }
 
     public function role() {

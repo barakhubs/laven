@@ -207,6 +207,9 @@ class WithdrawMethodController extends Controller {
      * @return \Illuminate\Http\Response
      */
     public function destroy($id) {
+        if (! auth()->user()->isSuperAdmin()) {
+            abort(403, 'Only Super Admins can delete records.');
+        }
         $withdrawmethod = WithdrawMethod::find($id);
         $withdrawmethod->delete();
         return redirect()->route('withdraw_methods.index')->with('success', _lang('Deleted Successfully'));

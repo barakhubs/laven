@@ -193,8 +193,12 @@ class GuarantorController extends Controller {
      * @return \Illuminate\Http\Response
      */
     public function destroy($id) {
+        if (! auth()->user()->isSuperAdmin()) {
+            abort(403, 'Only Super Admins can delete records.');
+        }
         $guarantor = Guarantor::find($id);
         $guarantor->delete();
         return back()->with('success', _lang('Deleted Successfully'));
     }
 }
+

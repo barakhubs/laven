@@ -2,6 +2,11 @@
 
 @section('content')
 
+@if(!auth()->user()->isSuperAdmin())
+    <div class="alert alert-danger">{{ _lang('Only Super Admin can create users.') }}</div>
+    @php return; @endphp
+@endif
+
 <div class="row">
     <div class="col-lg-12">
         <div class="card">
@@ -32,6 +37,14 @@
                             </div>
 
                             <div class="form-group row">
+                                <label class="col-xl-3 col-form-label">{{ _lang('Phone') }}</label>
+                                <div class="col-xl-9">
+                                    <input type="text" class="form-control" name="phone" value="{{ old('phone') }}"
+                                        placeholder="+256700000000">
+                                </div>
+                            </div>
+
+                            <div class="form-group row">
                                 <label class="col-xl-3 col-form-label">{{ _lang('Password') }}</label>
                                 <div class="col-xl-9">
                                     <input type="password" class="form-control" name="password" value="" required>
@@ -44,6 +57,7 @@
                                     <select class="form-control auto-select" data-selected="{{ old('user_type') }}"
                                         name="user_type" id="user_type" required>
                                         <option value="">{{ _lang('Select One') }}</option>
+                                        <option value="superadmin">{{ _lang('Super Admin') }}</option>
                                         <option value="admin">{{ _lang('Admin') }}</option>
                                         <option value="user">{{ _lang('User') }}</option>
                                     </select>
@@ -104,3 +118,4 @@
     </div>
 </div>
 @endsection
+

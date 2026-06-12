@@ -186,8 +186,12 @@ class TransactionCategoryController extends Controller {
      * @return \Illuminate\Http\Response
      */
     public function destroy($id) {
+        if (! auth()->user()->isSuperAdmin()) {
+            abort(403, 'Only Super Admins can delete records.');
+        }
         $transactioncategory = TransactionCategory::find($id);
         $transactioncategory->delete();
         return redirect()->route('transaction_categories.index')->with('success', _lang('Deleted Successfully'));
     }
 }
+

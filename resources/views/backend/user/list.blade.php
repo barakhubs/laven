@@ -7,8 +7,10 @@
 
             <div class="card-header d-flex align-items-center">
                 <span class="header-title">{{ _lang('User List') }}</span>
-                <a class="btn btn-primary btn-xs ml-auto"
-                    href="{{ route('users.create') }}"><i class="ti-plus"></i>&nbsp;{{ _lang('Add New') }}</a>
+                @if(auth()->user()->isSuperAdmin())
+                    <a class="btn btn-primary btn-xs ml-auto"
+                        href="{{ route('users.create') }}"><i class="ti-plus"></i>&nbsp;{{ _lang('Add New') }}</a>
+                @endif
             </div>
 
             <div class="card-body">

@@ -83,13 +83,17 @@ class LoanController extends Controller {
                 });
             }, true)
             ->addColumn('action', function ($loan) {
-                return '<form action="' . route('loans.destroy', $loan['id']) . '" class="text-center" method="post">'
+                return '<div class="text-center">'
                 . '<a href="' . route('loans.show', $loan['id']) . '" class="btn btn-primary btn-xs"><i class="ti-eye"></i> ' . _lang('View') . '</a>&nbsp;'
                 . '<a href="' . route('loans.edit', $loan['id']) . '" class="btn btn-warning btn-xs"><i class="ti-pencil-alt"></i> ' . _lang('Edit') . '</a>&nbsp;'
-                . csrf_field()
-                . '<input name="_method" type="hidden" value="DELETE">'
-                . '<button class="btn btn-danger btn-xs btn-remove" type="submit"><i class="ti-trash"></i> ' . _lang('Delete') . '</button>'
-                    . '</form>';
+                . (auth()->user()->isSuperAdmin()
+                    ? '<form action="' . route('loans.destroy', $loan['id']) . '" class="d-inline" method="post">'
+                    . csrf_field()
+                    . '<input name="_method" type="hidden" value="DELETE">'
+                    . '<button class="btn btn-danger btn-xs btn-remove" type="submit"><i class="ti-trash"></i> ' . _lang('Delete') . '</button>'
+                    . '</form>'
+                    : '')
+                . '</div>';
             })
             ->setRowId(function ($loan) {
                 return "row_" . $loan->id;
@@ -109,10 +113,11 @@ class LoanController extends Controller {
             ->where('status', 1)
             ->orderBy("id", "asc")
             ->get();
+        $isSuperAdmin = auth()->user()->isSuperAdmin();
         if (! $request->ajax()) {
-            return view('backend.loan.create', compact('alert_col', 'customFields'));
+            return view('backend.loan.create', compact('alert_col', 'customFields', 'isSuperAdmin'));
         } else {
-            return view('backend.loan.modal.create', compact('alert_col', 'customFields'));
+            return view('backend.loan.modal.create', compact('alert_col', 'customFields', 'isSuperAdmin'));
         }
     }
 
@@ -165,6 +170,33 @@ class LoanController extends Controller {
                     ->withErrors($validator)
                     ->withInput();
             }
+        }
+
+        // Block loan if member has no NIN
+        $borrower = \App\Models\Member::withoutGlobalScopes()->find($request->borrower_id);
+        if (! $borrower || empty($borrower->nin)) {
+            $msg = _lang('This member does not have a NIN on record. Please update their profile before creating a loan.');
+            if ($request->ajax()) {
+                return response()->json(['result' => 'error', 'message' => [$msg]]);
+            }
+            return back()->with('error', $msg)->withInput();
+        }
+
+        // Block loan if member has no documents — superadmin may override
+        $isDocOverride = auth()->user()->isSuperAdmin() && $request->boolean('doc_override');
+        if (! $isDocOverride && $borrower->documents()->count() === 0) {
+            $msg = _lang('This member has no documents on file. Please upload at least one document before creating a loan.');
+            if ($request->ajax()) {
+                return response()->json(['result' => 'error', 'message' => [$msg]]);
+            }
+            return back()->with('error', $msg)->withInput();
+        }
+        if ($isDocOverride) {
+            \Log::warning('Loan document-check override used', [
+                'by'      => auth()->user()->name,
+                'member'  => $borrower->id,
+                'reason'  => $request->input('doc_override_reason') ?? 'No reason given',
+            ]);
         }
 
         //Check Debit account is valid account
@@ -668,6 +700,9 @@ class LoanController extends Controller {
      * @return \Illuminate\Http\Response
      */
     public function destroy($id) {
+        if (! auth()->user()->isSuperAdmin()) {
+            abort(403, 'Only Super Admins can delete records.');
+        }
         DB::beginTransaction();
 
         $loan = Loan::find($id);

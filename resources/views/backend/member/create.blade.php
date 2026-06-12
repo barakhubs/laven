@@ -71,7 +71,7 @@
 						<div class="col-md-6">
 							<div class="form-group">
 								<label class="control-label">{{ _lang('Country Code') }}</label>
-								<select class="form-control select2" name="country_code">
+								<select class="form-control select2" name="country_code" id="country_code_select">
 									<option value="">{{ _lang('Country Code') }}</option>
 									@foreach(get_country_codes() as $key => $value)
 									<option value="{{ $value['dial_code'] }}" {{ old('country_code') == $value['dial_code'] ? 'selected' : '' }}>{{ $value['country'].' (+'.$value['dial_code'].')' }}</option>
@@ -82,10 +82,62 @@
 
 						<div class="col-md-6">
 							<div class="form-group">
-								<label class="control-label">{{ _lang('Mobile') }}</label>
-								<input type="text" class="form-control" name="mobile" value="{{ old('mobile') }}">
+								<label class="control-label">{{ _lang('Mobile') }} <span class="text-danger">*</span></label>
+								<div class="input-group">
+									<input type="text" class="form-control" name="mobile" id="mobile_input" value="{{ old('mobile') }}" required placeholder="{{ _lang('Enter phone number') }}">
+									<div class="input-group-append">
+										<button type="button" class="btn btn-outline-primary" id="send_otp_btn">{{ _lang('Send OTP') }}</button>
+									</div>
+								</div>
+								<small class="text-muted">{{ _lang('Phone must be verified before saving') }}</small>
 							</div>
 						</div>
+
+						{{-- OTP input --}}
+						<div class="col-md-6" id="otp_section" style="display:none;">
+							<div class="form-group">
+								<label class="control-label">{{ _lang('Enter OTP') }} <span class="text-danger">*</span></label>
+								<div class="input-group">
+									<input type="text" class="form-control" id="otp_code_input" maxlength="6" placeholder="______">
+									<div class="input-group-append">
+										<button type="button" class="btn btn-outline-success" id="verify_otp_btn">{{ _lang('Verify') }}</button>
+									</div>
+								</div>
+								<span id="otp_status" class="small font-weight-bold"></span>
+							</div>
+						</div>
+
+						{{-- Hidden OTP token --}}
+						<input type="hidden" name="otp_token" id="otp_token" value="">
+						<input type="hidden" name="otp_phone" id="otp_phone" value="">
+
+						{{-- NIN Field --}}
+						<div class="col-md-6">
+							<div class="form-group">
+								<label class="control-label">{{ _lang('NIN (National ID Number)') }} <span class="text-danger">*</span></label>
+								<input type="text" class="form-control text-uppercase" name="nin" value="{{ old('nin') }}" required maxlength="20" placeholder="e.g. CM12345678ABCD">
+							</div>
+						</div>
+
+						
+						@if(auth()->user()->isSuperAdmin())
+						<div class="col-md-12" id="override_toggle_section">
+							<div class="form-group">
+								<div class="custom-control custom-checkbox">
+									<input type="checkbox" class="custom-control-input" id="otp_override_check" name="otp_override" value="1">
+									<label class="custom-control-label text-warning" for="otp_override_check">
+										{{ _lang('Override phone OTP verification (admin only)') }}
+									</label>
+								</div>
+							</div>
+						</div>
+						<div class="col-md-6" id="override_reason_section" style="display:none;">
+							<div class="form-group">
+								<label class="control-label">{{ _lang('Override Reason') }}</label>
+								<input type="text" class="form-control" name="otp_override_reason" placeholder="{{ _lang('Reason for bypassing OTP') }}">
+							</div>
+						</div>
+						@endif
 
 						<div class="col-md-6">
 							<div class="form-group">
@@ -194,9 +246,8 @@
 
 
 						<div class="col-md-12">
-							<div class="form-group">
-								<label class="control-label">{{ _lang('Password') }}</label>
-								<input type="password" class="form-control" name="password">
+							<div class="alert alert-info py-2 mb-0">
+								<small>{{ _lang('A password will be auto-generated and sent to the member\'s phone via SMS.') }}</small>
 							</div>
 						</div>
 
@@ -217,3 +268,146 @@
 	</div>
 </form>
 @endsection
+@push('scripts')
+<script>
+$(function () {
+    var otpVerified = false;
+
+    // Build the full international phone number (country code + local number)
+    function fullPhone() {
+        var dialCode = $('#country_code_select').val().toString().replace(/\D/g, '');
+        var local    = $('#mobile_input').val().trim().replace(/^\+/, '').replace(/\D/g, '');
+        if (!dialCode) {
+            alert('{{ _lang("Please select a country code first.") }}');
+            return null;
+        }
+        if (!local) {
+            alert('{{ _lang("Please enter a phone number first.") }}');
+            return null;
+        }
+        return '+' + dialCode + local;
+    }
+
+    // Show/hide override reason
+    $(document).on('change', '#otp_override_check', function () {
+        $('#override_reason_section').toggle(this.checked);
+        if (this.checked) {
+            $('#otp_section').hide();
+            $('#otp_status').text('');
+        }
+    });
+
+    // Lock phone fields so the number can't change after OTP is sent
+    function lockPhoneFields() {
+		// Visually lock Select2 without removing it from form submission
+		$('#country_code_select').prop('disabled', true).next('.select2-container').css('pointer-events','none').css('opacity','0.65');
+		// Keep a hidden field with the same name so the value IS submitted
+		if ($('#country_code_hidden').length === 0) {
+			$('<input type="hidden" id="country_code_hidden" name="country_code">')
+				.val($('#country_code_select').val())
+				.insertAfter('#country_code_select');
+		}
+		$('#mobile_input').prop('readonly', true);
+	}
+
+	function unlockPhoneFields() {
+		$('#country_code_select').prop('disabled', false).next('.select2-container').css('pointer-events','').css('opacity','');
+		$('#country_code_hidden').remove();
+		$('#mobile_input').prop('readonly', false);
+	}
+
+
+    // Send OTP
+    $('#send_otp_btn').on('click', function () {
+        var phone = fullPhone();
+        if (!phone) return;
+
+        var btn = $(this).prop('disabled', true).text('{{ _lang("Sending...") }}');
+
+        $.ajax({
+            url: '{{ route("members.phone.send_otp") }}',
+            method: 'POST',
+            data: { phone: phone, _token: '{{ csrf_token() }}' },
+            success: function (res) {
+                if (res.success) {
+                    lockPhoneFields();
+                    // Reset verification state so a resend always requires re-entry
+                    otpVerified = false;
+                    $('#otp_token').val('');
+                    $('#otp_phone').val('');
+                    $('#otp_code_input').val('').prop('readonly', false);
+                    $('#verify_otp_btn').show().prop('disabled', false).text('{{ _lang("Verify") }}');
+                    $('#otp_section').show();
+                    $('#otp_status').text('').removeClass('text-success text-danger');
+                    btn.text('{{ _lang("Resend OTP") }}').prop('disabled', false);
+                } else {
+                    alert(res.message || '{{ _lang("Failed to send OTP.") }}');
+                    btn.text('{{ _lang("Send OTP") }}').prop('disabled', false);
+                }
+            },
+            error: function (xhr) {
+                var msg = xhr.responseJSON ? xhr.responseJSON.message : '{{ _lang("Error sending OTP.") }}';
+                alert(msg);
+                btn.text('{{ _lang("Send OTP") }}').prop('disabled', false);
+            }
+        });
+    });
+
+    // Verify OTP
+    $('#verify_otp_btn').on('click', function () {
+        // Guard: do nothing if already verified
+        if (otpVerified) return;
+
+        var phone = fullPhone();
+        if (!phone) return;
+        var code  = $('#otp_code_input').val().trim();
+
+        if (code.length !== 6) {
+            alert('{{ _lang("Please enter the 6-digit OTP code.") }}');
+            return;
+        }
+
+        var btn = $(this).prop('disabled', true).text('{{ _lang("Verifying...") }}');
+
+        $.ajax({
+            url: '{{ route("members.phone.verify_otp") }}',
+            method: 'POST',
+            data: { phone: phone, code: code, _token: '{{ csrf_token() }}' },
+            success: function (res) {
+				if (res.success) {
+					otpVerified = true;
+					$('#otp_token').val(res.otp_token);
+					$('#otp_phone').val(phone);
+					$('#otp_status').text('✓ {{ _lang("Phone verified") }}').removeClass('text-danger').addClass('text-success');
+					$('#verify_otp_btn').prop('disabled', true).text('{{ _lang("Verified") }}');
+					$('#otp_code_input').prop('readonly', true);
+
+					$('#send_otp_btn').prop('disabled', true).text('{{ _lang("Verified") }}');
+					// Optionally change the button style to green to signal success:
+					$('#send_otp_btn').removeClass('btn-outline-primary').addClass('btn-outline-success');
+				} else {
+                    $('#otp_status').text(res.message).removeClass('text-success').addClass('text-danger');
+                    btn.text('{{ _lang("Verify") }}').prop('disabled', false);
+                }
+            },
+            error: function (xhr) {
+                var msg = xhr.responseJSON ? xhr.responseJSON.message : '{{ _lang("Verification failed.") }}';
+                $('#otp_status').text(msg).removeClass('text-success').addClass('text-danger');
+                btn.text('{{ _lang("Verify") }}').prop('disabled', false);
+            }
+        });
+    });
+
+    // Block form submission if phone not verified (unless admin override is checked)
+    $('form').on('submit', function (e) {
+        var overrideChecked = $('#otp_override_check').is(':checked');
+        if (!otpVerified && !overrideChecked) {
+            e.preventDefault();
+            alert('{{ _lang("Please verify the phone number via OTP before saving.") }}');
+            $('#mobile_input').focus();
+            return false;
+        }
+    });
+});
+</script>
+@endpush

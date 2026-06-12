@@ -190,6 +190,9 @@ class CurrencyController extends Controller {
      * @return \Illuminate\Http\Response
      */
     public function destroy($id) {
+        if (! auth()->user()->isSuperAdmin()) {
+            abort(403, 'Only Super Admins can delete records.');
+        }
         $currency = Currency::find($id);
         if ($currency->base_currency == 1) {
             return redirect()->route('currency.index')->with('error', _lang('You can not remove base currency !'));
@@ -198,3 +201,4 @@ class CurrencyController extends Controller {
         return redirect()->route('currency.index')->with('success', _lang('Deleted Successfully'));
     }
 }
+

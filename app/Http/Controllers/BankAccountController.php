@@ -178,8 +178,12 @@ class BankAccountController extends Controller {
      * @return \Illuminate\Http\Response
      */
     public function destroy($id) {
+        if (! auth()->user()->isSuperAdmin()) {
+            abort(403, 'Only Super Admins can delete records.');
+        }
         $bankaccount = BankAccount::find($id);
         $bankaccount->delete();
         return redirect()->route('bank_accounts.index')->with('success', _lang('Deleted Successfully'));
     }
 }
+
