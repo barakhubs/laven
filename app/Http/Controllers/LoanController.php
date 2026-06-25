@@ -199,6 +199,19 @@ class LoanController extends Controller {
             ]);
         }
 
+        // Block if borrower already has an active (pending or approved) loan
+        $hasActiveLoan = \App\Models\Loan::where('borrower_id', $request->borrower_id)
+            ->whereIn('status', [0, 1])
+            ->exists();
+
+        if ($hasActiveLoan) {
+            $msg = _lang('This member already has an active or pending loan. A new loan cannot be created until the existing one is cleared.');
+            if ($request->ajax()) {
+                return response()->json(['result' => 'error', 'message' => [$msg]]);
+            }
+            return back()->with('error', $msg)->withInput();
+        }
+
         //Check Debit account is valid account
         $account = SavingsAccount::where('id', $request->debit_account_id)
             ->where('member_id', $request->borrower_id)
