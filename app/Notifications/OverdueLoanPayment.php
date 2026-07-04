@@ -77,7 +77,7 @@ class OverdueLoanPayment extends Notification {
 
         return (new SmsMessage())
             ->setContent($message)
-            ->setRecipient($notifiable->country_code . $notifiable->mobile);
+            ->setRecipient(format_recipient_number($notifiable));
     }
 
     /**
@@ -91,3 +91,4 @@ class OverdueLoanPayment extends Notification {
         return ['message' => $message];
     }
 }
+

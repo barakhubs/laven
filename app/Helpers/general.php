@@ -30,6 +30,28 @@ if (! function_exists('_lang')) {
     }
 }
 
+if (! function_exists('format_recipient_number')) {
+    /**
+     * Build a safe SMS recipient number from a notifiable that has
+     * `mobile` and `country_code` attributes.
+     *
+     * If `mobile` is already stored in E.164 format (starts with '+'),
+     * it is used as-is to avoid double-prefixing the country code
+     * (which previously produced malformed numbers like
+     * "256+256779039888" and caused reminder/notification SMS to
+     * silently fail delivery).
+     */
+    function format_recipient_number($notifiable): ?string {
+        if (empty($notifiable->mobile)) {
+            return null;
+        }
+        if (str_starts_with($notifiable->mobile, '+')) {
+            return $notifiable->mobile;
+        }
+        return ($notifiable->country_code ?? '') . ltrim($notifiable->mobile, '0');
+    }
+}
+
 if (! function_exists('_dlang')) {
     function _dlang($string = '')
     {
@@ -1373,3 +1395,4 @@ if (! function_exists('process_loan_fee')) {
         $fee->save();
     }
 }
+
