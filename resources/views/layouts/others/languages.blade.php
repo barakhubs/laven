@@ -34,7 +34,7 @@
 	var $lang_add_new = "{{ _lang('Add New') }}";
 	var $lang_select_one = "{{ _lang('Select One') }}";
 	var $lang_recovered = "{{ _lang('Recovered') }}";
-	var $lang_not_recovered = "{{ _lang('Not Recovered') }}";
+	var $lang_not_recovered = "{{ _lang('Overdue') }}";
+	var $lang_pending = "{{ _lang('Not Yet Due') }}";
 	var $lang_recovery_rate = "{{ _lang('Recovery Rate') }}";
-	var $lang_expected = "{{ _lang('Expected') }}";
 </script>

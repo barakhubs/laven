@@ -72,6 +72,11 @@
 		<div class="card h-100">
 			<div class="card-header d-flex align-items-center">
 				<span>{{ _lang('Loan Recovery Pattern').' - '.'Last 6 Months' }}</span>
+				<select class="filter-select ml-auto py-0 auto-select" data-selected="{{ base_currency_id() }}">
+					@foreach(\App\Models\Currency::where('status',1)->get() as $currency)
+					<option value="{{ $currency->id }}" data-symbol="{{ currency($currency->name) }}">{{ $currency->name }}</option>
+					@endforeach
+				</select>
 			</div>
 			<div class="card-body">
 				<div id="recoverySummary" class="d-flex flex-wrap justify-content-around mb-3 text-center"></div>
@@ -221,4 +226,3 @@
 <script src="{{ asset('backend/plugins/chartJs/chart.min.js') }}"></script>
 <script src="{{ asset('backend/assets/js/dashboard.js?v=1.1') }}"></script>
 @endsection
-

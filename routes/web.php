@@ -348,7 +348,7 @@ Route::namespace('Gateway')->prefix('callback')->name('callback.')->group(functi
     Route::post('coinpayments', 'CoinPayments\ProcessController@callback')->name('CoinPayments');
 });
 
-Route::get('dashboard/json_recovery_pattern', [DashboardController::class, 'json_recovery_pattern'])->middleware('auth');
+Route::get('dashboard/json_recovery_pattern/{currency_id?}', [DashboardController::class, 'json_recovery_pattern'])->middleware('auth');
 
 // Social Login
 Route::get('/login/{provider}', [SocialController::class, 'redirect']);
@@ -368,4 +368,3 @@ Route::post('install/finish', 'Install\InstallController@final_touch');
 // Update System
 Route::get('system/update/{action?}', 'Install\UpdateController@index');
 Route::get('migration/update', 'Install\UpdateController@update_migration');
-

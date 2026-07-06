@@ -112,31 +112,38 @@ class DashboardController extends Controller
         return redirect()->route('dashboard.index');
     }
 
-    public function json_recovery_pattern()
+    public function json_recovery_pattern($currency_id = null)
     {
+        $currency_id = $currency_id ?: base_currency_id();
+        $today       = Carbon::now()->toDateString();
+
         $labels    = [];
-        $expected  = [];
         $recovered = [];
         $missed    = [];
+        $pending   = [];
 
         for ($i = 5; $i >= 0; $i--) {
             $start = Carbon::now()->subMonths($i)->startOfMonth();
             $end   = Carbon::now()->subMonths($i)->endOfMonth();
 
-            $due = LoanRepayment::whereBetween('repayment_date', [$start->toDateString(), $end->toDateString()])
-                ->selectRaw('COALESCE(SUM(amount_to_pay), 0) as total, status')
-                ->groupBy('status')
-                ->pluck('total', 'status');
+            $row = LoanRepayment::whereHas('loan', function (Builder $q) use ($currency_id) {
+                $q->where('currency_id', $currency_id);
+            })
+                ->whereBetween('repayment_date', [$start->toDateString(), $end->toDateString()])
+                ->selectRaw(
+                    "COALESCE(SUM(CASE WHEN status = 1 THEN amount_to_pay ELSE 0 END), 0) as recovered,
+                     COALESCE(SUM(CASE WHEN status = 0 AND repayment_date < ? THEN amount_to_pay ELSE 0 END), 0) as missed,
+                     COALESCE(SUM(CASE WHEN status = 0 AND repayment_date >= ? THEN amount_to_pay ELSE 0 END), 0) as pending",
+                    [$today, $today]
+                )
+                ->first();
 
             $labels[]    = $start->format('M');
-            $recoveredAmt = (float) ($due[1] ?? 0);
-            $missedAmt    = (float) ($due[0] ?? 0);
-
-            $expected[]  = round($recoveredAmt + $missedAmt, 2);
-            $recovered[] = round($recoveredAmt, 2);
-            $missed[]    = round($missedAmt, 2);
+            $recovered[] = round((float) $row->recovered, 2);
+            $missed[]    = round((float) $row->missed, 2);
+            $pending[]   = round((float) $row->pending, 2);
         }
 
-        echo json_encode(['labels' => $labels, 'expected' => $expected, 'recovered' => $recovered, 'missed' => $missed]);
+        echo json_encode(['labels' => $labels, 'recovered' => $recovered, 'missed' => $missed, 'pending' => $pending]);
     }
 }
