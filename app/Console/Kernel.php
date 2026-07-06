@@ -35,7 +35,11 @@ class Kernel extends ConsoleKernel {
      */
     protected function scheduleTimezone()
     {
-        $timeZone = get_option('timezone', 'Asia/Dhaka');
+        try {
+            $timeZone = get_option('timezone', 'Asia/Dhaka');
+        } catch (\Throwable $e) {
+            $timeZone = 'Asia/Dhaka';
+        }
         config(['app.timezone' =>  $timeZone ]);
         return $timeZone;
     }

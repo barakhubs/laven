@@ -19,11 +19,21 @@
       },
     },
     columns: [
+      {
+        data: null,
+        name: "DT_RowIndex",
+        orderable: false,
+        searchable: false,
+        render: function (data, type, row, meta) {
+          return meta.settings._iDisplayStart + meta.row + 1;
+        },
+      },
       { data: "loan_id", name: "loan_id" },
       { data: "loan_product.name", name: "loan_product.name", "defaultContent": "" },
       { data: "borrower.first_name", name: "borrower.first_name", "defaultContent": "" },
       { data: "borrower.member_no", name: "borrower.member_no", "defaultContent": "" },
       { data: "release_date", name: "release_date" },
+      { data: "duration", name: "duration", "defaultContent": "" },
       { data: "applied_amount", name: "applied_amount" },
       { data: "status", name: "status" },
       { data: "action", name: "action" },

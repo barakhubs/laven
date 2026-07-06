@@ -62,6 +62,12 @@ class LoanController extends Controller {
             ->editColumn('borrower.first_name', function ($loan) {
                 return $loan->borrower->first_name . ' ' . $loan->borrower->last_name;
             })
+            ->addColumn('duration', function ($loan) {
+                if ($loan->loan_product) {
+                    return $loan->loan_product->term . ' ' . $loan->loan_product->term_period;
+                }
+                return '';
+            })
             ->editColumn('applied_amount', function ($loan) {
                 return decimalPlace($loan->applied_amount, currency($loan->currency->name));
             })
@@ -833,4 +839,3 @@ class LoanController extends Controller {
     }
 
 }
-

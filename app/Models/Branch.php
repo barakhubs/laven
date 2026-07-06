@@ -19,8 +19,13 @@ class Branch extends Model {
      */
     protected $fillable = ['name'];
 
-    public function __construct() {
+    public function __construct($attributes = []) {
+    parent::__construct($attributes);
+    try {
         $this->attributes['name'] = get_option('default_branch_name', 'Main Branch');
+    } catch (\Throwable $e) {
+        $this->attributes['name'] = 'Main Branch';
     }
+}
 
 }
