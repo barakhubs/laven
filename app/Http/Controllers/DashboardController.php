@@ -88,13 +88,7 @@ class DashboardController extends Controller
         return redirect()->route('dashboard.index');
     }
 
-    public function expense_overview_widget()
-    {
-        // Use for Permission Only
-        return redirect()->route('dashboard.index');
-    }
-
-    public function deposit_withdraw_analytics()
+    public function recovery_pattern_widget()
     {
         // Use for Permission Only
         return redirect()->route('dashboard.index');
@@ -118,51 +112,31 @@ class DashboardController extends Controller
         return redirect()->route('dashboard.index');
     }
 
-    public function json_expense_by_category()
+    public function json_recovery_pattern()
     {
-        $transactions = Expense::selectRaw('expense_category_id, COALESCE(SUM(amount), 0) as amount')
-            ->with('expense_category')
-            ->whereRaw('EXTRACT(MONTH FROM expense_date) = ?', date('m'))
-            ->whereRaw('EXTRACT(YEAR FROM expense_date) = ?', date('Y'))
-            ->groupBy('expense_category_id')
-            ->get();
-        $category = [];
-        $colors   = [];
-        $amounts  = [];
-        $data     = [];
+        $labels    = [];
+        $expected  = [];
+        $recovered = [];
+        $missed    = [];
 
-        foreach ($transactions as $transaction) {
-            array_push($category, $transaction->expense_category->name);
-            array_push($colors, $transaction->expense_category->color);
-            array_push($amounts, (float) $transaction->amount);
+        for ($i = 5; $i >= 0; $i--) {
+            $start = Carbon::now()->subMonths($i)->startOfMonth();
+            $end   = Carbon::now()->subMonths($i)->endOfMonth();
+
+            $due = LoanRepayment::whereBetween('repayment_date', [$start->toDateString(), $end->toDateString()])
+                ->selectRaw('COALESCE(SUM(amount_to_pay), 0) as total, status')
+                ->groupBy('status')
+                ->pluck('total', 'status');
+
+            $labels[]    = $start->format('M');
+            $recoveredAmt = (float) ($due[1] ?? 0);
+            $missedAmt    = (float) ($due[0] ?? 0);
+
+            $expected[]  = round($recoveredAmt + $missedAmt, 2);
+            $recovered[] = round($recoveredAmt, 2);
+            $missed[]    = round($missedAmt, 2);
         }
 
-        echo json_encode(['amounts' => $amounts, 'category' => $category, 'colors' => $colors]);
-    }
-
-    public function json_deposit_withdraw_analytics($currency_id)
-    {
-        $months       = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-        $transactions = Transaction::whereHas('account.savings_type', function (Builder $query) use ($currency_id) {
-            $query->where('currency_id', $currency_id);
-        })
-            ->selectRaw('EXTRACT(MONTH FROM trans_date) as td, type, COALESCE(SUM(amount), 0) as amount')
-            ->whereRaw("(type = 'Deposit' OR type = 'Withdraw') AND status = 2")
-            ->whereRaw('EXTRACT(YEAR FROM trans_date) = ?', date('Y'))
-            ->groupBy('td', 'type')
-            ->get();
-
-        $deposit  = [];
-        $withdraw = [];
-
-        foreach ($transactions as $transaction) {
-            if ($transaction->type == 'Deposit') {
-                $deposit[$transaction->td] = $transaction->amount;
-            } else if ($transaction->type == 'Withdraw') {
-                $withdraw[$transaction->td] = $transaction->amount;
-            }
-        }
-
-        echo json_encode(['month' => $months, 'deposit' => $deposit, 'withdraw' => $withdraw]);
+        echo json_encode(['labels' => $labels, 'expected' => $expected, 'recovered' => $recovered, 'missed' => $missed]);
     }
 }

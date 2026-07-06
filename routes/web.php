@@ -156,8 +156,7 @@ Route::group(['middleware' => ['install']], function () {
                 Route::get('dashboard/deposit_requests_widget', [DashboardController::class, 'deposit_requests_widget'])->name('dashboard.deposit_requests_widget');
                 Route::get('dashboard/withdraw_requests_widget', [DashboardController::class, 'withdraw_requests_widget'])->name('dashboard.withdraw_requests_widget');
                 Route::get('dashboard/loan_requests_widget', [DashboardController::class, 'loan_requests_widget'])->name('dashboard.loan_requests_widget');
-                Route::get('dashboard/expense_overview_widget', [DashboardController::class, 'expense_overview_widget'])->name('dashboard.expense_overview_widget');
-                Route::get('dashboard/deposit_withdraw_analytics', [DashboardController::class, 'deposit_withdraw_analytics'])->name('dashboard.deposit_withdraw_analytics');
+                Route::get('dashboard/recovery_pattern_widget', [DashboardController::class, 'recovery_pattern_widget'])->name('dashboard.recovery_pattern_widget');
                 Route::get('dashboard/recent_transaction_widget', [DashboardController::class, 'recent_transaction_widget'])->name('dashboard.recent_transaction_widget');
                 Route::get('dashboard/due_loan_list', [DashboardController::class, 'due_loan_list'])->name('dashboard.due_loan_list');
                 Route::get('dashboard/active_loan_balances', [DashboardController::class, 'active_loan_balances'])->name('dashboard.active_loan_balances');
@@ -349,8 +348,7 @@ Route::namespace('Gateway')->prefix('callback')->name('callback.')->group(functi
     Route::post('coinpayments', 'CoinPayments\ProcessController@callback')->name('CoinPayments');
 });
 
-Route::get('dashboard/json_expense_by_category', [DashboardController::class, 'json_expense_by_category'])->middleware('auth');
-Route::get('dashboard/json_deposit_withdraw_analytics/{currency_id?}', [DashboardController::class, 'json_deposit_withdraw_analytics'])->middleware('auth');
+Route::get('dashboard/json_recovery_pattern', [DashboardController::class, 'json_recovery_pattern'])->middleware('auth');
 
 // Social Login
 Route::get('/login/{provider}', [SocialController::class, 'redirect']);

@@ -77,32 +77,15 @@
 </div>
 
 <div class="row">
-	@if (in_array('dashboard.expense_overview_widget',$permissions))
-	<div class="col-md-4 col-sm-5 mb-4">
+	@if (in_array('dashboard.recovery_pattern_widget',$permissions))
+	<div class="col-md-12 mb-4">
 		<div class="card h-100">
 			<div class="card-header d-flex align-items-center">
-				<span>{{ _lang('Expense Overview').' - '.date('M Y') }}</span>
+				<span>{{ _lang('Loan Recovery Pattern').' - '.'Last 6 Months' }}</span>
 			</div>
 			<div class="card-body">
-				<canvas id="expenseOverview"></canvas>
-			</div>
-		</div>
-	</div>
-	@endif
-
-	@if (in_array('dashboard.deposit_withdraw_analytics',$permissions))
-	<div class="col-md-8 col-sm-7 mb-4">
-		<div class="card h-100">
-			<div class="card-header d-flex align-items-center">
-				<span>{{ _lang('Deposit & Withdraw Analytics').' - '.date('Y')  }}</span>
-				<select class="filter-select ml-auto py-0 auto-select" data-selected="{{ base_currency_id() }}">
-					@foreach(\App\Models\Currency::where('status',1)->get() as $currency)
-					<option value="{{ $currency->id }}" data-symbol="{{ currency($currency->name) }}">{{ $currency->name }}</option>
-					@endforeach
-				</select>
-			</div>
-			<div class="card-body">
-				<canvas id="transactionAnalysis"></canvas>
+				<div id="recoverySummary" class="d-flex flex-wrap justify-content-around mb-3 text-center"></div>
+				<canvas id="recoveryPattern" height="90"></canvas>
 			</div>
 		</div>
 	</div>
@@ -254,3 +237,4 @@
 <script src="{{ asset('backend/plugins/chartJs/chart.min.js') }}"></script>
 <script src="{{ asset('backend/assets/js/dashboard.js?v=1.1') }}"></script>
 @endsection
+
