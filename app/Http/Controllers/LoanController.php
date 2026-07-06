@@ -63,11 +63,24 @@ class LoanController extends Controller {
                 return $loan->borrower->first_name . ' ' . $loan->borrower->last_name;
             })
             ->addColumn('duration', function ($loan) {
-                if ($loan->loan_product) {
-                    return $loan->loan_product->term . ' ' . $loan->loan_product->term_period;
-                }
-                return '';
-            })
+    if (! $loan->loan_product) {
+        return '';
+    }
+
+    $term = (int) $loan->loan_product->term;
+    preg_match('/\+(\d+)\s*(\w+)/', $loan->loan_product->term_period, $matches);
+
+    if (empty($matches)) {
+        return $term;
+    }
+
+    $interval    = (int) $matches[1];
+    $unit        = $matches[2];
+    $totalUnits  = $term * $interval;
+    $unitLabel   = $totalUnits == 1 ? rtrim($unit, 's') : rtrim($unit, 's') . 's';
+
+    return $totalUnits . ' ' . ucfirst($unitLabel);
+})
             ->editColumn('applied_amount', function ($loan) {
                 return decimalPlace($loan->applied_amount, currency($loan->currency->name));
             })
