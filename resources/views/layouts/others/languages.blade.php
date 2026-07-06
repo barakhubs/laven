@@ -37,4 +37,5 @@
 	var $lang_not_recovered = "{{ _lang('Overdue') }}";
 	var $lang_pending = "{{ _lang('Not Yet Due') }}";
 	var $lang_recovery_rate = "{{ _lang('Recovery Rate') }}";
+	var $lang_released = "{{ _lang('Released') }}";
 </script>

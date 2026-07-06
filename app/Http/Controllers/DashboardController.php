@@ -116,15 +116,17 @@ class DashboardController extends Controller
     {
         $currency_id = $currency_id ?: base_currency_id();
         $today       = Carbon::now()->toDateString();
+        $year        = Carbon::now()->year;
 
         $labels    = [];
         $recovered = [];
         $missed    = [];
         $pending   = [];
+        $released  = [];
 
-        for ($i = 5; $i >= 0; $i--) {
-            $start = Carbon::now()->subMonths($i)->startOfMonth();
-            $end   = Carbon::now()->subMonths($i)->endOfMonth();
+        for ($m = 1; $m <= 12; $m++) {
+            $start = Carbon::createFromDate($year, $m, 1)->startOfMonth();
+            $end   = Carbon::createFromDate($year, $m, 1)->endOfMonth();
 
             $row = LoanRepayment::whereHas('loan', function (Builder $q) use ($currency_id) {
                 $q->where('currency_id', $currency_id);
@@ -138,12 +140,19 @@ class DashboardController extends Controller
                 )
                 ->first();
 
+            $releasedAmt = Loan::where('currency_id', $currency_id)
+                ->whereIn('status', [1, 2])
+                ->whereBetween('release_date', [$start->toDateString(), $end->toDateString()])
+                ->sum('applied_amount');
+
             $labels[]    = $start->format('M');
             $recovered[] = round((float) $row->recovered, 2);
             $missed[]    = round((float) $row->missed, 2);
             $pending[]   = round((float) $row->pending, 2);
+            $released[]  = round((float) $releasedAmt, 2);
         }
 
-        echo json_encode(['labels' => $labels, 'recovered' => $recovered, 'missed' => $missed, 'pending' => $pending]);
+        echo json_encode(['labels' => $labels, 'recovered' => $recovered, 'missed' => $missed, 'pending' => $pending, 'released' => $released]);
     }
 }
+
