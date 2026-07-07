@@ -181,6 +181,9 @@ $permissions = permission_list();
 		@if (in_array('reports.loan_due_report',$permissions))
 		<li class="nav-item"><a class="nav-link" href="{{ route('reports.loan_due_report') }}">{{ _lang('Loan Due Report') }}</a></li>
 		@endif
+		@if (in_array('reports.credit_score_report',$permissions))
+		<li class="nav-item"><a class="nav-link" href="{{ route('reports.credit_score_report') }}">{{ _lang('Credit Score Report') }}</a></li>
+		@endif
 
 		@if (in_array('reports.loan_repayment_report',$permissions))
 		<li class="nav-item"><a class="nav-link" href="{{ route('reports.loan_repayment_report') }}">{{ _lang('Loan Repayment Report') }}</a></li>
@@ -211,3 +214,4 @@ $permissions = permission_list();
 		@endif
 	</ul>
 </li>
+

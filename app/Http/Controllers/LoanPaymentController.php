@@ -251,6 +251,8 @@ class LoanPaymentController extends Controller
 
         DB::commit();
 
+        \App\Utilities\CreditScoreCalculator::recalculate($loan);
+
         try {
             $loanpayment->member->notify(new LoanPaymentReceived($loanpayment));
         } catch (Exception $e) {}
@@ -327,6 +329,8 @@ class LoanPaymentController extends Controller
         $loanpayment->delete();
 
         DB::commit();
+
+        \App\Utilities\CreditScoreCalculator::recalculate($loan);
 
         return back()->with('success', _lang('Deleted Sucessfully'));
     }

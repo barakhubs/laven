@@ -9,8 +9,8 @@ class CreateLoanCreditScoresTable extends Migration {
     public function up() {
         Schema::create('loan_credit_scores', function (Blueprint $table) {
             $table->bigIncrements('id');
-            $table->bigInteger('loan_id')->unique();
-            $table->bigInteger('borrower_id');
+            $table->unsignedBigInteger('loan_id')->unique();
+            $table->unsignedBigInteger('borrower_id');
             $table->decimal('score', 5, 2)->default(100);
             $table->integer('on_time_count')->default(0);
             $table->integer('late_count')->default(0);
@@ -27,4 +27,3 @@ class CreateLoanCreditScoresTable extends Migration {
         Schema::dropIfExists('loan_credit_scores');
     }
 }
-
