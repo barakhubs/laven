@@ -160,6 +160,10 @@ Route::group(['middleware' => ['install']], function () {
                 Route::get('dashboard/recent_transaction_widget', [DashboardController::class, 'recent_transaction_widget'])->name('dashboard.recent_transaction_widget');
                 Route::get('dashboard/due_loan_list', [DashboardController::class, 'due_loan_list'])->name('dashboard.due_loan_list');
                 Route::get('dashboard/active_loan_balances', [DashboardController::class, 'active_loan_balances'])->name('dashboard.active_loan_balances');
+                Route::get('dashboard/outstanding_portfolio_widget', [DashboardController::class, 'outstanding_portfolio_widget'])->name('dashboard.outstanding_portfolio_widget');
+                Route::get('dashboard/portfolio_at_risk_widget', [DashboardController::class, 'portfolio_at_risk_widget'])->name('dashboard.portfolio_at_risk_widget');
+                Route::get('dashboard/monthly_disbursed_widget', [DashboardController::class, 'monthly_disbursed_widget'])->name('dashboard.monthly_disbursed_widget');
+                Route::get('dashboard/pending_loans_widget', [DashboardController::class, 'pending_loans_widget'])->name('dashboard.pending_loans_widget');
 
                 // Member Controller
                 Route::match(['get', 'post'], 'members/import', [MemberController::class, 'import'])->name('members.import');
@@ -368,3 +372,4 @@ Route::post('install/finish', 'Install\InstallController@final_touch');
 // Update System
 Route::get('system/update/{action?}', 'Install\UpdateController@index');
 Route::get('migration/update', 'Install\UpdateController@update_migration');
+

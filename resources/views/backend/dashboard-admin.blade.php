@@ -23,11 +23,11 @@
 			<div class="card-body">
 				<div class="d-flex">
 					<div class="flex-grow-1">
-						<h5>{{ _lang('Deposit Requests') }}</h5>
-						<h4 class="pt-1 mb-0"><b>{{ request_count('deposit_requests') }}</b></h4>
+						<h5>{{ _lang('Active Loans') }}</h5>
+						<h4 class="pt-1 mb-0"><b>{{ $active_loans_count }}</b></h4>
 					</div>
 					<div>
-						<a href="{{ route('deposit_requests.index') }}"><i class="ti-arrow-right"></i>&nbsp;{{ _lang('View') }}</a>
+						<a href="{{ route('loans.index') }}"><i class="ti-arrow-right"></i>&nbsp;{{ _lang('View') }}</a>
 					</div>
 				</div>
 			</div>
@@ -39,11 +39,11 @@
 			<div class="card-body">
 				<div class="d-flex">
 					<div class="flex-grow-1">
-						<h5>{{ _lang('Withdraw Requests') }}</h5>
-						<h4 class="pt-1 mb-0"><b>{{ request_count('withdraw_requests') }}</b></h4>
+						<h5>{{ _lang('This Month Recovered') }}</h5>
+						<h4 class="pt-1 mb-0"><b>{{ decimalPlace($monthly_recovered, currency()) }}</b></h4>
 					</div>
 					<div>
-						<a href="{{ route('withdraw_requests.index') }}"><i class="ti-arrow-right"></i>&nbsp;{{ _lang('View') }}</a>
+						<a href="{{ route('loan_payments.index') }}"><i class="ti-arrow-right"></i>&nbsp;{{ _lang('View') }}</a>
 					</div>
 				</div>
 			</div>
@@ -55,11 +55,77 @@
 			<div class="card-body">
 				<div class="d-flex">
 					<div class="flex-grow-1">
-						<h5>{{ _lang('Pending Loans') }}</h5>
-						<h4 class="pt-1 mb-0"><b>{{ request_count('pending_loans') }}</b></h4>
+						<h5>{{ _lang('Overdue Amount') }}</h5>
+						<h4 class="pt-1 mb-0"><b>{{ decimalPlace($total_overdue, currency()) }}</b></h4>
+					</div>
+					<div>
+						<a href="{{ route('reports.loan_due_report') }}"><i class="ti-arrow-right"></i>&nbsp;{{ _lang('View') }}</a>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+
+<div class="row">
+	<div class="col-xl-3 col-md-6">
+		<div class="card mb-4 primary-card dashboard-card">
+			<div class="card-body">
+				<div class="d-flex">
+					<div class="flex-grow-1">
+						<h5>{{ _lang('Pending Applications') }}</h5>
+						<h4 class="pt-1 mb-0"><b>{{ $pending_loans_count }}</b></h4>
 					</div>
 					<div>
 						<a href="{{ route('loans.index') }}"><i class="ti-arrow-right"></i>&nbsp;{{ _lang('View') }}</a>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<div class="col-xl-3 col-md-6">
+		<div class="card mb-4 success-card dashboard-card">
+			<div class="card-body">
+				<div class="d-flex">
+					<div class="flex-grow-1">
+						<h5>{{ _lang('Disbursed This Month') }}</h5>
+						<h4 class="pt-1 mb-0"><b>{{ decimalPlace($monthly_disbursed, currency()) }}</b></h4>
+					</div>
+					<div>
+						<a href="{{ route('loans.index') }}"><i class="ti-arrow-right"></i>&nbsp;{{ _lang('View') }}</a>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<div class="col-xl-3 col-md-6">
+		<div class="card mb-4 warning-card dashboard-card">
+			<div class="card-body">
+				<div class="d-flex">
+					<div class="flex-grow-1">
+						<h5>{{ _lang('Outstanding Portfolio') }}</h5>
+						<h4 class="pt-1 mb-0"><b>{{ decimalPlace($outstanding_portfolio, currency()) }}</b></h4>
+					</div>
+					<div>
+						<a href="{{ route('loans.index') }}"><i class="ti-arrow-right"></i>&nbsp;{{ _lang('View') }}</a>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<div class="col-xl-3 col-md-6">
+		<div class="card mb-4 danger-card dashboard-card">
+			<div class="card-body">
+				<div class="d-flex">
+					<div class="flex-grow-1">
+						<h5>{{ _lang('Portfolio at Risk') }}</h5>
+						<h4 class="pt-1 mb-0"><b>{{ $portfolio_at_risk }}%</b></h4>
+					</div>
+					<div>
+						<a href="{{ route('reports.loan_due_report') }}"><i class="ti-arrow-right"></i>&nbsp;{{ _lang('View') }}</a>
 					</div>
 				</div>
 			</div>

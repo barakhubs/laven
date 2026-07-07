@@ -59,6 +59,42 @@ class DashboardController extends Controller
                 ->get();
 
             $data['total_customer'] = Member::count();
+
+            // ---- Loan / repayment / recovery summary cards ----
+            $baseCurrencyId = base_currency_id();
+            $monthStart     = Carbon::now()->startOfMonth()->toDateString();
+            $monthEnd       = Carbon::now()->endOfMonth()->toDateString();
+
+            $data['active_loans_count']  = Loan::where('status', 1)->count();
+            $data['pending_loans_count'] = Loan::where('status', 0)->count();
+
+            $data['monthly_disbursed'] = Loan::where('currency_id', $baseCurrencyId)
+                ->whereIn('status', [1, 2])
+                ->whereBetween('release_date', [$monthStart, $monthEnd])
+                ->sum('applied_amount');
+
+            $data['monthly_recovered'] = LoanRepayment::whereHas('loan', function (Builder $q) use ($baseCurrencyId) {
+                $q->where('currency_id', $baseCurrencyId);
+            })
+                ->where('status', 1)
+                ->whereBetween('repayment_date', [$monthStart, $monthEnd])
+                ->sum('amount_to_pay');
+
+            $data['total_overdue'] = LoanRepayment::whereHas('loan', function (Builder $q) use ($baseCurrencyId) {
+                $q->where('currency_id', $baseCurrencyId);
+            })
+                ->where('status', 0)
+                ->where('repayment_date', '<', $date)
+                ->sum('amount_to_pay');
+
+            $data['outstanding_portfolio'] = (float) Loan::where('currency_id', $baseCurrencyId)
+                ->where('status', 1)
+                ->selectRaw('COALESCE(SUM(applied_amount - total_paid), 0) as total')
+                ->value('total');
+
+            $data['portfolio_at_risk'] = $data['outstanding_portfolio'] > 0
+                ? round(($data['total_overdue'] / $data['outstanding_portfolio']) * 100, 1)
+                : 0;
         }
 
         return view("backend.dashboard-$user_type", $data);
@@ -107,6 +143,30 @@ class DashboardController extends Controller
     }
 
     public function active_loan_balances()
+    {
+        // Use for Permission Only
+        return redirect()->route('dashboard.index');
+    }
+
+    public function outstanding_portfolio_widget()
+    {
+        // Use for Permission Only
+        return redirect()->route('dashboard.index');
+    }
+
+    public function portfolio_at_risk_widget()
+    {
+        // Use for Permission Only
+        return redirect()->route('dashboard.index');
+    }
+
+    public function monthly_disbursed_widget()
+    {
+        // Use for Permission Only
+        return redirect()->route('dashboard.index');
+    }
+
+    public function pending_loans_widget()
     {
         // Use for Permission Only
         return redirect()->route('dashboard.index');
