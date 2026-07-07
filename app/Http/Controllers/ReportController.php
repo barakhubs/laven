@@ -12,6 +12,7 @@ use App\Models\LoanRepayment;
 use App\Models\Member;
 use App\Models\SavingsAccount;
 use App\Models\Transaction;
+use App\Services\CreditScoreService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -481,5 +482,107 @@ class ReportController extends Controller
             ->get();
 
         return view('backend.reports.bank_balances', $data);
+    }
+
+    /**
+     * Internal credit score report - scores every member with loan history
+     * based on their real repayment behaviour (see CreditScoreService).
+     */
+    public function credit_score_report(Request $request)
+    {
+        @ini_set('max_execution_time', 0);
+        @set_time_limit(0);
+
+        $as_of_date   = $request->as_of_date ?: date('Y-m-d');
+        $member_no    = $request->member_no ?? '';
+        $rating       = $request->rating ?? '';
+        $min_score    = $request->min_score ?? '';
+        $max_score    = $request->max_score ?? '';
+        $loan_status  = $request->loan_status ?? '';
+        $overdue_only = $request->overdue_only ?? '';
+        $sort_by      = $request->sort_by ?: 'score';
+        $sort_order   = $request->sort_order ?: 'asc';
+
+        $members = Member::whereHas('loans', function ($query) {
+            $query->whereIn('status', [1, 2]);
+        })
+            ->when($member_no, function ($query, $member_no) {
+                return $query->where(function ($query) use ($member_no) {
+                    $query->where('member_no', 'like', "%$member_no%")
+                        ->orWhere('first_name', 'like', "%$member_no%")
+                        ->orWhere('last_name', 'like', "%$member_no%");
+                });
+            })
+            ->when($loan_status == 'active', function ($query) {
+                return $query->whereHas('loans', function ($query) {
+                    $query->where('status', 1);
+                });
+            })
+            ->with(['loans' => function ($query) {
+                $query->whereIn('status', [1, 2, 3]);
+            }, 'loans.repayments', 'loans.payments'])
+            ->get();
+
+        $report_data = [];
+
+        foreach ($members as $member) {
+            $result = CreditScoreService::calculate($member, $as_of_date);
+
+            if ($rating !== '' && $result['rating_key'] != $rating) {
+                continue;
+            }
+            if ($min_score !== '' && $result['score'] < (int) $min_score) {
+                continue;
+            }
+            if ($max_score !== '' && $result['score'] > (int) $max_score) {
+                continue;
+            }
+            if ($overdue_only && $result['overdue_count'] == 0) {
+                continue;
+            }
+
+            $result['member'] = $member;
+            $report_data[]    = $result;
+        }
+
+        usort($report_data, function ($a, $b) use ($sort_by, $sort_order) {
+            $valA = $a[$sort_by] ?? $a['score'];
+            $valB = $b[$sort_by] ?? $b['score'];
+            $cmp  = $valA <=> $valB;
+            return $sort_order == 'desc' ? -$cmp : $cmp;
+        });
+
+        $data = [
+            'report_data'  => $report_data,
+            'as_of_date'   => $as_of_date,
+            'member_no'    => $member_no,
+            'rating'       => $rating,
+            'min_score'    => $min_score,
+            'max_score'    => $max_score,
+            'loan_status'  => $loan_status,
+            'overdue_only' => $overdue_only,
+            'sort_by'      => $sort_by,
+            'sort_order'   => $sort_order,
+            'rating_bands' => CreditScoreService::ratingOptions(),
+        ];
+
+        return view('backend.reports.credit_score_report', $data);
+    }
+
+    /**
+     * Full score breakdown for a single member - shows every schedule
+     * line that contributed points to (or against) their score.
+     */
+    public function credit_score_detail(Request $request, $member_id)
+    {
+        $as_of_date = $request->as_of_date ?: date('Y-m-d');
+
+        $member = Member::with(['loans' => function ($query) {
+            $query->whereIn('status', [1, 2, 3]);
+        }, 'loans.repayments', 'loans.payments', 'loans.loan_product'])->findOrFail($member_id);
+
+        $result = CreditScoreService::calculate($member, $as_of_date);
+
+        return view('backend.reports.credit_score_detail', compact('member', 'result', 'as_of_date'));
     }
 }
