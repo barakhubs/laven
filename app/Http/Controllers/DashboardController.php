@@ -68,10 +68,20 @@ class DashboardController extends Controller
             $data['active_loans_count']  = Loan::where('status', 1)->count();
             $data['pending_loans_count'] = Loan::where('status', 0)->count();
 
+            $data['overall_disbursed'] = Loan::where('currency_id', $baseCurrencyId)
+                ->whereIn('status', [1, 2])
+                ->sum('applied_amount');
+
             $data['monthly_disbursed'] = Loan::where('currency_id', $baseCurrencyId)
                 ->whereIn('status', [1, 2])
                 ->whereBetween('release_date', [$monthStart, $monthEnd])
                 ->sum('applied_amount');
+
+            $data['overall_recovered'] = LoanRepayment::whereHas('loan', function (Builder $q) use ($baseCurrencyId) {
+                $q->where('currency_id', $baseCurrencyId);
+            })
+                ->where('status', 1)
+                ->sum('amount_to_pay');
 
             $data['monthly_recovered'] = LoanRepayment::whereHas('loan', function (Builder $q) use ($baseCurrencyId) {
                 $q->where('currency_id', $baseCurrencyId);
@@ -86,6 +96,30 @@ class DashboardController extends Controller
                 ->where('status', 0)
                 ->where('repayment_date', '<', $date)
                 ->sum('amount_to_pay');
+
+            $data['monthly_overdue'] = LoanRepayment::whereHas('loan', function (Builder $q) use ($baseCurrencyId) {
+                $q->where('currency_id', $baseCurrencyId);
+            })
+                ->where('status', 0)
+                ->whereBetween('repayment_date', [$monthStart, $date])
+                ->sum('amount_to_pay');
+
+            $data['total_not_due'] = LoanRepayment::whereHas('loan', function (Builder $q) use ($baseCurrencyId) {
+                $q->where('currency_id', $baseCurrencyId);
+            })
+                ->where('status', 0)
+                ->where('repayment_date', '>=', $date)
+                ->sum('amount_to_pay');
+
+            $overallDueSoFar = $data['overall_recovered'] + $data['total_overdue'];
+            $data['overall_recovery_rate'] = $overallDueSoFar > 0
+                ? round(($data['overall_recovered'] / $overallDueSoFar) * 100, 1)
+                : 0;
+
+            $monthlyDueSoFar = $data['monthly_recovered'] + $data['monthly_overdue'];
+            $data['monthly_recovery_rate'] = $monthlyDueSoFar > 0
+                ? round(($data['monthly_recovered'] / $monthlyDueSoFar) * 100, 1)
+                : 0;
 
             $data['outstanding_portfolio'] = (float) Loan::where('currency_id', $baseCurrencyId)
                 ->where('status', 1)
@@ -215,4 +249,3 @@ class DashboardController extends Controller
         echo json_encode(['labels' => $labels, 'recovered' => $recovered, 'missed' => $missed, 'pending' => $pending, 'released' => $released]);
     }
 }
-
