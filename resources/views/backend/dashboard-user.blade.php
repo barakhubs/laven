@@ -97,7 +97,7 @@
 	@endif
 </div>
 
-@if (in_array('dashboard.active_loan_balances',$permissions))
+{{-- @if (in_array('dashboard.active_loan_balances',$permissions))
 <div class="row">
 	<div class="col-md-12 mb-4">
 		<div class="card mb-4">
@@ -136,7 +136,7 @@
 		</div>
 	</div>
 </div>
-@endif
+@endif --}}
 
 @if (in_array('dashboard.due_loan_list',$permissions))
 <div class="row">
