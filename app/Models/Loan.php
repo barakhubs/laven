@@ -72,6 +72,10 @@ class Loan extends Model {
         return $this->hasMany('App\Models\LoanPayment', 'loan_id');
     }
 
+    public function credit_score() {
+        return $this->hasOne('App\Models\LoanCreditScore', 'loan_id')->withDefault(['score' => 100]);
+    }
+
     public function next_payment() {
         return $this->hasOne('App\Models\LoanRepayment', 'loan_id')
             ->where('status', 0)

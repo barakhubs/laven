@@ -26,6 +26,7 @@ class Kernel extends ConsoleKernel {
         $schedule->call(new \App\Cronjobs\YearlyMaintenanceFeePosting)->hourly();
         $schedule->call(new \App\Cronjobs\OverdueLoanNotification)->everyThirtyMinutes();
         $schedule->call(new \App\Cronjobs\UpcommingLoanNotification)->everyTenMinutes();
+        $schedule->call(new \App\Cronjobs\CreditScoreCalculation)->dailyAt('01:00');
     }
 
     /**
@@ -55,3 +56,4 @@ class Kernel extends ConsoleKernel {
         require base_path('routes/console.php');
     }
 }
+

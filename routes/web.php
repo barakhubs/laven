@@ -263,6 +263,9 @@ Route::group(['middleware' => ['install']], function () {
                 Route::match(['get', 'post'], 'reports/transactions_report', [ReportController::class, 'transactions_report'])->name('reports.transactions_report');
                 Route::match(['get', 'post'], 'reports/loan_report', [ReportController::class, 'loan_report'])->name('reports.loan_report');
                 Route::get('reports/loan_due_report', [ReportController::class, 'loan_due_report'])->name('reports.loan_due_report');
+                Route::get('reports/credit_score_report', [App\Http\Controllers\CreditScoreController::class, 'index'])->name('reports.credit_score_report');
+                Route::get('reports/credit_score_report/recalculate_all', [App\Http\Controllers\CreditScoreController::class, 'recalculate_all'])->name('reports.credit_score_report.recalculate_all');
+                Route::get('reports/credit_score_report/recalculate/{loan_id}', [App\Http\Controllers\CreditScoreController::class, 'recalculate'])->name('reports.credit_score_report.recalculate');
                 Route::match(['get', 'post'], 'reports/loan_repayment_report', [ReportController::class, 'loan_repayment_report'])->name('reports.loan_repayment_report');
                 Route::match(['get', 'post'], 'reports/expense_report', [ReportController::class, 'expense_report'])->name('reports.expense_report');
                 Route::match(['get', 'post'], 'reports/cash_in_hand', [ReportController::class, 'cash_in_hand'])->name('reports.cash_in_hand');
