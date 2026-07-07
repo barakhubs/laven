@@ -123,7 +123,7 @@ class DashboardController extends Controller
 
             $data['outstanding_portfolio'] = (float) Loan::where('currency_id', $baseCurrencyId)
                 ->where('status', 1)
-                ->selectRaw('COALESCE(SUM(applied_amount - total_paid), 0) as total')
+                ->selectRaw('COALESCE(SUM(applied_amount - COALESCE(total_paid, 0)), 0) as total')
                 ->value('total');
 
             $data['portfolio_at_risk'] = $data['outstanding_portfolio'] > 0

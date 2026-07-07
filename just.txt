@@ -1,0 +1,2 @@
+Not Yet Overdue → "how much will I actually collect from upcoming installments" (principal + interest)
+Outstanding Portfolio → "how much principal is still outstanding on the books" (principal only)
