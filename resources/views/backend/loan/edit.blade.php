@@ -29,7 +29,7 @@
 								<label class="control-label">{{ _lang('Loan Product') }}</label>
 								<select class="form-control auto-select select2" data-selected="{{ $loan->loan_product_id }}" id="loan_product_id" name="loan_product_id" {{ $loan->status == 1 ? 'disabled' : 'required' }}>
 									<option value="">{{ _lang('Select One') }}</option>
-									@foreach(\App\Models\LoanProduct::active()->get() as $loanProduct)
+									@foreach(\App\Models\LoanProduct::active()->forCurrentLoanDomain()->get() as $loanProduct)
 									<option value="{{ $loanProduct->id }}" data-penalties="{{ $loanProduct->late_payment_penalties }}">{{ $loanProduct->name }}</option>
 									@endforeach
 								</select>

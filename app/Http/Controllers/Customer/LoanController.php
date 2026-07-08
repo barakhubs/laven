@@ -149,7 +149,7 @@ class LoanController extends Controller
     public function loan_products(Request $request)
     {
         $alert_col    = "col-lg-8 offset-lg-2";
-        $loanProducts = LoanProduct::active()->get();
+        $loanProducts = LoanProduct::active()->forCurrentLoanDomain()->get();
         return view('backend.customer_portal.loan.loan_products', compact('alert_col', 'loanProducts'));
     }
 

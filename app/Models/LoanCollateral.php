@@ -3,8 +3,11 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Traits\ScopedToLoanDomain;
 
 class LoanCollateral extends Model {
+
+    use ScopedToLoanDomain;
     /**
      * The table associated with the model.
      *

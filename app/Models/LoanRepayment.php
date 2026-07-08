@@ -5,8 +5,11 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
+use App\Traits\ScopedToLoanDomain;
 
 class LoanRepayment extends Model {
+
+    use ScopedToLoanDomain;
 
     /**
      * The table associated with the model.
@@ -56,3 +59,4 @@ class LoanRepayment extends Model {
     }
 
 }
+

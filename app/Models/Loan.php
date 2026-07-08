@@ -29,6 +29,63 @@ class Loan extends Model {
                 }
             }
         });
+
+        // Domain scoping: only active when SetLoanDomainScope middleware has
+        // run (i.e. we're inside a real HTTP web request). Console commands,
+        // queued jobs, and cron never have this binding, so they always see
+        // every loan regardless of product — this is intentional, see the
+        // middleware's docblock.
+        static::addGlobalScope('domain_scope', function (Builder $builder) {
+            if (! app()->bound('loan_domain_scope')) {
+                return;
+            }
+
+            $restrictedIds = static::restrictedLoanProductIds();
+
+            if ($restrictedIds->isEmpty()) {
+                return;
+            }
+
+            if (app('loan_domain_scope') === 'emergency') {
+                $builder->whereIn('loan_product_id', $restrictedIds);
+            } else {
+                $builder->whereNotIn('loan_product_id', $restrictedIds);
+            }
+        });
+    }
+
+    /**
+     * IDs of loan products flagged is_domain_restricted = true (e.g. Emergency
+     * Loan). Cached for the duration of the request since this is looked up
+     * on every Loan query.
+     */
+    public static function restrictedLoanProductIds() {
+        return once(function () {
+            return \App\Models\LoanProduct::where('is_domain_restricted', true)->pluck('id');
+        });
+    }
+
+    /**
+     * Explicit, chainable version of the domain scope for use in queries on
+     * related models (LoanRepayment, LoanPayment, LoanCreditScore, etc.)
+     * that don't automatically inherit Loan's global scope.
+     */
+    public function scopeForCurrentLoanDomain(Builder $query) {
+        if (! app()->bound('loan_domain_scope')) {
+            return $query;
+        }
+
+        $restrictedIds = static::restrictedLoanProductIds();
+
+        if ($restrictedIds->isEmpty()) {
+            return $query;
+        }
+
+        if (app('loan_domain_scope') === 'emergency') {
+            return $query->whereIn('loan_product_id', $restrictedIds);
+        }
+
+        return $query->whereNotIn('loan_product_id', $restrictedIds);
     }
 
     public function borrower() {
@@ -115,3 +172,4 @@ class Loan extends Model {
     }
 
 }
+

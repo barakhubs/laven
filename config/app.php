@@ -57,6 +57,21 @@ return [
 
     'url' => env('APP_URL', 'http://localhost'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Emergency Loan Domain
+    |--------------------------------------------------------------------------
+    |
+    | The hostname (no scheme, e.g. "emergency.example.com") that serves the
+    | restricted-view of the app. Requests arriving on this host are scoped
+    | to loan products flagged is_domain_restricted = true; requests on any
+    | other host are scoped to exclude them. Leave null to disable domain
+    | scoping entirely (everything behaves as before).
+    |
+    */
+
+    'emergency_domain' => env('EMERGENCY_DOMAIN'),
+
     'asset_url' => env('ASSET_URL'),
 
     /*

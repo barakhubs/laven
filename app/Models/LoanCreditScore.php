@@ -3,8 +3,11 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Traits\ScopedToLoanDomain;
 
 class LoanCreditScore extends Model {
+
+    use ScopedToLoanDomain;
 
     protected $table = 'loan_credit_scores';
 

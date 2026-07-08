@@ -170,6 +170,7 @@ class ReportController extends Controller
 
         $data['report_data'] = LoanRepayment::selectRaw('loan_repayments.*, SUM(amount_to_pay) as total_due')
             ->with('loan')
+            ->forCurrentLoanDomain()
             ->whereRaw("repayment_date < '$date'")
             ->where('status', 0)
             ->groupBy('loan_id')

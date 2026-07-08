@@ -23,4 +23,22 @@ class LoanProduct extends Model {
     {
         $query->where('status', 1);
     }
+
+    /**
+     * Restrict to the loan products that should be selectable/visible on
+     * the current request's domain: on the emergency domain, only products
+     * flagged is_domain_restricted; on the main domain, everything else.
+     * No-op outside a web request (console/cron), same as Loan's scope.
+     */
+    public function scopeForCurrentLoanDomain($query)
+    {
+        if (! app()->bound('loan_domain_scope')) {
+            return $query;
+        }
+
+        return app('loan_domain_scope') === 'emergency'
+            ? $query->where('is_domain_restricted', true)
+            : $query->where('is_domain_restricted', false);
+    }
 }
+

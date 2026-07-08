@@ -47,6 +47,7 @@ class DashboardController extends Controller
 
             $data['due_repayments'] = LoanRepayment::selectRaw('loan_id, MAX(repayment_date) as repayment_date, COUNT(id) as total_due_repayment, SUM(amount_to_pay) as total_due')
                 ->with('loan')
+                ->forCurrentLoanDomain()
                 ->whereRaw("repayment_date < '$date'")
                 ->where('status', 0)
                 ->groupBy('loan_id')
