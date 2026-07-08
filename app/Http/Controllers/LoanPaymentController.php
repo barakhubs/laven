@@ -116,6 +116,15 @@ class LoanPaymentController extends Controller
         }
 
         DB::beginTransaction();
+
+        // Reject the request outright if loan_id doesn't resolve on this
+        // domain (e.g. an emergency loan_id posted to the main domain).
+        $loan = Loan::find($request->loan_id);
+        if (! $loan) {
+            DB::rollBack();
+            return back()->with('error', _lang('Invalid loan selected for this domain'));
+        }
+
         $repayment = LoanRepayment::where('loan_id', $request->loan_id)
             ->where('status', 0)
             ->orderBy('id', 'asc')
@@ -126,8 +135,6 @@ class LoanPaymentController extends Controller
         }
 
         $existing_amount = $repayment->principal_amount;
-
-        $loan = Loan::find($request->loan_id);
 
         $amount = $request->principal_amount + $request->late_penalties + $repayment->interest;
         if ($request->account_id != 'cash') {
@@ -269,7 +276,7 @@ class LoanPaymentController extends Controller
      */
     public function show(Request $request, $id)
     {
-        $loanpayment = LoanPayment::find($id);
+        $loanpayment = LoanPayment::forCurrentLoanDomain()->findOrFail($id);
         if (! $request->ajax()) {
             return view('backend.loan_payment.view', compact('loanpayment', 'id'));
         } else {
@@ -280,6 +287,7 @@ class LoanPaymentController extends Controller
     public function get_repayment_by_loan_id($loan_id)
     {
         $repayments = LoanRepayment::where('loan_id', $loan_id)
+            ->forCurrentLoanDomain()
             ->where('status', 0)
             ->orderBy('id', 'asc')
             ->limit(1)
@@ -308,7 +316,7 @@ class LoanPaymentController extends Controller
         }
         DB::beginTransaction();
 
-        $loanpayment = LoanPayment::find($id);
+        $loanpayment = LoanPayment::forCurrentLoanDomain()->findOrFail($id);
 
         $transaction = Transaction::find($loanpayment->transaction_id);
         if ($transaction) {
@@ -316,11 +324,11 @@ class LoanPaymentController extends Controller
         }
 
         //Update Balance
-        $repayment         = LoanRepayment::find($loanpayment->repayment_id);
+        $repayment         = LoanRepayment::findOrFail($loanpayment->repayment_id);
         $repayment->status = 0;
         $repayment->save();
 
-        $loan             = Loan::find($loanpayment->loan_id);
+        $loan             = Loan::findOrFail($loanpayment->loan_id);
         $loan->total_paid = $loan->total_paid - $repayment->principal_amount;
         if ($loan->total_paid < $loan->applied_amount) {
             $loan->status = 1;
