@@ -12,6 +12,10 @@ class LoanProduct extends Model {
      */
     protected $table = 'loan_products';
 
+    protected $casts = [
+        'is_domain_restricted' => 'boolean',
+    ];
+
 
     /**
      * Scope a query to only include active users.

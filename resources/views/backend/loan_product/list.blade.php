@@ -23,7 +23,7 @@
 					<tbody>
 						@foreach($loanproducts as $loanproduct)
 						<tr data-id="row_{{ $loanproduct->id }}">
-							<td class='name'>{{ $loanproduct->name }}</td>
+							<td class='name'>{{ $loanproduct->name }} @if($loanproduct->is_domain_restricted)<span class="badge badge-warning">{{ _lang('Emergency Loan Product') }}</span>@endif</td>
 							<td class='interest_rate'>{{ $loanproduct->interest_rate.' %' }}</td>
 							<td class='interest_type'>{{ ucwords(str_replace("_"," ", $loanproduct->interest_type)) }}</td>
 							<td class='term'>{{ $loanproduct->term }}</td>

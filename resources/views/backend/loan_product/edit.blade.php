@@ -124,6 +124,16 @@
 							</div>
 						</div>
 
+						<div class="col-md-12">
+							<div class="form-group">
+								<div class="custom-control custom-checkbox">
+									<input type="checkbox" class="custom-control-input" id="is_domain_restricted" name="is_domain_restricted" value="1" {{ $loanproduct->is_domain_restricted ? 'checked' : '' }}>
+									<label class="custom-control-label" for="is_domain_restricted">{{ _lang('This is the Emergency Loan product') }}</label>
+								</div>
+								<small class="form-text text-muted">{{ _lang('Only one loan product can be flagged as the Emergency Loan product. It will be hidden everywhere on the main domain and be the only product visible/selectable on the emergency domain. Checking this will automatically un-flag any other product currently marked as the Emergency Loan product.') }}</small>
+							</div>
+						</div>
+
 						<div class="col-md-6">
 							<div class="form-group">
 								<label class="control-label">{{ _lang('Loan Application Fee') }}</label>
@@ -167,7 +177,7 @@
 
 						<div class="col-md-12 mt-2">
 							<div class="form-group">
-								<button type="submit" class="btn btn-primary"><i class="ti-check-box"></i>&nbsp;{{ _lang('Update Changes') }}</button>
+								<button type="submit" class="btn btn-primary"><i class="ti-check-box"></i>&nbsp;{{ _lang('Save Changes') }}</button>
 							</div>
 						</div>
 					</div>

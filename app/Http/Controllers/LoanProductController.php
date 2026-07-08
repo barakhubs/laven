@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\LoanProduct;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
 class LoanProductController extends Controller {
@@ -88,8 +89,19 @@ class LoanProductController extends Controller {
         $loanproduct->loan_application_fee_type = $request->loan_application_fee_type;
         $loanproduct->loan_processing_fee       = $request->loan_processing_fee;
         $loanproduct->loan_processing_fee_type  = $request->loan_processing_fee_type;
+        $loanproduct->is_domain_restricted      = $request->boolean('is_domain_restricted');
 
-        $loanproduct->save();
+        DB::transaction(function () use ($loanproduct) {
+            // Only one loan product can be "the" emergency-domain product at
+            // a time — the domain scoping logic assumes a single, unambiguous
+            // restricted set, so flipping this one on clears it from any
+            // other product.
+            if ($loanproduct->is_domain_restricted) {
+                LoanProduct::where('is_domain_restricted', true)->update(['is_domain_restricted' => false]);
+            }
+
+            $loanproduct->save();
+        });
 
         //Prefix Output
         $loanproduct->interest_type = ucwords(str_replace("_", " ", $loanproduct->interest_type));
@@ -181,8 +193,17 @@ class LoanProductController extends Controller {
         $loanproduct->loan_application_fee_type = $request->loan_application_fee_type;
         $loanproduct->loan_processing_fee       = $request->loan_processing_fee;
         $loanproduct->loan_processing_fee_type  = $request->loan_processing_fee_type;
+        $loanproduct->is_domain_restricted      = $request->boolean('is_domain_restricted');
 
-        $loanproduct->save();
+        DB::transaction(function () use ($loanproduct) {
+            if ($loanproduct->is_domain_restricted) {
+                LoanProduct::where('is_domain_restricted', true)
+                    ->where('id', '!=', $loanproduct->id)
+                    ->update(['is_domain_restricted' => false]);
+            }
+
+            $loanproduct->save();
+        });
 
         //Prefix Output
         $loanproduct->interest_type = ucwords(str_replace("_", " ", $loanproduct->interest_type));
