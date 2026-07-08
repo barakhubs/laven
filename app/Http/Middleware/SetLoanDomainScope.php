@@ -20,6 +20,13 @@ use Illuminate\Http\Request;
  * regardless of product. This is intentional: things like credit score
  * recalculation and overdue-penalty accrual must process the whole
  * portfolio, not a domain-scoped slice of it.
+ *
+ * Access gating: the emergency subdomain is restricted to Admins and
+ * Superadmins. Unauthenticated requests are allowed through unchanged
+ * (so the login page itself still loads on the emergency domain) — the
+ * gate only applies once a user is authenticated. A denied non-admin
+ * gets a 403 for that request only; their session (shared with the
+ * main domain) is left intact so they aren't logged out everywhere.
  */
 class SetLoanDomainScope
 {
@@ -31,6 +38,14 @@ class SetLoanDomainScope
 
         if ($emergencyDomain && strcasecmp($request->getHost(), $emergencyDomain) === 0) {
             $scope = 'emergency';
+        }
+
+        if ($scope === 'emergency' && auth()->check() && ! auth()->user()->isAdmin()) {
+            if ($request->ajax()) {
+                return response('<h4 class="text-center text-danger">' . _lang('Permission denied !') . '</h4>', 403);
+            }
+
+            abort(403, _lang('The emergency loan portal is restricted to administrators.'));
         }
 
         app()->instance('loan_domain_scope', $scope);
