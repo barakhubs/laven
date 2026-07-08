@@ -128,7 +128,7 @@
 					</form>
 				</div><!--End Report param-->
 
-				<table class="table table-bordered report-table">
+				<table id="credit_score_table" class="table table-bordered report-table">
 					<thead>
 						<th>{{ _lang('Member No') }}</th>
 						<th>{{ _lang('Borrower') }}</th>
@@ -175,3 +175,17 @@
 </div>
 
 @endsection
+
+@push('scripts')
+<script>
+	$(document).ready(function () {
+		// The global DataTable init (scripts.js) defaults every .report-table
+		// to 10 rows per client-side page, which fights with our server-side
+		// "Per Page" control. Tell it to show everything the server sent
+		// instead of re-paginating it again in the browser.
+		if ($.fn.DataTable.isDataTable('#credit_score_table')) {
+			$('#credit_score_table').DataTable().page.len(-1).draw();
+		}
+	});
+</script>
+@endpush
