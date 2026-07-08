@@ -54,6 +54,11 @@ class Transaction extends Model
             ->withDefault();
     }
 
+    public function loan()
+    {
+        return $this->belongsTo('App\Models\Loan', 'loan_id')->withDefault();
+    }
+
     public function created_by()
     {
         return $this->belongsTo('App\Models\User', 'created_user_id')->withDefault();
@@ -119,3 +124,4 @@ class Transaction extends Model
         });
     }
 }
+

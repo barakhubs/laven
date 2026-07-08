@@ -211,6 +211,15 @@ class ReportController extends Controller
                         return $query->where('account_number', $account_number);
                     });
                 })
+                // Non-loan transactions (deposits, withdrawals, fees, etc.) are
+                // always shown. Loan-linked transactions (loan_id is set) are
+                // only shown if that loan belongs to the current domain -
+                // whereHas('loan') inherits Loan's domain global scope, so a
+                // transaction linked to the other domain's loan is dropped.
+                ->where(function ($query) {
+                    $query->whereNull('transactions.loan_id')
+                        ->orWhereHas('loan');
+                })
                 ->whereRaw("date(transactions.trans_date) >= '$date1' AND date(transactions.trans_date) <= '$date2'")
                 ->orderBy('transactions.trans_date', 'desc')
                 ->get();
