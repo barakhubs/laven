@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Loan;
 use App\Models\LoanCollateral;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -23,7 +24,8 @@ class LoanCollateralController extends Controller {
      * @return \Illuminate\Http\Response
      */
     public function index($loan_id) {
-        $loancollaterals = LoanCollateral::where('loan_id', $loan_id)
+        $loancollaterals = LoanCollateral::forCurrentLoanDomain()
+            ->where('loan_id', $loan_id)
             ->orderBy("id", "desc")
             ->get();
         return view('backend.loan_collateral.list', compact('loancollaterals', 'loan_id'));
@@ -72,6 +74,17 @@ class LoanCollateralController extends Controller {
             }
         }
 
+        // Reject collateral submitted against a loan that isn't reachable on
+        // the current domain (e.g. an emergency loan_id posted to the main
+        // domain, or vice versa).
+        if (! Loan::where('id', $request->input('loan_id'))->exists()) {
+            $message = _lang('Invalid loan selected for this domain');
+            if ($request->ajax()) {
+                return response()->json(['result' => 'error', 'message' => [$message]]);
+            }
+            return redirect()->route('loan_collaterals.create')->with('error', $message);
+        }
+
         $attachments = "";
         if ($request->hasfile('attachments')) {
             $file        = $request->file('attachments');
@@ -105,7 +118,7 @@ class LoanCollateralController extends Controller {
      * @return \Illuminate\Http\Response
      */
     public function show(Request $request, $id) {
-        $loancollateral = LoanCollateral::find($id);
+        $loancollateral = LoanCollateral::forCurrentLoanDomain()->findOrFail($id);
         if (!$request->ajax()) {
             return view('backend.loan_collateral.view', compact('loancollateral', 'id'));
         } else {
@@ -122,7 +135,7 @@ class LoanCollateralController extends Controller {
      */
     public function edit(Request $request, $id) {
         $alert_col = 'col-lg-8 offset-lg-2';
-        $loancollateral = LoanCollateral::find($id);
+        $loancollateral = LoanCollateral::forCurrentLoanDomain()->findOrFail($id);
         if (!$request->ajax()) {
             return view('backend.loan_collateral.edit', compact('loancollateral', 'id', 'alert_col'));
         } else {
@@ -165,7 +178,7 @@ class LoanCollateralController extends Controller {
             $file->move(public_path() . "/uploads/media/", $attachments);
         }
 
-        $loancollateral = LoanCollateral::find($id);
+        $loancollateral = LoanCollateral::forCurrentLoanDomain()->findOrFail($id);
         //$loancollateral->loan_id = $request->input('loan_id');
         $loancollateral->name            = $request->input('name');
         $loancollateral->collateral_type = $request->input('collateral_type');
@@ -196,8 +209,9 @@ class LoanCollateralController extends Controller {
         if (! auth()->user()->isSuperAdmin()) {
             abort(403, 'Only Super Admins can delete records.');
         }
-        $loancollateral = LoanCollateral::find($id);
+        $loancollateral = LoanCollateral::forCurrentLoanDomain()->findOrFail($id);
         $loancollateral->delete();
         return back()->with('success', _lang('Deleted successfully'));
     }
 }
+
