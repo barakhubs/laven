@@ -107,6 +107,19 @@
 								</div>
 							</div>
 
+							<div class="col-xl-1 col-lg-4">
+								<div class="form-group">
+									<label class="control-label">{{ _lang('Per Page') }}</label>
+									<select class="form-control auto-select" data-selected="{{ $per_page }}" name="per_page">
+										<option value="10">10</option>
+										<option value="25">25</option>
+										<option value="50">50</option>
+										<option value="100">100</option>
+										<option value="250">250</option>
+									</select>
+								</div>
+							</div>
+
 							<div class="col-xl-2 col-lg-4">
 								<button type="submit" class="btn btn-light btn-xs btn-block mt-26"><i class="ti-filter"></i>&nbsp;{{ _lang('Filter') }}</button>
 							</div>
@@ -162,4 +175,3 @@
 </div>
 
 @endsection
-

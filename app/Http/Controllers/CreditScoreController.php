@@ -20,6 +20,12 @@ class CreditScoreController extends Controller {
         $sort_by    = $request->sort_by ?: 'score';
         $sort_order = $request->sort_order ?: 'asc';
 
+        $allowed_per_page = [10, 25, 50, 100, 250];
+        $per_page = (int) ($request->per_page ?: 25);
+        if (!in_array($per_page, $allowed_per_page)) {
+            $per_page = 25;
+        }
+
         $ratingRanges = [
             'excellent' => [90, 100],
             'good'      => [75, 89.99],
@@ -48,12 +54,12 @@ class CreditScoreController extends Controller {
             ->when($max_score !== '', fn($q) => $q->where('score', '<=', (float) $max_score))
             ->when($overdue_only, fn($q) => $q->where('overdue_count', '>', 0))
             ->orderBy($sort_by, $sort_order)
-            ->paginate(25)
+            ->paginate($per_page)
             ->appends($request->query());
 
         $data += compact(
             'member_no', 'loan_type', 'loan_status', 'rating',
-            'min_score', 'max_score', 'overdue_only', 'sort_by', 'sort_order'
+            'min_score', 'max_score', 'overdue_only', 'sort_by', 'sort_order', 'per_page'
         );
 
         return view('backend.reports.credit_score_report', $data);
@@ -73,4 +79,3 @@ class CreditScoreController extends Controller {
     }
 
 }
-
