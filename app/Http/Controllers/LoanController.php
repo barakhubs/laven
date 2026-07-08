@@ -150,7 +150,21 @@ class LoanController extends Controller {
         @ini_set('max_execution_time', 0);
         @set_time_limit(0);
 
-        $loanProduct = LoanProduct::find($request->loan_product_id);
+        // Only allow loan products that belong to the current request's
+        // domain (main vs emergency). The create-form dropdown already
+        // filters this, but that's UI-only — this is the actual
+        // enforcement point so a crafted/replayed POST (or a stale tab
+        // open on the other domain) can't create a loan against a
+        // product that shouldn't be reachable on this domain.
+        $loanProduct = LoanProduct::forCurrentLoanDomain()->find($request->loan_product_id);
+
+        if (! $loanProduct) {
+            $msg = _lang('Invalid loan product selected.');
+            if ($request->ajax()) {
+                return response()->json(['result' => 'error', 'message' => [$msg]]);
+            }
+            return redirect()->route('loans.create')->with('error', $msg)->withInput();
+        }
 
         $min_amount = $loanProduct->minimum_amount;
         $max_amount = $loanProduct->maximum_amount;
@@ -611,6 +625,14 @@ class LoanController extends Controller {
                     ->withErrors($validator)
                     ->withInput();
             }
+        }
+
+        if ($request->filled('loan_product_id') && ! LoanProduct::forCurrentLoanDomain()->where('id', $request->loan_product_id)->exists()) {
+            $msg = _lang('Invalid loan product selected.');
+            if ($request->ajax()) {
+                return response()->json(['result' => 'error', 'message' => [$msg]]);
+            }
+            return redirect()->route('loans.edit', $id)->with('error', $msg)->withInput();
         }
 
         if ($request->hasfile('attachment')) {

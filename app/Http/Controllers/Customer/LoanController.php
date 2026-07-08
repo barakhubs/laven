@@ -195,7 +195,15 @@ class LoanController extends Controller
                 'loan_product_id.required' => 'Loan product field is required',
             ]);
 
-            $loanProduct = LoanProduct::find($request->loan_product_id);
+            $loanProduct = LoanProduct::forCurrentLoanDomain()->find($request->loan_product_id);
+
+            if (! $loanProduct) {
+                $msg = _lang('Invalid loan product selected.');
+                if ($request->ajax()) {
+                    return response()->json(['result' => 'error', 'message' => [$msg]]);
+                }
+                return redirect()->route('loans.apply_loan')->with('error', $msg)->withInput();
+            }
 
             $min_amount = $loanProduct->minimum_amount;
             $max_amount = $loanProduct->maximum_amount;
