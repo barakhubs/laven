@@ -118,6 +118,7 @@
                         </thead>
                         <tbody>
                         @foreach($repayments as $repayment)
+                        @continue(!$repayment->loan || !$repayment->loan->borrower || !$repayment->loan->borrower->exists)
                         @php
                             $member    = $repayment->loan->borrower;
                             $loan      = $repayment->loan;
