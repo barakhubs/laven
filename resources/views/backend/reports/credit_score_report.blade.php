@@ -13,8 +13,22 @@
 
 			<div class="card-body">
 
+				<ul class="nav nav-tabs mb-3" role="tablist">
+					<li class="nav-item">
+						<a class="nav-link {{ $view_mode == 'loan' ? 'active' : '' }}" href="{{ route('reports.credit_score_report', array_merge(request()->except(['view_mode', 'page']), ['view_mode' => 'loan'])) }}">
+							{{ _lang('Loan View') }}
+						</a>
+					</li>
+					<li class="nav-item">
+						<a class="nav-link {{ $view_mode == 'member' ? 'active' : '' }}" href="{{ route('reports.credit_score_report', array_merge(request()->except(['view_mode', 'page']), ['view_mode' => 'member'])) }}">
+							{{ _lang('Member View') }}
+						</a>
+					</li>
+				</ul>
+
 				<div class="report-params">
 					<form class="validate" method="get" action="{{ route('reports.credit_score_report') }}">
+						<input type="hidden" name="view_mode" value="{{ $view_mode }}">
 						<div class="row">
 
 							<div class="col-xl-2 col-lg-4">
@@ -93,6 +107,9 @@
 										<option value="overdue_count">{{ _lang('Overdue Count') }}</option>
 										<option value="late_count">{{ _lang('Late Count') }}</option>
 										<option value="last_calculated_at">{{ _lang('Last Calculated') }}</option>
+										@if($view_mode == 'member')
+										<option value="loan_count">{{ _lang('Loan Count') }}</option>
+										@endif
 									</select>
 								</div>
 							</div>
@@ -128,6 +145,46 @@
 					</form>
 				</div><!--End Report param-->
 
+				@if($view_mode == 'member')
+				<table id="credit_score_table" class="table table-bordered report-table">
+					<thead>
+						<th>{{ _lang('Member No') }}</th>
+						<th>{{ _lang('Borrower') }}</th>
+						<th class="text-center">{{ _lang('Loans') }}</th>
+						<th class="text-center">{{ _lang('Score') }}</th>
+						<th class="text-center">{{ _lang('Rating') }}</th>
+						<th class="text-center">{{ _lang('On Time') }}</th>
+						<th class="text-center">{{ _lang('Late') }}</th>
+						<th class="text-center">{{ _lang('Overdue') }}</th>
+						<th>{{ _lang('Last Calculated') }}</th>
+						<th class="text-center">{{ _lang('Action') }}</th>
+					</thead>
+					<tbody>
+					@forelse($report_data as $row)
+						<tr>
+							<td><a href="{{ route('members.show', $row->borrower_id) }}" target="_blank">{{ $row->borrower->member_no }}</a></td>
+							<td>{{ $row->borrower->name }}</td>
+							<td class="text-center">{{ $row->loan_count }}</td>
+							<td class="text-center"><strong>{{ $row->score }}</strong></td>
+							<td class="text-center"><span class="badge badge-{{ $row->rating_color }}">{{ _lang($row->rating) }}</span></td>
+							<td class="text-center">{{ $row->on_time_count }}</td>
+							<td class="text-center">{{ $row->late_count }}</td>
+							<td class="text-center">{{ $row->overdue_count }}</td>
+							<td>{{ $row->last_calculated_at }}</td>
+							<td class="text-center">
+								<a href="{{ route('reports.credit_score_report', ['view_mode' => 'loan', 'member_no' => $row->borrower->member_no]) }}" class="btn btn-light btn-xs" title="{{ _lang('View Loans') }}">
+									<i class="ti-list"></i>&nbsp;{{ _lang('View Loans') }}
+								</a>
+							</td>
+						</tr>
+					@empty
+						<tr>
+							<td colspan="10" class="text-center">{{ _lang('No Data Found') }}</td>
+						</tr>
+					@endforelse
+					</tbody>
+				</table>
+				@else
 				<table id="credit_score_table" class="table table-bordered report-table">
 					<thead>
 						<th>{{ _lang('Member No') }}</th>
@@ -166,6 +223,7 @@
 					@endforelse
 					</tbody>
 				</table>
+				@endif
 
 				{{ $report_data->links() }}
 
