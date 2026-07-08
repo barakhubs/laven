@@ -41,6 +41,7 @@ class LoanPaymentController extends Controller
     {
         $loanpayments = LoanPayment::select('loan_payments.*')
             ->with('loan')
+            ->forCurrentLoanDomain()
             ->orderBy("loan_payments.id", "desc");
 
         return Datatables::eloquent($loanpayments)

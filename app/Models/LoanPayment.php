@@ -3,11 +3,13 @@
 namespace App\Models;
 
 use App\Traits\Member;
+use App\Traits\ScopedToLoanDomain;
 use Illuminate\Database\Eloquent\Model;
 
 class LoanPayment extends Model {
 
     use Member;
+    use ScopedToLoanDomain;
     /**
      * The table associated with the model.
      *
