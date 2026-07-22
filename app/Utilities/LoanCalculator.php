@@ -29,8 +29,8 @@ class LoanCalculator
 
         $date             = $this->first_payment_date;
         $principal_amount = $this->amount / $this->term;
-        $amount_to_pay    = $principal_amount + (($this->interest_rate / 100) * $principal_amount);
         $interest         = (($this->interest_rate / 100) * $this->loan_amount) / $this->term;
+        $amount_to_pay    = $principal_amount + $interest;
         $balance          = $this->amount;
         $penalty          = ($this->late_payment_penalties / 100) * $principal_amount;
         //$balance          = $this->payable_amount;
@@ -60,8 +60,8 @@ class LoanCalculator
         $this->payable_amount = ((($this->interest_rate / 100) * $this->amount) * $this->term) + $this->amount;
         $date                 = $this->first_payment_date;
         $principal_amount     = $this->amount / $this->term;
-        $amount_to_pay        = $principal_amount + (($this->interest_rate / 100) * $this->amount);
         $interest             = (($this->interest_rate / 100) * $this->loan_amount);
+        $amount_to_pay        = $principal_amount + $interest;
         $balance              = $this->amount;
         $penalty              = ($this->late_payment_penalties / 100) * $principal_amount;
         //$balance              = $this->payable_amount;
