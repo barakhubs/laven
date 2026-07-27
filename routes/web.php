@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\LoanController;
+use App\Http\Controllers\LoanOfficerController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\BranchController;
@@ -272,6 +273,8 @@ Route::group(['middleware' => ['install']], function () {
                 Route::match(['get', 'post'], 'reports/bank_transactions', [ReportController::class, 'bank_transactions'])->name('reports.bank_transactions');
                 Route::get('reports/bank_balances', [ReportController::class, 'bank_balances'])->name('reports.bank_balances');
                 Route::match(['get', 'post'], 'reports/revenue_report', [ReportController::class, 'revenue_report'])->name('reports.revenue_report');
+                Route::get('loan_officers', [LoanOfficerController::class, 'index'])->name('loan_officers.index');
+                Route::get('loan_officers/{id}', [LoanOfficerController::class, 'show'])->name('loan_officers.show');
                 Route::get('reports/financial_summary', [ReportController::class, 'financial_summary'])->name('reports.financial_summary');
                 Route::get('reports/financial_summary/monthly_trend', [ReportController::class, 'financial_summary_monthly_trend'])->name('reports.financial_summary.monthly_trend');
 

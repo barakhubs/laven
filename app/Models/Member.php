@@ -42,6 +42,10 @@ class Member extends Model {
         return $this->belongsTo('App\Models\User', 'user_id')->withDefault();
     }
 
+    public function loan_officer() {
+        return $this->belongsTo('App\Models\User', 'loan_officer_id')->withDefault();
+    }
+
     public function loans() {
         return $this->hasMany('App\Models\Loan', 'borrower_id');
     }
@@ -50,3 +54,4 @@ class Member extends Model {
         return $this->hasMany('App\Models\MemberDocument', 'member_id');
     }
 }
+

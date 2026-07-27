@@ -216,6 +216,10 @@ $permissions = permission_list();
 		@if (in_array('reports.revenue_report',$permissions))
 		<li class="nav-item"><a class="nav-link" href="{{ route('reports.revenue_report') }}">{{ _lang('Revenue Report') }}</a></li>
 		@endif
+
+		@if (in_array('loan_officers.index',$permissions))
+		<li class="nav-item"><a class="nav-link" href="{{ route('loan_officers.index') }}">{{ _lang('Loan Officer Report') }}</a></li>
+		@endif
 	</ul>
 </li>
 

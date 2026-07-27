@@ -160,6 +160,19 @@ placeholder="e.g. CM19900101ABCD" {{ auth()->user()->isSuperAdmin() ? '' : 'read
 							@endforeach
                         @endif
 
+						<div class="col-md-6">
+							<div class="form-group">
+								<label class="control-label">{{ _lang('Loan Officer') }}</label>
+								<select class="form-control select2" name="loan_officer_id">
+									<option value="">{{ _lang('Not Assigned') }}</option>
+									@foreach($loanOfficers as $officer)
+									<option value="{{ $officer->id }}" {{ $member->loan_officer_id == $officer->id ? 'selected' : '' }}>{{ $officer->name }}</option>
+									@endforeach
+								</select>
+								<small class="form-text text-muted">{{ _lang('Staff member responsible for this client') }}</small>
+							</div>
+						</div>
+
 						<div class="col-md-12">
 							<div class="form-group">
 								<label class="control-label">{{ _lang('Credit Source') }}</label>

@@ -47,6 +47,11 @@ class User extends Authenticatable {
         return $this->hasOne('App\Models\Member', 'user_id')->withDefault();
     }
 
+    /** Clients (members) this staff member is assigned to as their loan officer */
+    public function clients() {
+        return $this->hasMany('App\Models\Member', 'loan_officer_id');
+    }
+
     public function branch() {
         return $this->belongsTo('App\Models\Branch', 'branch_id')->withDefault();
     }
@@ -67,3 +72,4 @@ class User extends Authenticatable {
         $this->save();
     }
 }
+

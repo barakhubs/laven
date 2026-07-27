@@ -151,6 +151,7 @@ $upcomming_repayments = request_count('upcomming_repayments', true);
 		<li class="nav-item"><a class="nav-link" href="{{ route('reports.bank_transactions') }}">{{ _lang('Bank Transactions') }}</a></li>
 		<li class="nav-item"><a class="nav-link" href="{{ route('reports.bank_balances') }}">{{ _lang('Bank Account Balance') }}</a></li>
 		<li class="nav-item"><a class="nav-link" href="{{ route('reports.revenue_report') }}">{{ _lang('Revenue Report') }}</a></li>
+		<li class="nav-item"><a class="nav-link" href="{{ route('loan_officers.index') }}">{{ _lang('Loan Officer Report') }}</a></li>
 	</ul>
 </li>
 

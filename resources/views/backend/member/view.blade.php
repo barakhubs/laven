@@ -124,6 +124,7 @@
                                     <tr><th>{{ _lang('Full Name') }}</th><td>{{ $member->first_name.' '.$member->last_name }}</td></tr>
                                     <tr><th>{{ _lang('Business Name') }}</th><td>{{ $member->business_name ?: '-' }}</td></tr>
                                     <tr><th>{{ _lang('Branch') }}</th><td>{{ $member->branch->name }}</td></tr>
+                                    <tr><th>{{ _lang('Loan Officer') }}</th><td>{{ $member->loan_officer->name ?? '-' }}</td></tr>
                                     <tr><th>{{ _lang('Email') }}</th><td>{{ $member->email ?: '-' }}</td></tr>
                                     <tr><th>{{ _lang('Mobile') }}</th><td>{{ $member->mobile }}</td></tr>
                                     <tr>
@@ -600,3 +601,4 @@
 })(jQuery);
 </script>
 @endsection
+

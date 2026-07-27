@@ -139,7 +139,10 @@ class MemberController extends Controller {
             ->get();
 
         $memberNo = get_option('starting_member_no');
-        return view('backend.member.create', compact('customFields', 'memberNo'));
+        $loanOfficers = User::whereIn('user_type', ['admin', 'superadmin', 'user'])
+            ->orderBy('name', 'asc')
+            ->get();
+        return view('backend.member.create', compact('customFields', 'memberNo', 'loanOfficers'));
     }
 
     /**
@@ -155,6 +158,7 @@ class MemberController extends Controller {
             'mobile'       => 'required|string|max:30',
             'country_code' => 'required_with:mobile',
             'photo'        => 'nullable|image',
+            'loan_officer_id' => 'nullable|exists:users,id',
             // User Login Attributes
             'name'         => 'required_if:client_login,1|max:191',
             'login_email'  => 'required_if:client_login,1|email|unique:users,email|max:191',
@@ -348,6 +352,7 @@ class MemberController extends Controller {
         $member->zip           = $request->input('zip');
         $member->address       = $request->input('address');
         $member->credit_source = $request->input('credit_source');
+        $member->loan_officer_id = $request->input('loan_officer_id') ?: null;
         $member->photo         = $photo;
         $member->custom_fields = json_encode($customFieldsData);
 
@@ -499,10 +504,13 @@ class MemberController extends Controller {
             ->orderBy("id", "asc")
             ->get();
         $member = Member::withoutGlobalScopes(['status'])->find($id);
+        $loanOfficers = User::whereIn('user_type', ['admin', 'superadmin', 'user'])
+            ->orderBy('name', 'asc')
+            ->get();
         if (! $request->ajax()) {
-            return view('backend.member.edit', compact('member', 'id', 'customFields'));
+            return view('backend.member.edit', compact('member', 'id', 'customFields', 'loanOfficers'));
         } else {
-            return view('backend.member.modal.edit', compact('member', 'id', 'customFields'));
+            return view('backend.member.modal.edit', compact('member', 'id', 'customFields', 'loanOfficers'));
         }
     }
 
@@ -539,6 +547,7 @@ class MemberController extends Controller {
             ],
             'country_code' => 'required_with:mobile',
             'photo'        => 'nullable|image',
+            'loan_officer_id' => 'nullable|exists:users,id',
             'name'         => 'required_if:client_login,1|max:191',
             'login_email'  => [
                 'required_if:client_login,1',
@@ -633,6 +642,7 @@ class MemberController extends Controller {
         $member->zip           = $request->input('zip');
         $member->address       = $request->input('address');
         $member->credit_source = $request->input('credit_source');
+        $member->loan_officer_id = $request->input('loan_officer_id') ?: null;
         if ($request->hasfile('photo')) {
             $member->photo = $photo;
         }
