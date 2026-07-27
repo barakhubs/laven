@@ -272,6 +272,8 @@ Route::group(['middleware' => ['install']], function () {
                 Route::match(['get', 'post'], 'reports/bank_transactions', [ReportController::class, 'bank_transactions'])->name('reports.bank_transactions');
                 Route::get('reports/bank_balances', [ReportController::class, 'bank_balances'])->name('reports.bank_balances');
                 Route::match(['get', 'post'], 'reports/revenue_report', [ReportController::class, 'revenue_report'])->name('reports.revenue_report');
+                Route::get('reports/financial_summary', [ReportController::class, 'financial_summary'])->name('reports.financial_summary');
+                Route::get('reports/financial_summary/monthly_trend', [ReportController::class, 'financial_summary_monthly_trend'])->name('reports.financial_summary.monthly_trend');
 
             });
 

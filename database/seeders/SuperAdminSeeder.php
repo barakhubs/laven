@@ -192,6 +192,7 @@ class SuperAdminSeeder extends Seeder
             'settings.update_password',
 
             // Reports
+            'reports.financial_summary',
             'reports.index',
             'reports.transactions_report',
             'reports.loans_report',
@@ -271,3 +272,4 @@ class SuperAdminSeeder extends Seeder
         $this->command->warn('Please change the password after first login!');
     }
 }
+

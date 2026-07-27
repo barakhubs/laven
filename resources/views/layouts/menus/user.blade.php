@@ -166,6 +166,10 @@ $permissions = permission_list();
 <li>
 	<a href="javascript: void(0);"><i class="ti-bar-chart"></i><span>{{ _lang('Reports') }}</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
 	<ul class="nav-second-level" aria-expanded="false">
+		@if (in_array('reports.financial_summary',$permissions))
+		<li class="nav-item"><a class="nav-link" href="{{ route('reports.financial_summary') }}"><b>{{ _lang('Financial Summary') }}</b></a></li>
+		@endif
+
 		@if (in_array('reports.account_statement',$permissions))
 		<li class="nav-item"><a class="nav-link" href="{{ route('reports.account_statement') }}">{{ _lang('Account Statement') }}</a></li>
 		@endif

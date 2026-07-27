@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\BankAccount;
 use App\Models\BankTransaction;
+use App\Models\Branch;
 use App\Models\Currency;
 use App\Models\Expense;
+use App\Models\ExpenseCategory;
 use App\Models\Loan;
 use App\Models\LoanPayment;
 use App\Models\LoanRepayment;
@@ -13,6 +15,8 @@ use App\Models\Member;
 use App\Models\SavingsAccount;
 use App\Models\Transaction;
 use App\Services\CreditScoreService;
+use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -595,4 +599,215 @@ class ReportController extends Controller
 
         return view('backend.reports.credit_score_detail', compact('member', 'result', 'as_of_date'));
     }
+
+    /**
+     * Executive Financial Summary — a single, comprehensive, chart-driven
+     * overview of the business's financial health: money disbursed,
+     * collected, still outstanding, revenue by source, expenses by
+     * category, loan book composition, and branch performance.
+     *
+     * All lifetime figures are computed in the base currency (expenses and
+     * some legacy tables don't carry a currency_id, so mixing currencies
+     * here would be misleading).
+     */
+    public function financial_summary(Request $request)
+    {
+        $baseCurrencyId = base_currency_id();
+        $today          = date('Y-m-d');
+        $year           = $request->year ?: date('Y');
+
+        $data               = [];
+        $data['year']       = $year;
+        $data['currency']   = currency(get_currency($baseCurrencyId)->name ?? '');
+
+        // ---- Loan book status counts / amounts ----
+        $statusRows = Loan::where('currency_id', $baseCurrencyId)
+            ->selectRaw('status, COUNT(*) as cnt, COALESCE(SUM(applied_amount),0) as amt')
+            ->groupBy('status')
+            ->get()
+            ->keyBy('status');
+
+        $data['loan_status_counts'] = [
+            'pending'   => (int) ($statusRows[0]->cnt ?? 0),
+            'active'    => (int) ($statusRows[1]->cnt ?? 0),
+            'completed' => (int) ($statusRows[2]->cnt ?? 0),
+            'cancelled' => (int) ($statusRows[3]->cnt ?? 0),
+        ];
+
+        $data['total_disbursed'] = (float) Loan::where('currency_id', $baseCurrencyId)
+            ->whereIn('status', [1, 2])
+            ->sum('applied_amount');
+
+        // ---- Realized cash collected from borrowers (principal + interest + penalty) ----
+        $paymentTotals = LoanPayment::whereHas('loan', function (Builder $q) use ($baseCurrencyId) {
+            $q->where('currency_id', $baseCurrencyId);
+        })
+            ->forCurrentLoanDomain()
+            ->selectRaw('COALESCE(SUM(repayment_amount),0) as principal, COALESCE(SUM(interest),0) as interest, COALESCE(SUM(late_penalties),0) as penalty, COALESCE(SUM(total_amount),0) as total')
+            ->first();
+
+        $data['principal_collected'] = (float) $paymentTotals->principal;
+        $data['interest_income']     = (float) $paymentTotals->interest;
+        $data['penalty_income']      = (float) $paymentTotals->penalty;
+        $data['total_collected']     = (float) $paymentTotals->total;
+
+        // ---- Other fee income (account charges, not loan related) ----
+        $data['other_fee_income'] = (float) Transaction::where('charge', '>', 0)
+            ->where('status', 2)
+            ->whereHas('account.savings_type', function (Builder $q) use ($baseCurrencyId) {
+                $q->where('currency_id', $baseCurrencyId);
+            })
+            ->sum('charge');
+
+        $data['total_revenue'] = $data['interest_income'] + $data['penalty_income'] + $data['other_fee_income'];
+
+        // ---- Expenses ----
+        $data['total_expenses'] = (float) Expense::sum('amount');
+        $data['net_profit']     = $data['total_revenue'] - $data['total_expenses'];
+
+        $data['expense_by_category'] = Expense::selectRaw('expense_category_id, COALESCE(SUM(amount),0) as total')
+            ->with('expense_category')
+            ->groupBy('expense_category_id')
+            ->orderByDesc('total')
+            ->get();
+
+        // ---- Still-outstanding / not-yet-collected money (unpaid schedule lines) ----
+        $unpaidTotals = LoanRepayment::whereHas('loan', function (Builder $q) use ($baseCurrencyId) {
+            $q->where('currency_id', $baseCurrencyId);
+        })
+            ->forCurrentLoanDomain()
+            ->where('status', 0)
+            ->selectRaw('COALESCE(SUM(principal_amount),0) as principal, COALESCE(SUM(interest),0) as interest, COALESCE(SUM(amount_to_pay),0) as total')
+            ->first();
+
+        $paidTotals = LoanRepayment::whereHas('loan', function (Builder $q) use ($baseCurrencyId) {
+            $q->where('currency_id', $baseCurrencyId);
+        })
+            ->forCurrentLoanDomain()
+            ->where('status', 1)
+            ->selectRaw('COALESCE(SUM(principal_amount),0) as principal, COALESCE(SUM(interest),0) as interest')
+            ->first();
+
+        $data['outstanding_principal']  = (float) $unpaidTotals->principal;
+        $data['outstanding_interest']   = (float) $unpaidTotals->interest;
+        $data['outstanding_portfolio']  = (float) $unpaidTotals->total;
+        $data['principal_recovered']    = (float) $paidTotals->principal;
+        $data['interest_recovered']     = (float) $paidTotals->interest;
+
+        // "If we collected every last shilling owed to us" — the extra profit
+        // still sitting out there, uncollected.
+        $data['potential_extra_profit'] = $data['outstanding_interest'];
+
+        // ---- Overdue vs not-yet-due, and overall collection rate ----
+        $data['overdue_amount'] = (float) LoanRepayment::whereHas('loan', function (Builder $q) use ($baseCurrencyId) {
+            $q->where('currency_id', $baseCurrencyId);
+        })
+            ->forCurrentLoanDomain()
+            ->where('status', 0)
+            ->where('repayment_date', '<', $today)
+            ->sum('amount_to_pay');
+
+        $data['not_due_amount'] = $data['outstanding_portfolio'] - $data['overdue_amount'];
+
+        $dueSoFar = $data['total_collected'] + $data['overdue_amount'];
+        $data['collection_rate'] = $dueSoFar > 0 ? round(($data['total_collected'] / $dueSoFar) * 100, 1) : 0;
+
+        $activePortfolio = (float) Loan::where('currency_id', $baseCurrencyId)
+            ->where('status', 1)
+            ->selectRaw('COALESCE(SUM(applied_amount - COALESCE(total_paid,0)),0) as total')
+            ->value('total');
+        $data['portfolio_at_risk'] = $activePortfolio > 0 ? round(($data['overdue_amount'] / $activePortfolio) * 100, 1) : 0;
+
+        // ---- People ----
+        $data['total_members']    = Member::count();
+        $data['active_borrowers'] = Loan::where('status', 1)->distinct('borrower_id')->count('borrower_id');
+
+        // ---- Branch performance (only meaningful with more than one branch) ----
+        $branches = Branch::all();
+        $data['branch_performance'] = null;
+
+        if ($branches->count() > 1) {
+            $data['branch_performance'] = $branches->map(function ($branch) use ($baseCurrencyId) {
+                $disbursed = Loan::where('currency_id', $baseCurrencyId)
+                    ->whereIn('status', [1, 2])
+                    ->whereHas('borrower', function (Builder $q) use ($branch) {
+                        $q->where('branch_id', $branch->id);
+                    })
+                    ->sum('applied_amount');
+
+                $collected = LoanPayment::whereHas('loan', function (Builder $q) use ($baseCurrencyId, $branch) {
+                    $q->where('currency_id', $baseCurrencyId)
+                        ->whereHas('borrower', function (Builder $q2) use ($branch) {
+                            $q2->where('branch_id', $branch->id);
+                        });
+                })->sum('total_amount');
+
+                return [
+                    'name'      => $branch->name,
+                    'disbursed' => round((float) $disbursed, 2),
+                    'collected' => round((float) $collected, 2),
+                    'members'   => Member::where('branch_id', $branch->id)->count(),
+                ];
+            })->values();
+        }
+
+        return view('backend.reports.financial_summary', $data);
+    }
+
+    /**
+     * JSON data source for the monthly Revenue vs Expenses vs Net Profit
+     * chart on the Financial Summary page. Kept as a light-weight ajax
+     * endpoint so the main page loads fast and the chart can be refreshed
+     * independently when the year filter changes.
+     */
+    public function financial_summary_monthly_trend(Request $request)
+    {
+        $baseCurrencyId = base_currency_id();
+        $year           = $request->year ?: date('Y');
+
+        $labels   = [];
+        $revenue  = [];
+        $expenses = [];
+        $profit   = [];
+
+        for ($m = 1; $m <= 12; $m++) {
+            $start = Carbon::createFromDate($year, $m, 1)->startOfMonth();
+            $end   = Carbon::createFromDate($year, $m, 1)->endOfMonth();
+
+            $loanIncome = LoanPayment::whereHas('loan', function (Builder $q) use ($baseCurrencyId) {
+                $q->where('currency_id', $baseCurrencyId);
+            })
+                ->forCurrentLoanDomain()
+                ->whereBetween('paid_at', [$start->toDateString(), $end->toDateString()])
+                ->selectRaw('COALESCE(SUM(interest),0) + COALESCE(SUM(late_penalties),0) as amt')
+                ->value('amt');
+
+            $feeIncome = Transaction::where('charge', '>', 0)
+                ->where('status', 2)
+                ->whereHas('account.savings_type', function (Builder $q) use ($baseCurrencyId) {
+                    $q->where('currency_id', $baseCurrencyId);
+                })
+                ->whereBetween('trans_date', [$start->toDateString(), $end->toDateString() . ' 23:59:59'])
+                ->sum('charge');
+
+            $monthlyExpense = Expense::whereBetween('expense_date', [$start->toDateString(), $end->toDateString() . ' 23:59:59'])
+                ->sum('amount');
+
+            $monthlyRevenue = round((float) $loanIncome + (float) $feeIncome, 2);
+            $monthlyExpense = round((float) $monthlyExpense, 2);
+
+            $labels[]   = $start->format('M');
+            $revenue[]  = $monthlyRevenue;
+            $expenses[] = $monthlyExpense;
+            $profit[]   = round($monthlyRevenue - $monthlyExpense, 2);
+        }
+
+        return response()->json([
+            'labels'   => $labels,
+            'revenue'  => $revenue,
+            'expenses' => $expenses,
+            'profit'   => $profit,
+        ]);
+    }
 }
+
