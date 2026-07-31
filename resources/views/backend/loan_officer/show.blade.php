@@ -49,6 +49,7 @@
 								<th>{{ _lang('Client') }}</th>
 								<th class="text-center">{{ _lang('Loans') }}</th>
 								<th class="text-right">{{ _lang('Disbursed') }}</th>
+								<th style="min-width: 140px;">{{ _lang('Recovery Rate') }}</th>
 								<th class="text-right">{{ _lang('Fees Earned') }}</th>
 								<th class="text-right">{{ _lang('Interest & Penalties') }}</th>
 								<th class="text-right">{{ _lang('Total Profit Generated') }}</th>
@@ -64,6 +65,19 @@
 								</td>
 								<td class="text-center">{{ $row['loans'] }}</td>
 								<td class="text-right">{{ number_format($row['disbursed'], 2) }}</td>
+								<td>
+									@php
+										$rate = $row['recovery_rate'];
+										$barClass = $rate >= 90 ? 'bg-success' : ($rate >= 50 ? 'bg-warning' : 'bg-danger');
+									@endphp
+									<div class="d-flex align-items-center">
+										<div class="progress flex-grow-1 mr-2" style="height: 8px;">
+											<div class="progress-bar {{ $barClass }}" role="progressbar" style="width: {{ min($rate, 100) }}%;"></div>
+										</div>
+										<small class="text-nowrap">{{ number_format($rate, 1) }}%</small>
+									</div>
+									<small class="text-muted">{{ number_format($row['recovered'], 2) }} {{ _lang('recovered') }}</small>
+								</td>
 								<td class="text-right">{{ number_format($row['fees'], 2) }}</td>
 								<td class="text-right">{{ number_format($row['interest'], 2) }}</td>
 								<td class="text-right"><strong>{{ number_format($row['profit'], 2) }}</strong></td>
@@ -75,7 +89,7 @@
 							</tr>
 							@empty
 							<tr>
-								<td colspan="7" class="text-center">{{ _lang('No clients found for this loan officer') }}</td>
+								<td colspan="8" class="text-center">{{ _lang('No clients found for this loan officer') }}</td>
 							</tr>
 							@endforelse
 						</tbody>
@@ -85,6 +99,10 @@
 								<td>{{ _lang('Total') }}</td>
 								<td class="text-center">{{ $totals['loans'] }}</td>
 								<td class="text-right">{{ number_format($totals['disbursed'], 2) }}</td>
+								<td>
+									{{ number_format($totals['recovery_rate'], 1) }}%
+									<br><small class="text-muted font-weight-normal">{{ number_format($totals['recovered'], 2) }} {{ _lang('recovered') }}</small>
+								</td>
 								<td class="text-right">{{ number_format($totals['fees'], 2) }}</td>
 								<td class="text-right">{{ number_format($totals['interest'], 2) }}</td>
 								<td class="text-right">{{ number_format($totals['profit'], 2) }}</td>
@@ -95,7 +113,7 @@
 					</table>
 				</div>
 				<p class="text-muted mt-2">
-					{{ _lang('Disbursed = total amount released on this client\'s loans. Fees Earned = loan application + processing fees collected. Interest & Penalties = interest and late payment penalties collected. Total Profit Generated = Fees Earned + Interest & Penalties.') }}
+					{{ _lang('Disbursed = total amount released on this client\'s loans. Recovery Rate = amount recovered so far ÷ amount disbursed, on those same loans. Fees Earned = loan application + processing fees collected. Interest & Penalties = interest and late payment penalties collected. Total Profit Generated = Fees Earned + Interest & Penalties.') }}
 				</p>
 			</div>
 		</div>

@@ -77,6 +77,7 @@
 								<th>{{ _lang('Loan Officer') }}</th>
 								<th class="text-center">{{ _lang('Clients') }}</th>
 								<th class="text-right">{{ _lang('Disbursed to Clients') }}</th>
+								<th style="min-width: 140px;">{{ _lang('Recovery Rate') }}</th>
 								<th class="text-right">{{ _lang('Fees Earned') }}</th>
 								<th class="text-right">{{ _lang('Interest & Penalties') }}</th>
 								<th class="text-right">{{ _lang('Total Profit Generated') }}</th>
@@ -92,6 +93,19 @@
 								</td>
 								<td class="text-center">{{ $row['clients'] }}</td>
 								<td class="text-right">{{ number_format($row['disbursed'], 2) }}</td>
+								<td>
+									@php
+										$rate = $row['recovery_rate'];
+										$barClass = $rate >= 90 ? 'bg-success' : ($rate >= 50 ? 'bg-warning' : 'bg-danger');
+									@endphp
+									<div class="d-flex align-items-center">
+										<div class="progress flex-grow-1 mr-2" style="height: 8px;">
+											<div class="progress-bar {{ $barClass }}" role="progressbar" style="width: {{ min($rate, 100) }}%;"></div>
+										</div>
+										<small class="text-nowrap">{{ number_format($rate, 1) }}%</small>
+									</div>
+									<small class="text-muted">{{ number_format($row['recovered'], 2) }} {{ _lang('recovered') }}</small>
+								</td>
 								<td class="text-right">{{ number_format($row['fees'], 2) }}</td>
 								<td class="text-right">{{ number_format($row['interest'], 2) }}</td>
 								<td class="text-right"><strong>{{ number_format($row['profit'], 2) }}</strong></td>
@@ -103,7 +117,7 @@
 							</tr>
 							@empty
 							<tr>
-								<td colspan="7" class="text-center">{{ _lang('No loan officers found') }}</td>
+								<td colspan="8" class="text-center">{{ _lang('No loan officers found') }}</td>
 							</tr>
 							@endforelse
 						</tbody>
@@ -113,6 +127,10 @@
 								<td>{{ _lang('Total') }}</td>
 								<td class="text-center">{{ $totals['clients'] }}</td>
 								<td class="text-right">{{ number_format($totals['disbursed'], 2) }}</td>
+								<td>
+									{{ number_format($totals['recovery_rate'], 1) }}%
+									<br><small class="text-muted font-weight-normal">{{ number_format($totals['recovered'], 2) }} {{ _lang('recovered') }}</small>
+								</td>
 								<td class="text-right">{{ number_format($totals['fees'], 2) }}</td>
 								<td class="text-right">{{ number_format($totals['interest'], 2) }}</td>
 								<td class="text-right">{{ number_format($totals['profit'], 2) }}</td>
@@ -123,7 +141,7 @@
 					</table>
 				</div>
 				<p class="text-muted mt-2">
-					{{ _lang('Disbursed to Clients = total amount released on loans belonging to a loan officer\'s clients. Fees Earned = loan application + processing fees collected. Interest & Penalties = interest and late payment penalties collected from those clients. Total Profit Generated = Fees Earned + Interest & Penalties.') }}
+					{{ _lang('Disbursed to Clients = total amount released on loans belonging to a loan officer\'s clients. Recovery Rate = amount recovered so far ÷ amount disbursed, on those same loans. Fees Earned = loan application + processing fees collected. Interest & Penalties = interest and late payment penalties collected from those clients. Total Profit Generated = Fees Earned + Interest & Penalties.') }}
 				</p>
 			</div>
 		</div>
@@ -138,9 +156,11 @@
 	(function() {
 		"use strict";
 
-		var officerNames = @json(collect($rows)->pluck('officer.name'));
+		var officerNames  = @json(collect($rows)->pluck('officer.name'));
 		var profits       = @json(collect($rows)->pluck('profit'));
 		var disbursed     = @json(collect($rows)->pluck('disbursed'));
+		var recovered     = @json(collect($rows)->pluck('recovered'));
+		var recoveryRates = @json(collect($rows)->pluck('recovery_rate'));
 		var clients       = @json(collect($rows)->pluck('clients'));
 
 		if (!officerNames.length) {
@@ -210,12 +230,19 @@
 			});
 		}
 
-		// Profit generated vs. amount disbursed comparison chart
+		// Profit generated vs. amount disbursed comparison chart.
+		// X-axis labels are two lines: officer name, then their recovery
+		// rate (recovered / disbursed) so it's visible at a glance without
+		// hovering; the tooltip footer repeats it for the hovered officer.
 		if (document.getElementById('profitVsDisbursedChart')) {
+			var chartLabels = officerNames.map(function(name, i) {
+				return [name, recoveryRates[i].toFixed(1) + '% ' + '{{ _lang('recovered') }}'];
+			});
+
 			new Chart(document.getElementById('profitVsDisbursedChart').getContext('2d'), {
 				type: 'bar',
 				data: {
-					labels: officerNames,
+					labels: chartLabels,
 					datasets: [
 						{
 							label: '{{ _lang('Disbursed to Clients') }}',
@@ -247,6 +274,10 @@
 							callbacks: {
 								label: function(context) {
 									return ' ' + context.dataset.label + ': ' + context.parsed.y.toLocaleString();
+								},
+								footer: function(contexts) {
+									var i = contexts[0].dataIndex;
+									return '{{ _lang('Recovery Rate') }}: ' + recoveryRates[i].toFixed(1) + '%';
 								}
 							}
 						}
