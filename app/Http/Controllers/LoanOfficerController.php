@@ -97,13 +97,14 @@ class LoanOfficerController extends Controller
             ->pluck('total', 'loan_officer_id');
 
         // Amount recovered (actual cash collected) on each officer's clients'
-        // loans, used to derive the recovery rate (recovered / disbursed).
-        // NOTE: loans.total_paid only tracks principal and isn't reliably
-        // updated on every payment path, so it understates recovery whenever
-        // a client has paid interest but hasn't started reducing principal
-        // yet. loan_payments.total_amount is the actual amount collected per
-        // payment (principal + interest + late penalties), so we sum that
-        // instead — same source the "Interest & Penalties" figure below uses.
+        // loans. Shown next to the recovery rate as "X recovered", and used
+        // for the disbursed-vs-recovered chart. NOTE: loans.total_paid only
+        // tracks principal and isn't reliably updated on every payment path,
+        // so it understates recovery whenever a client has paid interest but
+        // hasn't started reducing principal yet. loan_payments.total_amount
+        // is the actual amount collected per payment (principal + interest +
+        // late penalties), so we sum that instead — same source the
+        // "Interest & Penalties" figure below uses.
         $recoveredQuery = LoanPayment::join('members', 'members.id', '=', 'loan_payments.member_id')
             ->whereNotNull('members.loan_officer_id');
         if ($date1 && $date2) {
@@ -111,6 +112,32 @@ class LoanOfficerController extends Controller
         }
         $recovered = $recoveredQuery
             ->select('members.loan_officer_id', DB::raw('sum(loan_payments.total_amount) as total'))
+            ->groupBy('members.loan_officer_id')
+            ->pluck('total', 'loan_officer_id');
+
+        // Recovery rate = matured installments actually paid ÷ all matured
+        // installments (paid + overdue). This mirrors DashboardController's
+        // overall_recovery_rate / monthly_recovery_rate, and is intentionally
+        // NOT "recovered / disbursed":
+        //   - "disbursed" is principal only, while "recovered" above includes
+        //     interest + penalties, so recovered/disbursed can exceed 100%
+        //     and isn't comparable across officers on different interest rates.
+        //   - recovered/disbursed also penalises an officer whose loans are
+        //     simply too new to have any installments due yet.
+        // Both sides of this ratio come from the same column
+        // (loan_repayments.amount_to_pay = principal + interest per
+        // installment), so the rate is a true 0-100% collection-efficiency
+        // figure and undue (not-yet-matured) installments are excluded
+        // from both sides entirely.
+        $recoveredDueQuery = LoanRepayment::join('loans', 'loans.id', '=', 'loan_repayments.loan_id')
+            ->join('members', 'members.id', '=', 'loans.borrower_id')
+            ->whereNotNull('members.loan_officer_id')
+            ->where('loan_repayments.status', 1);
+        if ($date1 && $date2) {
+            $recoveredDueQuery->whereBetween('loan_repayments.repayment_date', [$date1, $date2]);
+        }
+        $recoveredDue = $recoveredDueQuery
+            ->select('members.loan_officer_id', DB::raw('sum(loan_repayments.amount_to_pay) as total'))
             ->groupBy('members.loan_officer_id')
             ->pluck('total', 'loan_officer_id');
 
@@ -142,16 +169,18 @@ class LoanOfficerController extends Controller
         foreach ($officers as $officer) {
             $officerFees      = (float) ($fees[$officer->id] ?? 0);
             $officerInterest  = (float) ($interest[$officer->id] ?? 0);
-            $officerDisbursed = (float) ($disbursed[$officer->id] ?? 0);
-            $officerRecovered = (float) ($recovered[$officer->id] ?? 0);
-            $officerDue       = (float) ($due[$officer->id] ?? 0);
+            $officerDisbursed    = (float) ($disbursed[$officer->id] ?? 0);
+            $officerRecovered    = (float) ($recovered[$officer->id] ?? 0);
+            $officerDue          = (float) ($due[$officer->id] ?? 0);
+            $officerRecoveredDue = (float) ($recoveredDue[$officer->id] ?? 0);
+            $officerMatured      = $officerRecoveredDue + $officerDue;
 
             $data[] = [
                 'officer'       => $officer,
                 'clients'       => (int) ($clientCounts[$officer->id] ?? 0),
                 'disbursed'     => $officerDisbursed,
                 'recovered'     => $officerRecovered,
-                'recovery_rate' => $officerDisbursed > 0 ? ($officerRecovered / $officerDisbursed) * 100 : 0,
+                'recovery_rate' => $officerMatured > 0 ? ($officerRecoveredDue / $officerMatured) * 100 : 0,
                 'due'           => $officerDue,
                 'fees'          => $officerFees,
                 'interest'      => $officerInterest,
@@ -162,8 +191,11 @@ class LoanOfficerController extends Controller
         // Highest performing officers first
         usort($data, fn($a, $b) => $b['profit'] <=> $a['profit']);
 
-        $totalDisbursed = array_sum(array_column($data, 'disbursed'));
-        $totalRecovered = array_sum(array_column($data, 'recovered'));
+        $totalDisbursed    = array_sum(array_column($data, 'disbursed'));
+        $totalRecovered    = array_sum(array_column($data, 'recovered'));
+        $totalDue          = array_sum(array_column($data, 'due'));
+        $totalRecoveredDue = array_sum($recoveredDue->all());
+        $totalMatured      = $totalRecoveredDue + $totalDue;
 
         return view('backend.loan_officer.index', [
             'rows'  => $data,
@@ -171,8 +203,8 @@ class LoanOfficerController extends Controller
                 'clients'       => array_sum(array_column($data, 'clients')),
                 'disbursed'     => $totalDisbursed,
                 'recovered'     => $totalRecovered,
-                'recovery_rate' => $totalDisbursed > 0 ? ($totalRecovered / $totalDisbursed) * 100 : 0,
-                'due'           => array_sum(array_column($data, 'due')),
+                'recovery_rate' => $totalMatured > 0 ? ($totalRecoveredDue / $totalMatured) * 100 : 0,
+                'due'           => $totalDue,
                 'fees'          => array_sum(array_column($data, 'fees')),
                 'interest'      => array_sum(array_column($data, 'interest')),
                 'profit'        => array_sum(array_column($data, 'profit')),
@@ -248,21 +280,38 @@ class LoanOfficerController extends Controller
             ->groupBy('loans.borrower_id')
             ->pluck('total', 'member_id');
 
+        // Matured installments actually paid, per client — used with
+        // $dueByMember to derive recovery rate the same way as the overview
+        // (see the detailed comment in index() for why this replaces
+        // recovered/disbursed).
+        $recoveredDueQuery = LoanRepayment::join('loans', 'loans.id', '=', 'loan_repayments.loan_id')
+            ->whereIn('loans.borrower_id', $memberIds)
+            ->where('loan_repayments.status', 1);
+        if ($date1 && $date2) {
+            $recoveredDueQuery->whereBetween('loan_repayments.repayment_date', [$date1, $date2]);
+        }
+        $recoveredDueByMember = $recoveredDueQuery
+            ->select('loans.borrower_id as member_id', DB::raw('sum(loan_repayments.amount_to_pay) as total'))
+            ->groupBy('loans.borrower_id')
+            ->pluck('total', 'member_id');
+
         $rows = [];
         foreach ($clients as $client) {
             $releasedLoans = $client->loans->whereNotNull('release_date');
             $disbursed = $releasedLoans->sum('applied_amount');
-            $recovered = (float) ($recoveredByMember[$client->id] ?? 0);
-            $due       = (float) ($dueByMember[$client->id] ?? 0);
-            $fees      = (float) ($feesByMember[$client->id] ?? 0);
-            $interest  = (float) ($interestByMember[$client->id] ?? 0);
+            $recovered    = (float) ($recoveredByMember[$client->id] ?? 0);
+            $due          = (float) ($dueByMember[$client->id] ?? 0);
+            $fees         = (float) ($feesByMember[$client->id] ?? 0);
+            $interest     = (float) ($interestByMember[$client->id] ?? 0);
+            $recoveredDue = (float) ($recoveredDueByMember[$client->id] ?? 0);
+            $matured      = $recoveredDue + $due;
 
             $rows[] = [
                 'member'        => $client,
                 'loans'         => $client->loans->count(),
                 'disbursed'     => (float) $disbursed,
                 'recovered'     => (float) $recovered,
-                'recovery_rate' => $disbursed > 0 ? ($recovered / $disbursed) * 100 : 0,
+                'recovery_rate' => $matured > 0 ? ($recoveredDue / $matured) * 100 : 0,
                 'due'           => $due,
                 'fees'          => $fees,
                 'interest'      => $interest,
@@ -270,8 +319,11 @@ class LoanOfficerController extends Controller
             ];
         }
 
-        $totalDisbursed = array_sum(array_column($rows, 'disbursed'));
-        $totalRecovered = array_sum(array_column($rows, 'recovered'));
+        $totalDisbursed    = array_sum(array_column($rows, 'disbursed'));
+        $totalRecovered    = array_sum(array_column($rows, 'recovered'));
+        $totalDue          = array_sum(array_column($rows, 'due'));
+        $totalRecoveredDue = array_sum($recoveredDueByMember->all());
+        $totalMatured      = $totalRecoveredDue + $totalDue;
 
         return view('backend.loan_officer.show', [
             'officer' => $officer,
@@ -280,8 +332,8 @@ class LoanOfficerController extends Controller
                 'loans'         => array_sum(array_column($rows, 'loans')),
                 'disbursed'     => $totalDisbursed,
                 'recovered'     => $totalRecovered,
-                'recovery_rate' => $totalDisbursed > 0 ? ($totalRecovered / $totalDisbursed) * 100 : 0,
-                'due'           => array_sum(array_column($rows, 'due')),
+                'recovery_rate' => $totalMatured > 0 ? ($totalRecoveredDue / $totalMatured) * 100 : 0,
+                'due'           => $totalDue,
                 'fees'          => array_sum(array_column($rows, 'fees')),
                 'interest'      => array_sum(array_column($rows, 'interest')),
                 'profit'    => array_sum(array_column($rows, 'profit')),

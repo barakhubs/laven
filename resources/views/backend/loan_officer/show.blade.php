@@ -122,7 +122,7 @@
 					</table>
 				</div>
 				<p class="text-muted mt-2">
-					{{ _lang('Disbursed = total amount released on this client\'s loans. Recovery Rate = amount recovered so far ÷ amount disbursed, on those same loans. Overdue Amount = unpaid installments whose due date has already passed (as of today), reflecting current arrears rather than a period total. Fees Earned = loan application + processing fees collected. Interest & Penalties = interest and late payment penalties collected. Total Profit Generated = Fees Earned + Interest & Penalties.') }}
+					{{ _lang('Disbursed = total amount released on this client\'s loans. Recovery Rate = matured installments actually paid ÷ all matured installments (paid + overdue), i.e. of everything that has come due so far, how much was collected. Overdue Amount = unpaid installments whose due date has already passed (as of today), reflecting current arrears rather than a period total. Fees Earned = loan application + processing fees collected. Interest & Penalties = interest and late payment penalties collected. Total Profit Generated = Fees Earned + Interest & Penalties.') }}
 				</p>
 			</div>
 		</div>
