@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Loan;
 use App\Models\LoanPayment;
+use App\Models\LoanRepayment;
 use App\Models\Member;
 use App\Models\Transaction;
 use App\Models\User;
@@ -77,6 +78,24 @@ class LoanOfficerController extends Controller
             ->groupBy('members.loan_officer_id')
             ->pluck('total', 'loan_officer_id');
 
+        // Amount Due = unpaid installments whose repayment_date has already
+        // passed (i.e. genuinely overdue), not just "total payable minus
+        // recovered". This mirrors the exact definition OverdueLoanNotification
+        // already uses elsewhere in the app: loan_repayments rows with
+        // status = 0 (unpaid) and repayment_date < today, summed on
+        // amount_to_pay (the installment's principal + interest portion).
+        // This is a current, as-of-today snapshot, so it intentionally
+        // ignores the date1/date2 filter — an "overdue" figure for a past
+        // date range wouldn't mean much.
+        $due = LoanRepayment::join('loans', 'loans.id', '=', 'loan_repayments.loan_id')
+            ->join('members', 'members.id', '=', 'loans.borrower_id')
+            ->whereNotNull('members.loan_officer_id')
+            ->where('loan_repayments.status', 0)
+            ->whereDate('loan_repayments.repayment_date', '<', now())
+            ->select('members.loan_officer_id', DB::raw('sum(loan_repayments.amount_to_pay) as total'))
+            ->groupBy('members.loan_officer_id')
+            ->pluck('total', 'loan_officer_id');
+
         // Amount recovered (actual cash collected) on each officer's clients'
         // loans, used to derive the recovery rate (recovered / disbursed).
         // NOTE: loans.total_paid only tracks principal and isn't reliably
@@ -125,6 +144,7 @@ class LoanOfficerController extends Controller
             $officerInterest  = (float) ($interest[$officer->id] ?? 0);
             $officerDisbursed = (float) ($disbursed[$officer->id] ?? 0);
             $officerRecovered = (float) ($recovered[$officer->id] ?? 0);
+            $officerDue       = (float) ($due[$officer->id] ?? 0);
 
             $data[] = [
                 'officer'       => $officer,
@@ -132,6 +152,7 @@ class LoanOfficerController extends Controller
                 'disbursed'     => $officerDisbursed,
                 'recovered'     => $officerRecovered,
                 'recovery_rate' => $officerDisbursed > 0 ? ($officerRecovered / $officerDisbursed) * 100 : 0,
+                'due'           => $officerDue,
                 'fees'          => $officerFees,
                 'interest'      => $officerInterest,
                 'profit'        => $officerFees + $officerInterest,
@@ -151,6 +172,7 @@ class LoanOfficerController extends Controller
                 'disbursed'     => $totalDisbursed,
                 'recovered'     => $totalRecovered,
                 'recovery_rate' => $totalDisbursed > 0 ? ($totalRecovered / $totalDisbursed) * 100 : 0,
+                'due'           => array_sum(array_column($data, 'due')),
                 'fees'          => array_sum(array_column($data, 'fees')),
                 'interest'      => array_sum(array_column($data, 'interest')),
                 'profit'        => array_sum(array_column($data, 'profit')),
@@ -215,11 +237,23 @@ class LoanOfficerController extends Controller
             ->groupBy('member_id')
             ->pluck('total', 'member_id');
 
+        // Amount Due per client — genuinely overdue unpaid installments, same
+        // definition as the overview (see comment there). Snapshot as-of-today,
+        // not filtered by date1/date2.
+        $dueByMember = LoanRepayment::join('loans', 'loans.id', '=', 'loan_repayments.loan_id')
+            ->whereIn('loans.borrower_id', $memberIds)
+            ->where('loan_repayments.status', 0)
+            ->whereDate('loan_repayments.repayment_date', '<', now())
+            ->select('loans.borrower_id as member_id', DB::raw('sum(loan_repayments.amount_to_pay) as total'))
+            ->groupBy('loans.borrower_id')
+            ->pluck('total', 'member_id');
+
         $rows = [];
         foreach ($clients as $client) {
             $releasedLoans = $client->loans->whereNotNull('release_date');
             $disbursed = $releasedLoans->sum('applied_amount');
             $recovered = (float) ($recoveredByMember[$client->id] ?? 0);
+            $due       = (float) ($dueByMember[$client->id] ?? 0);
             $fees      = (float) ($feesByMember[$client->id] ?? 0);
             $interest  = (float) ($interestByMember[$client->id] ?? 0);
 
@@ -229,6 +263,7 @@ class LoanOfficerController extends Controller
                 'disbursed'     => (float) $disbursed,
                 'recovered'     => (float) $recovered,
                 'recovery_rate' => $disbursed > 0 ? ($recovered / $disbursed) * 100 : 0,
+                'due'           => $due,
                 'fees'          => $fees,
                 'interest'      => $interest,
                 'profit'        => $fees + $interest,
@@ -246,6 +281,7 @@ class LoanOfficerController extends Controller
                 'disbursed'     => $totalDisbursed,
                 'recovered'     => $totalRecovered,
                 'recovery_rate' => $totalDisbursed > 0 ? ($totalRecovered / $totalDisbursed) * 100 : 0,
+                'due'           => array_sum(array_column($rows, 'due')),
                 'fees'          => array_sum(array_column($rows, 'fees')),
                 'interest'      => array_sum(array_column($rows, 'interest')),
                 'profit'    => array_sum(array_column($rows, 'profit')),

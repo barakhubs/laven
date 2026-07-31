@@ -50,6 +50,7 @@
 								<th class="text-center">{{ _lang('Loans') }}</th>
 								<th class="text-right">{{ _lang('Disbursed') }}</th>
 								<th style="min-width: 140px;">{{ _lang('Recovery Rate') }}</th>
+								<th class="text-right">{{ _lang('Overdue Amount') }}</th>
 								<th class="text-right">{{ _lang('Fees Earned') }}</th>
 								<th class="text-right">{{ _lang('Interest & Penalties') }}</th>
 								<th class="text-right">{{ _lang('Total Profit Generated') }}</th>
@@ -78,6 +79,10 @@
 									</div>
 									<small class="text-muted">{{ number_format($row['recovered'], 2) }} {{ _lang('recovered') }}</small>
 								</td>
+								<td class="text-right {{ $row['due'] > 0 ? 'text-danger' : '' }}">
+									{{ number_format($row['due'], 2) }}
+									<br><small class="text-muted">{{ _lang('overdue') }}</small>
+								</td>
 								<td class="text-right">{{ number_format($row['fees'], 2) }}</td>
 								<td class="text-right">{{ number_format($row['interest'], 2) }}</td>
 								<td class="text-right"><strong>{{ number_format($row['profit'], 2) }}</strong></td>
@@ -89,7 +94,7 @@
 							</tr>
 							@empty
 							<tr>
-								<td colspan="8" class="text-center">{{ _lang('No clients found for this loan officer') }}</td>
+								<td colspan="9" class="text-center">{{ _lang('No clients found for this loan officer') }}</td>
 							</tr>
 							@endforelse
 						</tbody>
@@ -103,6 +108,10 @@
 									{{ number_format($totals['recovery_rate'], 1) }}%
 									<br><small class="text-muted font-weight-normal">{{ number_format($totals['recovered'], 2) }} {{ _lang('recovered') }}</small>
 								</td>
+								<td class="text-right">
+									{{ number_format($totals['due'], 2) }}
+									<br><small class="text-muted font-weight-normal">{{ _lang('overdue') }}</small>
+								</td>
 								<td class="text-right">{{ number_format($totals['fees'], 2) }}</td>
 								<td class="text-right">{{ number_format($totals['interest'], 2) }}</td>
 								<td class="text-right">{{ number_format($totals['profit'], 2) }}</td>
@@ -113,7 +122,7 @@
 					</table>
 				</div>
 				<p class="text-muted mt-2">
-					{{ _lang('Disbursed = total amount released on this client\'s loans. Recovery Rate = amount recovered so far ÷ amount disbursed, on those same loans. Fees Earned = loan application + processing fees collected. Interest & Penalties = interest and late payment penalties collected. Total Profit Generated = Fees Earned + Interest & Penalties.') }}
+					{{ _lang('Disbursed = total amount released on this client\'s loans. Recovery Rate = amount recovered so far ÷ amount disbursed, on those same loans. Overdue Amount = unpaid installments whose due date has already passed (as of today), reflecting current arrears rather than a period total. Fees Earned = loan application + processing fees collected. Interest & Penalties = interest and late payment penalties collected. Total Profit Generated = Fees Earned + Interest & Penalties.') }}
 				</p>
 			</div>
 		</div>
