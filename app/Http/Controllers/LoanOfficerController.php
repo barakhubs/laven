@@ -61,8 +61,12 @@ class LoanOfficerController extends Controller
             ->groupBy('loan_officer_id')
             ->pluck('cnt', 'loan_officer_id');
 
-        // Money disbursed to each officer's clients (released loans only)
-        $disbursedQuery = Loan::join('members', 'members.id', '=', 'loans.borrower_id')
+        // Money disbursed to each officer's clients (released loans only).
+        // withoutGlobalScope('domain_scope') so this counts ALL loans
+        // regardless of whether they're on the main or emergency domain —
+        // the Loan Officer Report is intentionally not domain-discriminating.
+        $disbursedQuery = Loan::withoutGlobalScope('domain_scope')
+            ->join('members', 'members.id', '=', 'loans.borrower_id')
             ->whereNotNull('members.loan_officer_id')
             ->whereNotNull('loans.release_date');
         if ($date1 && $date2) {
@@ -142,7 +146,8 @@ class LoanOfficerController extends Controller
         $clients = Member::withoutGlobalScopes(['status'])
             ->where('loan_officer_id', $officer->id)
             ->with(['loans' => function ($q) use ($date1, $date2) {
-                $q->select('id', 'borrower_id', 'applied_amount', 'total_payable', 'total_paid', 'release_date', 'status');
+                $q->withoutGlobalScope('domain_scope')
+                    ->select('id', 'borrower_id', 'applied_amount', 'total_payable', 'total_paid', 'release_date', 'status');
                 if ($date1 && $date2) {
                     $q->whereNotNull('release_date')->whereBetween('release_date', [$date1, $date2]);
                 }
@@ -203,5 +208,3 @@ class LoanOfficerController extends Controller
         ]);
     }
 }
-
-

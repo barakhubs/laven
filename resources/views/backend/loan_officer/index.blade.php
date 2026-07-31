@@ -4,6 +4,11 @@
 
 @include('backend.loan_officer._date_filter', ['action' => route('loan_officers.index')])
 
+<div class="alert alert-info d-flex align-items-center" role="alert">
+	<i class="fas fa-info-circle mr-2"></i>
+	<div>{{ _lang('Figures on this page cover all loans, fees, and payments for each officer\'s clients — including both regular and Emergency Loans. Nothing here is filtered by loan domain.') }}</div>
+</div>
+
 @if(count($rows) > 0)
 <div class="row">
 	<div class="col-md-4 mb-4">
