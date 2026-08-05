@@ -57,6 +57,39 @@
 </div>
 @endif
 
+@if($top_officer_id)
+	@php
+		$topRow = collect($rows)->first(fn($r) => $r['officer']->id == $top_officer_id);
+	@endphp
+	@if($topRow)
+	<div class="row">
+		<div class="col-12 mb-4">
+			<div class="card border-0" style="background: linear-gradient(135deg, #fff8e1 0%, #fff3cd 100%);">
+				<div class="card-body d-flex align-items-center py-3">
+					<div style="font-size: 32px; margin-right: 16px;">&#127942;</div>
+					<div>
+						<div class="text-uppercase" style="font-size: 11px; letter-spacing: .05em; color: #8a6d1f; font-weight: 700;">
+							{{ _lang('Top Performer') }}
+							@if($date1 && $date2)
+								&mdash; {{ $date1 }} &rarr; {{ $date2 }}
+							@else
+								&mdash; {{ _lang('All Time') }}
+							@endif
+						</div>
+						<div style="font-size: 18px; font-weight: 700; color: #4a3b0a;">{{ $topRow['officer']->name }}</div>
+						<div class="text-muted" style="font-size: 12.5px;">
+							{{ number_format($topRow['recovery_rate'], 1) }}% {{ _lang('recovery rate') }} &middot;
+							{{ number_format($topRow['profit'], 2) }} {{ _lang('profit generated') }}
+							<span class="ml-1">({{ _lang('ranked by profit + recovery rate combined') }})</span>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+	@endif
+@endif
+
 <div class="row">
 	<div class="col-12">
 		<div class="card">
@@ -87,9 +120,13 @@
 						</thead>
 						<tbody>
 							@forelse($rows as $row)
-							<tr>
+							<tr @if($row['officer']->id == $top_officer_id) style="background: #fffbea;" @endif>
 								<td>
-									<strong>{{ $row['officer']->name }}</strong><br>
+									<strong>{{ $row['officer']->name }}</strong>
+									@if($row['officer']->id == $top_officer_id)
+										<span title="{{ _lang('Top Performer') }}">&#127942;</span>
+									@endif
+									<br>
 									<small class="text-muted">{{ $row['officer']->email }}</small>
 								</td>
 								<td class="text-center">{{ $row['clients'] }}</td>
@@ -118,6 +155,9 @@
 									<a href="{{ route('loan_officers.show', $row['officer']->id) }}{{ ($date1 && $date2) ? '?date1='.$date1.'&date2='.$date2 : '' }}" class="btn btn-primary btn-xs">
 										{{ _lang('View Clients') }}
 									</a>
+									<button type="button" class="btn btn-outline-secondary btn-xs why-btn" data-id="{{ $row['officer']->id }}">
+										{{ _lang('Why?') }}
+									</button>
 								</td>
 							</tr>
 							@empty
@@ -156,6 +196,48 @@
 		</div>
 	</div>
 </div>
+
+<!-- Why? insights modal -->
+<style>
+	#officerInsightsModal .modal-header { background: #f8f9fc; border-bottom: 1px solid #e9ecef; }
+	#officerInsightsModal .oi-subtitle { font-size: 12px; color: #8a94a6; margin: 0; }
+	#officerInsightsModal .oi-stat-card { border: 1px solid #eef0f4; border-radius: 10px; padding: 14px 16px; height: 100%; }
+	#officerInsightsModal .oi-stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: #8a94a6; margin-bottom: 6px; }
+	#officerInsightsModal .oi-stat-value { font-size: 22px; font-weight: 700; color: #2d3748; line-height: 1.1; }
+	#officerInsightsModal .oi-delta { font-size: 12px; font-weight: 600; margin-top: 6px; display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 20px; }
+	#officerInsightsModal .oi-delta.up { color: #1e9e6a; background: #e7f8f1; }
+	#officerInsightsModal .oi-delta.down { color: #e0475a; background: #fdecee; }
+	#officerInsightsModal .oi-delta.flat { color: #8a94a6; background: #f2f3f5; }
+	#officerInsightsModal .oi-section-title { font-size: 13px; font-weight: 700; color: #2d3748; margin: 22px 0 10px; display: flex; align-items: center; gap: 6px; }
+	#officerInsightsModal .oi-verdicts { list-style: none; padding: 0; margin: 0; }
+	#officerInsightsModal .oi-verdicts li { padding: 8px 12px; border-radius: 8px; background: #f8f9fc; margin-bottom: 6px; font-size: 13.5px; display: flex; gap: 8px; align-items: flex-start; }
+	#officerInsightsModal .oi-status-pill { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 20px; font-size: 12.5px; font-weight: 600; margin: 0 6px 6px 0; }
+	#officerInsightsModal .oi-recovery-bar { height: 10px; border-radius: 6px; background: #eef0f4; overflow: hidden; position: relative; margin-top: 8px; }
+	#officerInsightsModal .oi-recovery-bar .fill { height: 100%; border-radius: 6px; }
+	#officerInsightsModal .oi-recovery-bar .marker { position: absolute; top: -3px; width: 2px; height: 16px; background: #2d3748; }
+	#officerInsightsModal table.oi-table { font-size: 13px; }
+	#officerInsightsModal table.oi-table th { font-size: 11px; text-transform: uppercase; color: #8a94a6; border-top: none; }
+	#officerInsightsModal .oi-avatar { width: 26px; height: 26px; border-radius: 50%; background: #eef0f4; color: #5a6478; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; margin-right: 8px; }
+</style>
+<div class="modal fade" id="officerInsightsModal" tabindex="-1" role="dialog">
+	<div class="modal-dialog modal-lg" role="document">
+		<div class="modal-content">
+			<div class="modal-header">
+				<div>
+					<h5 class="modal-title mb-0" id="officerInsightsTitle">{{ _lang('Performance Breakdown') }}</h5>
+					<p class="oi-subtitle" id="officerInsightsSubtitle"></p>
+				</div>
+				<button type="button" class="close" data-dismiss="modal">&times;</button>
+			</div>
+			<div class="modal-body" id="officerInsightsBody">
+				<div class="text-center py-5">
+					<i class="fas fa-spinner fa-spin fa-lg"></i>
+					<p class="text-muted mt-2 mb-0">{{ _lang('Loading') }}...</p>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
 @endsection
 
 @section('js-script')
@@ -172,9 +254,7 @@
 		var recoveryRates = @json(collect($rows)->pluck('recovery_rate'));
 		var clients       = @json(collect($rows)->pluck('clients'));
 
-		if (!officerNames.length) {
-			return;
-		}
+		if (officerNames.length) {
 
 		var palette = [
 			'#3498db', '#2ecc71', '#e74c3c', '#f1c40f', '#9b59b6',
@@ -294,6 +374,116 @@
 				}
 			});
 		}
+
+		} // end if (officerNames.length)
+
+		// "Why?" insights modal
+		var dateQS = @json(($date1 && $date2) ? ('?date1=' . $date1 . '&date2=' . $date2) : '');
+		var insightsUrlTemplate = @json(route('loan_officers.insights', ['id' => '__ID__']));
+
+		function fmt(n) { return Number(n || 0).toLocaleString(undefined, {maximumFractionDigits: 2}); }
+
+		function verdictLine(mine, peer) {
+			var lines = [];
+			var rateDiff = mine.recovery_rate - peer.recovery_rate;
+			if (Math.abs(rateDiff) >= 3) {
+				lines.push('{{ _lang('Recovery rate is') }} ' + Math.abs(rateDiff).toFixed(1) + '{{ _lang('pts') }} ' +
+					(rateDiff >= 0 ? '{{ _lang('above') }}' : '{{ _lang('below') }}') + ' {{ _lang('the average of other officers') }}.');
+			} else {
+				lines.push('{{ _lang('Recovery rate is close to the average of other officers') }}.');
+			}
+			var profitDiff = mine.profit - peer.profit;
+			lines.push('{{ _lang('Profit generated is') }} ' + fmt(Math.abs(profitDiff)) + ' ' +
+				(profitDiff >= 0 ? '{{ _lang('above') }}' : '{{ _lang('below') }}') + ' {{ _lang('the peer average') }}.');
+			return lines;
+		}
+
+		function deltaBadge(diff, unit, positiveIsGood) {
+			var good = positiveIsGood ? diff >= 0 : diff <= 0;
+			var cls = Math.abs(diff) < 0.05 ? 'flat' : (good ? 'up' : 'down');
+			var arrow = cls === 'flat' ? '&#8212;' : (diff >= 0 ? '&#9650;' : '&#9660;');
+			var text = cls === 'flat' ? '{{ _lang('avg') }}' : (Math.abs(diff).toFixed(unit === '%' ? 1 : 2) + unit + ' {{ _lang('vs avg') }}');
+			return '<span class="oi-delta ' + cls + '">' + arrow + ' ' + text + '</span>';
+		}
+
+		function initials(name) {
+			return (name || '').split(' ').filter(Boolean).slice(0, 2).map(function(p) { return p[0]; }).join('').toUpperCase();
+		}
+
+		function statCard(label, value, delta) {
+			return '<div class="col-6 col-md-3 mb-3"><div class="oi-stat-card">' +
+				'<div class="oi-stat-label">' + label + '</div>' +
+				'<div class="oi-stat-value">' + value + '</div>' +
+				delta + '</div></div>';
+		}
+
+		document.querySelectorAll('.why-btn').forEach(function(btn) {
+			btn.addEventListener('click', function() {
+				var id = btn.getAttribute('data-id');
+				var body = document.getElementById('officerInsightsBody');
+				body.innerHTML = '<div class="text-center py-5"><i class="fas fa-spinner fa-spin fa-lg"></i><p class="text-muted mt-2 mb-0">{{ _lang('Loading') }}...</p></div>';
+				document.getElementById('officerInsightsSubtitle').textContent = '';
+				$('#officerInsightsModal').modal('show');
+
+				fetch(insightsUrlTemplate.replace('__ID__', id) + dateQS)
+					.then(function(r) { return r.json(); })
+					.then(function(data) {
+						var mine = data.mine, peer = data.peer_avg, sc = data.status_counts;
+						document.getElementById('officerInsightsTitle').textContent = data.officer.name;
+						document.getElementById('officerInsightsSubtitle').textContent = '{{ _lang('Why is this officer performing this way?') }}';
+
+						var rateColor = mine.recovery_rate >= 90 ? '#1e9e6a' : (mine.recovery_rate >= 50 ? '#f0ad4e' : '#e0475a');
+
+						var stats =
+							statCard('{{ _lang('Recovery Rate') }}', mine.recovery_rate.toFixed(1) + '%', deltaBadge(mine.recovery_rate - peer.recovery_rate, 'pts', true)) +
+							statCard('{{ _lang('Clients') }}', mine.clients, deltaBadge(mine.clients - peer.clients, '', true)) +
+							statCard('{{ _lang('Overdue Amount') }}', fmt(mine.due), deltaBadge(mine.due - peer.due, '', false)) +
+							statCard('{{ _lang('Profit Generated') }}', fmt(mine.profit), deltaBadge(mine.profit - peer.profit, '', true));
+
+						var recoveryBar =
+							'<div class="oi-recovery-bar">' +
+							'<div class="fill" style="width:' + Math.min(mine.recovery_rate, 100) + '%; background:' + rateColor + ';"></div>' +
+							'<div class="marker" style="left:' + Math.min(peer.recovery_rate, 100) + '%;" title="{{ _lang('Peer average') }}"></div>' +
+							'</div>' +
+							'<p class="text-muted mb-0" style="font-size:12px;">{{ _lang('Bar = this officer') }} &middot; {{ _lang('marker = peer average') }} (' + peer.recovery_rate.toFixed(1) + '%)</p>';
+
+						var verdicts = verdictLine(mine, peer).map(function(v) {
+							return '<li><i class="fas fa-circle" style="font-size:5px; margin-top:6px; color:#c3c9d4;"></i>' + v + '</li>';
+						}).join('');
+
+						var statusPills =
+							'<span class="oi-status-pill" style="background:#fff6e5;color:#b5820b;">{{ _lang('Pending') }}: ' + sc.pending + '</span>' +
+							'<span class="oi-status-pill" style="background:#e7f8f1;color:#1e9e6a;">{{ _lang('Active') }}: ' + sc.active + '</span>' +
+							'<span class="oi-status-pill" style="background:#e8f1fc;color:#2d7fd6;">{{ _lang('Completed') }}: ' + sc.completed + '</span>' +
+							'<span class="oi-status-pill" style="background:#fdecee;color:#e0475a;">{{ _lang('Cancelled') }}: ' + sc.cancelled + '</span>';
+
+						var overdueRows = data.top_overdue.length
+							? data.top_overdue.map(function(c) {
+								return '<tr><td><span class="oi-avatar">' + initials(c.name) + '</span>' + c.name + '</td>' +
+									'<td class="text-right text-danger font-weight-bold">' + fmt(c.due) + '</td>' +
+									'<td class="text-center">' + c.installments + '</td></tr>';
+							}).join('')
+							: '<tr><td colspan="3" class="text-center text-muted py-3">{{ _lang('No overdue installments') }} &#127881;</td></tr>';
+
+						body.innerHTML =
+							'<div class="row">' + stats + '</div>' +
+							'<div class="oi-section-title"><i class="fas fa-chart-line"></i> {{ _lang('Recovery Rate vs. Peer Average') }}</div>' +
+							recoveryBar +
+							'<div class="oi-section-title"><i class="fas fa-lightbulb"></i> {{ _lang('What This Means') }}</div>' +
+							'<ul class="oi-verdicts">' + verdicts + '</ul>' +
+							'<div class="oi-section-title"><i class="fas fa-layer-group"></i> {{ _lang('Loan Status Mix') }}</div>' +
+							'<div>' + statusPills + '</div>' +
+							'<div class="oi-section-title"><i class="fas fa-user-clock"></i> {{ _lang('Clients Driving the Overdue Amount') }} ' +
+							'<span class="badge badge-light font-weight-normal">' + data.overdue_installments + ' {{ _lang('overdue installments') }}</span></div>' +
+							'<table class="table table-sm oi-table">' +
+							'<thead><tr><th>{{ _lang('Client') }}</th><th class="text-right">{{ _lang('Overdue Amount') }}</th><th class="text-center">{{ _lang('Installments') }}</th></tr></thead>' +
+							'<tbody>' + overdueRows + '</tbody></table>';
+					})
+					.catch(function() {
+						body.innerHTML = '<div class="alert alert-danger mb-0">{{ _lang('Failed to load insights') }}</div>';
+					});
+			});
+		});
 	})();
 </script>
 @endsection

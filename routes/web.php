@@ -274,6 +274,7 @@ Route::group(['middleware' => ['install']], function () {
                 Route::get('reports/bank_balances', [ReportController::class, 'bank_balances'])->name('reports.bank_balances');
                 Route::match(['get', 'post'], 'reports/revenue_report', [ReportController::class, 'revenue_report'])->name('reports.revenue_report');
                 Route::get('loan_officers', [LoanOfficerController::class, 'index'])->name('loan_officers.index');
+                Route::get('loan_officers/{id}/insights', [LoanOfficerController::class, 'insights'])->name('loan_officers.insights');
                 Route::get('loan_officers/{id}', [LoanOfficerController::class, 'show'])->name('loan_officers.show');
                 Route::get('reports/financial_summary', [ReportController::class, 'financial_summary'])->name('reports.financial_summary');
                 Route::get('reports/financial_summary/monthly_trend', [ReportController::class, 'financial_summary_monthly_trend'])->name('reports.financial_summary.monthly_trend');
@@ -380,4 +381,3 @@ Route::post('install/finish', 'Install\InstallController@final_touch');
 // Update System
 Route::get('system/update/{action?}', 'Install\UpdateController@index');
 Route::get('migration/update', 'Install\UpdateController@update_migration');
-

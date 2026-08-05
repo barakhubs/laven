@@ -52,6 +52,75 @@ class LoanOfficerController extends Controller
     {
         [$date1, $date2] = $this->resolveDateRange($request);
 
+        $data = $this->officerMetrics($date1, $date2);
+        $topOfficerId = $this->topPerformer($data);
+
+        // Highest performing officers first
+        usort($data, fn($a, $b) => $b['profit'] <=> $a['profit']);
+
+        $totalDisbursed    = array_sum(array_column($data, 'disbursed'));
+        $totalRecovered    = array_sum(array_column($data, 'recovered'));
+        $totalDue          = array_sum(array_column($data, 'due'));
+        $totalRecoveredDue = array_sum(array_column($data, 'recovered_due'));
+        $totalMatured      = $totalRecoveredDue + $totalDue;
+
+        return view('backend.loan_officer.index', [
+            'rows'  => $data,
+            'totals' => [
+                'clients'       => array_sum(array_column($data, 'clients')),
+                'disbursed'     => $totalDisbursed,
+                'recovered'     => $totalRecovered,
+                'recovery_rate' => $totalMatured > 0 ? ($totalRecoveredDue / $totalMatured) * 100 : 0,
+                'due'           => $totalDue,
+                'fees'          => array_sum(array_column($data, 'fees')),
+                'interest'      => array_sum(array_column($data, 'interest')),
+                'profit'        => array_sum(array_column($data, 'profit')),
+            ],
+            'date1' => $date1,
+            'date2' => $date2,
+            'top_officer_id' => $topOfficerId,
+        ]);
+    }
+
+    /**
+     * Best-performing officer for the given (already date-filtered) metrics,
+     * using a combined score: 50% profit (normalised 0-100 against the best
+     * profit this period, so it isn't just "whoever has the most/oldest
+     * clients") + 50% recovery rate. Officers with zero clients are excluded
+     * — they have nothing to be "top performer" for. Returns null if no
+     * officer qualifies.
+     */
+    protected function topPerformer(array $metrics)
+    {
+        $eligible = array_filter($metrics, fn($m) => $m['clients'] > 0);
+        if (empty($eligible)) {
+            return null;
+        }
+
+        $maxProfit = max(array_column($eligible, 'profit'));
+
+        $topId = null;
+        $topScore = -1;
+        foreach ($eligible as $id => $m) {
+            $profitScore = $maxProfit > 0 ? ($m['profit'] / $maxProfit) * 100 : 0;
+            $score = ($profitScore + $m['recovery_rate']) / 2;
+            if ($score > $topScore) {
+                $topScore = $score;
+                $topId = $id;
+            }
+        }
+
+        return $topId;
+    }
+
+    /**
+     * Per-officer metrics (clients, disbursed, recovered, recovery rate,
+     * overdue, fees, interest, profit), keyed by officer id. Shared by
+     * index() (the overview table) and insights() (the "why" drill-down),
+     * so the two always agree with each other.
+     */
+    protected function officerMetrics($date1, $date2)
+    {
         $officers = User::whereIn('user_type', $this->officerTypes())
             ->orderBy('name', 'asc')
             ->get(['id', 'name', 'email', 'user_type']);
@@ -175,43 +244,21 @@ class LoanOfficerController extends Controller
             $officerRecoveredDue = (float) ($recoveredDue[$officer->id] ?? 0);
             $officerMatured      = $officerRecoveredDue + $officerDue;
 
-            $data[] = [
+            $data[$officer->id] = [
                 'officer'       => $officer,
                 'clients'       => (int) ($clientCounts[$officer->id] ?? 0),
                 'disbursed'     => $officerDisbursed,
                 'recovered'     => $officerRecovered,
                 'recovery_rate' => $officerMatured > 0 ? ($officerRecoveredDue / $officerMatured) * 100 : 0,
                 'due'           => $officerDue,
+                'recovered_due' => $officerRecoveredDue,
                 'fees'          => $officerFees,
                 'interest'      => $officerInterest,
                 'profit'        => $officerFees + $officerInterest,
             ];
         }
 
-        // Highest performing officers first
-        usort($data, fn($a, $b) => $b['profit'] <=> $a['profit']);
-
-        $totalDisbursed    = array_sum(array_column($data, 'disbursed'));
-        $totalRecovered    = array_sum(array_column($data, 'recovered'));
-        $totalDue          = array_sum(array_column($data, 'due'));
-        $totalRecoveredDue = array_sum($recoveredDue->all());
-        $totalMatured      = $totalRecoveredDue + $totalDue;
-
-        return view('backend.loan_officer.index', [
-            'rows'  => $data,
-            'totals' => [
-                'clients'       => array_sum(array_column($data, 'clients')),
-                'disbursed'     => $totalDisbursed,
-                'recovered'     => $totalRecovered,
-                'recovery_rate' => $totalMatured > 0 ? ($totalRecoveredDue / $totalMatured) * 100 : 0,
-                'due'           => $totalDue,
-                'fees'          => array_sum(array_column($data, 'fees')),
-                'interest'      => array_sum(array_column($data, 'interest')),
-                'profit'        => array_sum(array_column($data, 'profit')),
-            ],
-            'date1' => $date1,
-            'date2' => $date2,
-        ]);
+        return $data;
     }
 
     /**
@@ -340,6 +387,78 @@ class LoanOfficerController extends Controller
             ],
             'date1' => $date1,
             'date2' => $date2,
+        ]);
+    }
+
+    /**
+     * "Why" drill-down for a single officer: their own numbers next to the
+     * average of every other officer, plus what's actually behind their
+     * recovery rate (loan status mix, overdue installment count, and the
+     * clients driving the overdue amount). Powers the modal on the
+     * overview table.
+     */
+    public function insights(Request $request, $id)
+    {
+        [$date1, $date2] = $this->resolveDateRange($request);
+
+        $officer = User::whereIn('user_type', $this->officerTypes())->findOrFail($id);
+
+        $metrics = $this->officerMetrics($date1, $date2);
+        $mine = $metrics[$officer->id] ?? null;
+
+        $peers = collect($metrics)->except($officer->id)->filter(fn($m) => $m['clients'] > 0);
+        $avg = fn($key) => $peers->count() > 0 ? $peers->avg($key) : 0;
+
+        $memberIds = Member::where('loan_officer_id', $officer->id)->pluck('id');
+
+        // Loan status mix: pending / active (approved) / completed / cancelled
+        $statusCounts = Loan::withoutGlobalScope('domain_scope')
+            ->whereIn('borrower_id', $memberIds)
+            ->select('status', DB::raw('count(*) as cnt'))
+            ->groupBy('status')
+            ->pluck('cnt', 'status');
+
+        // How many individual overdue installments make up the "due" figure
+        $overdueInstallments = LoanRepayment::join('loans', 'loans.id', '=', 'loan_repayments.loan_id')
+            ->whereIn('loans.borrower_id', $memberIds)
+            ->where('loan_repayments.status', 0)
+            ->whereDate('loan_repayments.repayment_date', '<', now())
+            ->count();
+
+        // Which clients are actually driving the overdue amount
+        $topOverdue = LoanRepayment::join('loans', 'loans.id', '=', 'loan_repayments.loan_id')
+            ->join('members', 'members.id', '=', 'loans.borrower_id')
+            ->where('members.loan_officer_id', $officer->id)
+            ->where('loan_repayments.status', 0)
+            ->whereDate('loan_repayments.repayment_date', '<', now())
+            ->select(
+                'members.id',
+                DB::raw("concat(members.first_name, ' ', members.last_name) as name"),
+                DB::raw('sum(loan_repayments.amount_to_pay) as due'),
+                DB::raw('count(*) as installments')
+            )
+            ->groupBy('members.id', 'members.first_name', 'members.last_name')
+            ->orderByDesc('due')
+            ->limit(5)
+            ->get();
+
+        return response()->json([
+            'officer' => ['id' => $officer->id, 'name' => $officer->name],
+            'mine' => $mine,
+            'peer_avg' => [
+                'recovery_rate' => round($avg('recovery_rate'), 1),
+                'clients'       => round($avg('clients'), 1),
+                'profit'        => round($avg('profit'), 2),
+                'due'           => round($avg('due'), 2),
+            ],
+            'status_counts' => [
+                'pending'   => (int) ($statusCounts[0] ?? 0),
+                'active'    => (int) ($statusCounts[1] ?? 0),
+                'completed' => (int) ($statusCounts[2] ?? 0),
+                'cancelled' => (int) ($statusCounts[3] ?? 0),
+            ],
+            'overdue_installments' => $overdueInstallments,
+            'top_overdue' => $topOverdue,
         ]);
     }
 }

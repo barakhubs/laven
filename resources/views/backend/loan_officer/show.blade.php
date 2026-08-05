@@ -77,7 +77,7 @@
 										</div>
 										<small class="text-nowrap">{{ number_format($rate, 1) }}%</small>
 									</div>
-									<small class="text-muted">{{ number_format($row['recovered'], 2) }} {{ _lang('recovered') }}</small>
+									<small class="text-muted">{{ number_format($row['recovered'], 2) }} {{ _lang('recovered incl. penalties') }}</small>
 								</td>
 								<td class="text-right {{ $row['due'] > 0 ? 'text-danger' : '' }}">
 									{{ number_format($row['due'], 2) }}
@@ -106,7 +106,7 @@
 								<td class="text-right">{{ number_format($totals['disbursed'], 2) }}</td>
 								<td>
 									{{ number_format($totals['recovery_rate'], 1) }}%
-									<br><small class="text-muted font-weight-normal">{{ number_format($totals['recovered'], 2) }} {{ _lang('recovered') }}</small>
+									<br><small class="text-muted font-weight-normal">{{ number_format($totals['recovered'], 2) }} {{ _lang('recovered incl. penalties') }}</small>
 								</td>
 								<td class="text-right">
 									{{ number_format($totals['due'], 2) }}
@@ -122,7 +122,7 @@
 					</table>
 				</div>
 				<p class="text-muted mt-2">
-					{{ _lang('Disbursed = total amount released on this client\'s loans. Recovery Rate = matured installments actually paid ÷ all matured installments (paid + overdue), i.e. of everything that has come due so far, how much was collected. Overdue Amount = unpaid installments whose due date has already passed (as of today), reflecting current arrears rather than a period total. Fees Earned = loan application + processing fees collected. Interest & Penalties = interest and late payment penalties collected. Total Profit Generated = Fees Earned + Interest & Penalties.') }}
+					{{ _lang('Disbursed = total amount released on this client\'s loans. Recovery Rate = matured installments actually paid ÷ all matured installments (paid + overdue), i.e. of everything that has come due so far, how much was collected. "Recovered incl. penalties" = actual cash collected (principal + interest + late penalties) across all payment transactions — a raw cash-collected figure, separate from the Recovery Rate calculation above it. Overdue Amount = unpaid installments whose due date has already passed (as of today), reflecting current arrears rather than a period total. Fees Earned = loan application + processing fees collected. Interest & Penalties = interest and late payment penalties collected. Total Profit Generated = Fees Earned + Interest & Penalties.') }}
 				</p>
 			</div>
 		</div>
