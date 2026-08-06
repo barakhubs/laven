@@ -12,8 +12,11 @@
 <div class="alert alert-light border d-flex align-items-center" role="alert">
 	<i class="fas fa-percentage mr-2"></i>
 	<div>
-		{{ _lang('"Current Share" is locked in from') }} {{ $current_share_start }} &rarr; {{ $current_share_end }} {{ _lang('and is driving this month\'s actual disbursement split.') }}
-		{{ _lang('"Next Share (Live)" is a running projection from') }} {{ $next_share_start }} &rarr; {{ $next_share_end }} {{ _lang('to date — it will lock in and take over once this month ends.') }}
+		@if($date1 && $date2)
+			{{ _lang('"Disbursement Share" reflects the selected date range') }} {{ $share_start }} &rarr; {{ $share_end }}.
+		@else
+			{{ _lang('"Disbursement Share" is a live projection for') }} {{ $share_start }} &rarr; {{ $share_end }} {{ _lang('to date — the split each officer would get if disbursement happened right now.') }}
+		@endif
 	</div>
 </div>
 
@@ -123,12 +126,8 @@
 								<th class="text-right">{{ _lang('Fees Earned') }}</th>
 								<th class="text-right">{{ _lang('Interest & Penalties') }}</th>
 								<th class="text-right">{{ _lang('Total Profit Generated') }}</th>
-								<th style="min-width: 110px;" title="{{ _lang('Based on') }} {{ $current_share_start }} &rarr; {{ $current_share_end }}">
-									{{ _lang('Current Share') }}
-									<i class="fas fa-info-circle text-muted" style="font-size: 11px;"></i>
-								</th>
-								<th style="min-width: 110px;" title="{{ _lang('Based on') }} {{ $next_share_start }} &rarr; {{ $next_share_end }} {{ _lang('to date') }}">
-									{{ _lang('Next Share (Live)') }}
+								<th style="min-width: 110px;" title="{{ _lang('Based on') }} {{ $share_start }} &rarr; {{ $share_end }}">
+									{{ _lang('Disbursement Share') }}
 									<i class="fas fa-info-circle text-muted" style="font-size: 11px;"></i>
 								</th>
 								<th class="text-center" style="width: 90px;">{{ _lang('Action') }}</th>
@@ -168,21 +167,12 @@
 								<td class="text-right">{{ number_format($row['interest'], 2) }}</td>
 								<td class="text-right"><strong>{{ number_format($row['profit'], 2) }}</strong></td>
 								<td>
-									@php $cShare = $current_shares[$row['officer']->id] ?? 0; @endphp
+									@php $share = $shares[$row['officer']->id] ?? 0; @endphp
 									<div class="d-flex align-items-center">
 										<div class="progress flex-grow-1 mr-2" style="height: 8px;">
-											<div class="progress-bar bg-info" role="progressbar" style="width: {{ min($cShare, 100) }}%;"></div>
+											<div class="progress-bar bg-info" role="progressbar" style="width: {{ min($share, 100) }}%;"></div>
 										</div>
-										<small class="text-nowrap"><strong>{{ number_format($cShare, 1) }}%</strong></small>
-									</div>
-								</td>
-								<td>
-									@php $nShare = $next_shares[$row['officer']->id] ?? 0; @endphp
-									<div class="d-flex align-items-center">
-										<div class="progress flex-grow-1 mr-2" style="height: 8px;">
-											<div class="progress-bar bg-secondary" role="progressbar" style="width: {{ min($nShare, 100) }}%;"></div>
-										</div>
-										<small class="text-nowrap"><strong>{{ number_format($nShare, 1) }}%</strong></small>
+										<small class="text-nowrap"><strong>{{ number_format($share, 1) }}%</strong></small>
 									</div>
 								</td>
 								<td class="text-center">

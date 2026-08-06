@@ -55,18 +55,19 @@ class LoanOfficerController extends Controller
         $data = $this->officerMetrics($date1, $date2);
         $topOfficerId = $this->topPerformer($data);
 
-        // Two portfolio-share snapshots:
-        // - "current" = last full calendar month's performance, already locked
-        //   in and driving THIS month's actual disbursement split.
-        // - "next" = this month to date, a live/projected split that will
-        //   lock in and drive NEXT month's disbursement once this month ends.
-        $lastMonthStart = date('Y-m-01', strtotime('first day of last month'));
-        $lastMonthEnd   = date('Y-m-t', strtotime('last day of last month'));
-        $thisMonthStart = date('Y-m-01');
-        $thisMonthEnd   = date('Y-m-d');
+        // Disbursement share: if a date filter is applied, the share is
+        // computed over that filtered range. Otherwise it defaults to a
+        // live projection for this month to date — i.e. "if disbursement
+        // happened right now, what split would each officer get".
+        if ($date1 && $date2) {
+            $shareStart = $date1;
+            $shareEnd   = $date2;
+        } else {
+            $shareStart = date('Y-m-01');
+            $shareEnd   = date('Y-m-d');
+        }
 
-        $currentShares = $this->portfolioShares($lastMonthStart, $lastMonthEnd);
-        $nextShares    = $this->portfolioShares($thisMonthStart, $thisMonthEnd);
+        $shares = $this->portfolioShares($shareStart, $shareEnd);
 
         // Highest performing officers first
         usort($data, fn($a, $b) => $b['profit'] <=> $a['profit']);
@@ -92,12 +93,9 @@ class LoanOfficerController extends Controller
             'date1' => $date1,
             'date2' => $date2,
             'top_officer_id' => $topOfficerId,
-            'current_shares' => $currentShares,
-            'next_shares'    => $nextShares,
-            'current_share_start' => $lastMonthStart,
-            'current_share_end'   => $lastMonthEnd,
-            'next_share_start'    => $thisMonthStart,
-            'next_share_end'      => $thisMonthEnd,
+            'shares' => $shares,
+            'share_start' => $shareStart,
+            'share_end'   => $shareEnd,
         ]);
     }
 
