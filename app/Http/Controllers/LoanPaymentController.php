@@ -37,20 +37,104 @@ class LoanPaymentController extends Controller
         return view('backend.loan_payment.list');
     }
 
-    public function get_table_data()
+    public function get_table_data(Request $request)
     {
-        $loanpayments = LoanPayment::select('loan_payments.*')
-            ->with('loan')
+        $loanpayments = LoanPayment::select('loan_payments.*', 'lr.repayment_date as due_date')
+            ->leftJoin('loan_repayments as lr', 'lr.id', '=', 'loan_payments.repayment_id')
+            ->with('loan.borrower', 'member', 'transaction.account')
             ->forCurrentLoanDomain()
             ->orderBy("loan_payments.id", "desc");
 
         return Datatables::eloquent($loanpayments)
+            ->filter(function ($query) use ($request) {
+                if ($request->filled('start_date')) {
+                    $query->whereDate('loan_payments.paid_at', '>=', $request->start_date);
+                }
+
+                if ($request->filled('end_date')) {
+                    $query->whereDate('loan_payments.paid_at', '<=', $request->end_date);
+                }
+
+                if ($request->filled('status')) {
+                    if ($request->status == 'late') {
+                        $query->whereNotNull('lr.repayment_date')
+                            ->whereColumn('loan_payments.paid_at', '>', 'lr.repayment_date');
+                    } elseif ($request->status == 'on_time') {
+                        $query->whereNotNull('lr.repayment_date')
+                            ->whereColumn('loan_payments.paid_at', '<=', 'lr.repayment_date');
+                    }
+                }
+            }, true)
+            ->addColumn('status', function ($loanpayment) {
+                if (! $loanpayment->due_date) {
+                    return show_status(_lang('N/A'), 'secondary');
+                }
+
+                $paid_at = \Carbon\Carbon::parse($loanpayment->getRawOriginal('paid_at'));
+                $due_at  = \Carbon\Carbon::parse($loanpayment->due_date);
+
+                return $paid_at->gt($due_at)
+                    ? show_status(_lang('Late'), 'danger')
+                    : show_status(_lang('On Time'), 'success');
+            })
+            ->editColumn('member.first_name', function ($loanpayment) {
+                $member = $loanpayment->member;
+
+                if (! $member || ! $member->exists) {
+                    return '—';
+                }
+
+                $photo = $member->photo && $member->photo !== 'default.png'
+                    ? profile_picture($member->photo)
+                    : asset('backend/images/avatar.png');
+
+                return '<div class="d-flex align-items-center">'
+                . '<img src="' . $photo . '" class="rounded-circle mr-2" style="width:32px;height:32px;object-fit:cover;flex-shrink:0;" alt="' . e($member->name) . '">'
+                . '<div>'
+                . '<a href="' . route('members.show', $member->id) . '" class="font-weight-semibold d-block">' . e($member->name) . '</a>'
+                . '<small class="text-muted">' . e($member->member_no ?: '—') . ($member->mobile ? ' &middot; ' . e($member->country_code . $member->mobile) : '') . '</small>'
+                . '</div>'
+                . '</div>';
+            })
+            ->editColumn('loan.loan_id', function ($loanpayment) {
+                if (! $loanpayment->loan || ! $loanpayment->loan->exists) {
+                    return '—';
+                }
+
+                return '<a href="' . route('loans.show', $loanpayment->loan_id) . '">' . e($loanpayment->loan->loan_id) . '</a>';
+            })
             ->editColumn('repayment_amount', function ($loanpayment) {
                 return decimalPlace($loanpayment->repayment_amount - $loanpayment->interest, currency($loanpayment->loan->currency->name));
             })
             ->addColumn('total_amount', function ($loanpayment) {
                 return decimalPlace($loanpayment->total_amount, currency($loanpayment->loan->currency->name));
             })
+            ->addColumn('payment_method', function ($loanpayment) {
+                if ($loanpayment->transaction_id && $loanpayment->transaction && $loanpayment->transaction->exists) {
+                    $account = $loanpayment->transaction->account;
+                    $label   = ($account && $account->exists && $account->account_number)
+                        ? _lang('Savings Account') . ' (' . $account->account_number . ')'
+                        : _lang('Savings Account');
+
+                    return show_status($label, 'info');
+                }
+
+                return show_status(_lang('Cash'), 'success');
+            })
+            ->filterColumn('member.first_name', function ($query, $keyword) {
+                $query->whereHas('member', function ($query) use ($keyword) {
+                    $query->where('first_name', 'like', "%{$keyword}%")
+                        ->orWhere('last_name', 'like', "%{$keyword}%")
+                        ->orWhere('member_no', 'like', "%{$keyword}%")
+                        ->orWhere('mobile', 'like', "%{$keyword}%")
+                        ->orWhere('email', 'like', "%{$keyword}%");
+                });
+            }, true)
+            ->filterColumn('loan.loan_id', function ($query, $keyword) {
+                $query->whereHas('loan', function ($query) use ($keyword) {
+                    $query->where('loan_id', 'like', "%{$keyword}%");
+                });
+            }, true)
             ->addColumn('action', function ($loanpayment) {
                 return '<div class="dropdown text-center">'
                 . '<button class="btn btn-primary btn-xs dropdown-toggle" type="button" data-toggle="dropdown">' . _lang('Action')
@@ -73,7 +157,7 @@ class LoanPaymentController extends Controller
             ->setRowId(function ($loanpayment) {
                 return "row_" . $loanpayment->id;
             })
-            ->rawColumns(['action'])
+            ->rawColumns(['member.first_name', 'loan.loan_id', 'payment_method', 'status', 'action'])
             ->make(true);
     }
 
@@ -344,4 +428,3 @@ class LoanPaymentController extends Controller
         return back()->with('success', _lang('Deleted Sucessfully'));
     }
 }
-
