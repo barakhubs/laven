@@ -9,6 +9,14 @@
 	<div>{{ _lang('Figures on this page cover all loans, fees, and payments for each officer\'s clients — including both regular and Emergency Loans. Nothing here is filtered by loan domain.') }}</div>
 </div>
 
+<div class="alert alert-light border d-flex align-items-center" role="alert">
+	<i class="fas fa-percentage mr-2"></i>
+	<div>
+		{{ _lang('"Current Share" is locked in from') }} {{ $current_share_start }} &rarr; {{ $current_share_end }} {{ _lang('and is driving this month\'s actual disbursement split.') }}
+		{{ _lang('"Next Share (Live)" is a running projection from') }} {{ $next_share_start }} &rarr; {{ $next_share_end }} {{ _lang('to date — it will lock in and take over once this month ends.') }}
+	</div>
+</div>
+
 @if(count($rows) > 0)
 <div class="row">
 	<div class="col-md-4 mb-4">
@@ -115,7 +123,15 @@
 								<th class="text-right">{{ _lang('Fees Earned') }}</th>
 								<th class="text-right">{{ _lang('Interest & Penalties') }}</th>
 								<th class="text-right">{{ _lang('Total Profit Generated') }}</th>
-								<th class="text-center">{{ _lang('Action') }}</th>
+								<th style="min-width: 110px;" title="{{ _lang('Based on') }} {{ $current_share_start }} &rarr; {{ $current_share_end }}">
+									{{ _lang('Current Share') }}
+									<i class="fas fa-info-circle text-muted" style="font-size: 11px;"></i>
+								</th>
+								<th style="min-width: 110px;" title="{{ _lang('Based on') }} {{ $next_share_start }} &rarr; {{ $next_share_end }} {{ _lang('to date') }}">
+									{{ _lang('Next Share (Live)') }}
+									<i class="fas fa-info-circle text-muted" style="font-size: 11px;"></i>
+								</th>
+								<th class="text-center" style="width: 90px;">{{ _lang('Action') }}</th>
 							</tr>
 						</thead>
 						<tbody>
@@ -151,18 +167,38 @@
 								<td class="text-right">{{ number_format($row['fees'], 2) }}</td>
 								<td class="text-right">{{ number_format($row['interest'], 2) }}</td>
 								<td class="text-right"><strong>{{ number_format($row['profit'], 2) }}</strong></td>
+								<td>
+									@php $cShare = $current_shares[$row['officer']->id] ?? 0; @endphp
+									<div class="d-flex align-items-center">
+										<div class="progress flex-grow-1 mr-2" style="height: 8px;">
+											<div class="progress-bar bg-info" role="progressbar" style="width: {{ min($cShare, 100) }}%;"></div>
+										</div>
+										<small class="text-nowrap"><strong>{{ number_format($cShare, 1) }}%</strong></small>
+									</div>
+								</td>
+								<td>
+									@php $nShare = $next_shares[$row['officer']->id] ?? 0; @endphp
+									<div class="d-flex align-items-center">
+										<div class="progress flex-grow-1 mr-2" style="height: 8px;">
+											<div class="progress-bar bg-secondary" role="progressbar" style="width: {{ min($nShare, 100) }}%;"></div>
+										</div>
+										<small class="text-nowrap"><strong>{{ number_format($nShare, 1) }}%</strong></small>
+									</div>
+								</td>
 								<td class="text-center">
-									<a href="{{ route('loan_officers.show', $row['officer']->id) }}{{ ($date1 && $date2) ? '?date1='.$date1.'&date2='.$date2 : '' }}" class="btn btn-primary btn-xs">
-										{{ _lang('View Clients') }}
-									</a>
-									<button type="button" class="btn btn-outline-secondary btn-xs why-btn" data-id="{{ $row['officer']->id }}">
-										{{ _lang('Why?') }}
-									</button>
+									<div class="oi-action-stack">
+										<a href="{{ route('loan_officers.show', $row['officer']->id) }}{{ ($date1 && $date2) ? '?date1='.$date1.'&date2='.$date2 : '' }}" class="btn btn-primary btn-sm">
+											{{ _lang('Clients') }}
+										</a>
+										<button type="button" class="btn btn-outline-secondary btn-sm why-btn" data-id="{{ $row['officer']->id }}">
+											{{ _lang('Why?') }}
+										</button>
+									</div>
 								</td>
 							</tr>
 							@empty
 							<tr>
-								<td colspan="9" class="text-center">{{ _lang('No loan officers found') }}</td>
+								<td colspan="11" class="text-center">{{ _lang('No loan officers found') }}</td>
 							</tr>
 							@endforelse
 						</tbody>
@@ -183,6 +219,8 @@
 								<td class="text-right">{{ number_format($totals['fees'], 2) }}</td>
 								<td class="text-right">{{ number_format($totals['interest'], 2) }}</td>
 								<td class="text-right">{{ number_format($totals['profit'], 2) }}</td>
+								<td class="text-center">100.0%</td>
+								<td class="text-center">100.0%</td>
 								<td></td>
 							</tr>
 						</tfoot>
@@ -218,6 +256,8 @@
 	#officerInsightsModal table.oi-table { font-size: 13px; }
 	#officerInsightsModal table.oi-table th { font-size: 11px; text-transform: uppercase; color: #8a94a6; border-top: none; }
 	#officerInsightsModal .oi-avatar { width: 26px; height: 26px; border-radius: 50%; background: #eef0f4; color: #5a6478; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; margin-right: 8px; }
+	.oi-action-stack { display: flex; flex-direction: column; gap: 4px; }
+	.oi-action-stack .btn { border-radius: 5px !important; }
 </style>
 <div class="modal fade" id="officerInsightsModal" tabindex="-1" role="dialog">
 	<div class="modal-dialog modal-lg" role="document">

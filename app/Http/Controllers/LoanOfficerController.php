@@ -55,6 +55,19 @@ class LoanOfficerController extends Controller
         $data = $this->officerMetrics($date1, $date2);
         $topOfficerId = $this->topPerformer($data);
 
+        // Two portfolio-share snapshots:
+        // - "current" = last full calendar month's performance, already locked
+        //   in and driving THIS month's actual disbursement split.
+        // - "next" = this month to date, a live/projected split that will
+        //   lock in and drive NEXT month's disbursement once this month ends.
+        $lastMonthStart = date('Y-m-01', strtotime('first day of last month'));
+        $lastMonthEnd   = date('Y-m-t', strtotime('last day of last month'));
+        $thisMonthStart = date('Y-m-01');
+        $thisMonthEnd   = date('Y-m-d');
+
+        $currentShares = $this->portfolioShares($lastMonthStart, $lastMonthEnd);
+        $nextShares    = $this->portfolioShares($thisMonthStart, $thisMonthEnd);
+
         // Highest performing officers first
         usort($data, fn($a, $b) => $b['profit'] <=> $a['profit']);
 
@@ -79,6 +92,12 @@ class LoanOfficerController extends Controller
             'date1' => $date1,
             'date2' => $date2,
             'top_officer_id' => $topOfficerId,
+            'current_shares' => $currentShares,
+            'next_shares'    => $nextShares,
+            'current_share_start' => $lastMonthStart,
+            'current_share_end'   => $lastMonthEnd,
+            'next_share_start'    => $thisMonthStart,
+            'next_share_end'      => $thisMonthEnd,
         ]);
     }
 
@@ -97,20 +116,57 @@ class LoanOfficerController extends Controller
             return null;
         }
 
-        $maxProfit = max(array_column($eligible, 'profit'));
+        $scores = $this->performanceScores($eligible);
+        arsort($scores);
 
-        $topId = null;
-        $topScore = -1;
-        foreach ($eligible as $id => $m) {
-            $profitScore = $maxProfit > 0 ? ($m['profit'] / $maxProfit) * 100 : 0;
-            $score = ($profitScore + $m['recovery_rate']) / 2;
-            if ($score > $topScore) {
-                $topScore = $score;
-                $topId = $id;
-            }
+        return array_key_first($scores);
+    }
+
+    /**
+     * Same combined score used by topPerformer() (50% profit, normalised
+     * 0-100 against the best profit in the set, + 50% recovery rate),
+     * but returned for every eligible officer instead of just the winner.
+     * Factored out so it can also drive the next-month portfolio split.
+     */
+    protected function performanceScores(array $eligibleMetrics)
+    {
+        if (empty($eligibleMetrics)) {
+            return [];
         }
 
-        return $topId;
+        $maxProfit = max(array_column($eligibleMetrics, 'profit'));
+
+        $scores = [];
+        foreach ($eligibleMetrics as $id => $m) {
+            $profitScore = $maxProfit > 0 ? ($m['profit'] / $maxProfit) * 100 : 0;
+            $scores[$id] = ($profitScore + $m['recovery_rate']) / 2;
+        }
+
+        return $scores;
+    }
+
+    /**
+     * Each officer's normalised percentage share of the loan portfolio for
+     * a given period, based on the same profit+recovery-rate performance
+     * score used for "Top Performer". Scores are normalised so they sum to
+     * 100% across officers who had clients in that period. Officers with
+     * zero clients in the period get a 0% share. Returns [officer_id => percent].
+     */
+    protected function portfolioShares($periodStart, $periodEnd)
+    {
+        $metrics  = $this->officerMetrics($periodStart, $periodEnd);
+        $eligible = array_filter($metrics, fn($m) => $m['clients'] > 0);
+        $scores   = $this->performanceScores($eligible);
+
+        $totalScore = array_sum($scores);
+        $shares = [];
+        foreach ($metrics as $id => $m) {
+            $shares[$id] = ($totalScore > 0 && isset($scores[$id]))
+                ? ($scores[$id] / $totalScore) * 100
+                : 0;
+        }
+
+        return $shares;
     }
 
     /**

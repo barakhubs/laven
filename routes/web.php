@@ -274,6 +274,9 @@ Route::group(['middleware' => ['install']], function () {
                 Route::get('reports/bank_balances', [ReportController::class, 'bank_balances'])->name('reports.bank_balances');
                 Route::match(['get', 'post'], 'reports/revenue_report', [ReportController::class, 'revenue_report'])->name('reports.revenue_report');
                 Route::get('loan_officers', [LoanOfficerController::class, 'index'])->name('loan_officers.index');
+                Route::get('loan_officers/portfolio', [LoanOfficerController::class, 'portfolio'])->name('loan_officers.portfolio');
+                Route::post('loan_officers/portfolio', [LoanOfficerController::class, 'savePortfolioBudget'])->name('loan_officers.portfolio.save');
+                Route::get('loan_officers/my_share', [LoanOfficerController::class, 'myShare'])->name('loan_officers.my_share');
                 Route::get('loan_officers/{id}/insights', [LoanOfficerController::class, 'insights'])->name('loan_officers.insights');
                 Route::get('loan_officers/{id}', [LoanOfficerController::class, 'show'])->name('loan_officers.show');
                 Route::get('reports/financial_summary', [ReportController::class, 'financial_summary'])->name('reports.financial_summary');
