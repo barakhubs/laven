@@ -48,6 +48,7 @@
 							<tr>
 								<th>{{ _lang('Client') }}</th>
 								<th class="text-center">{{ _lang('Loans') }}</th>
+								<th>{{ _lang('Loan Type') }}</th>
 								<th class="text-right">{{ _lang('Disbursed') }}</th>
 								<th style="min-width: 140px;">{{ _lang('Recovery Rate') }}</th>
 								<th class="text-right">{{ _lang('Overdue Amount') }}</th>
@@ -65,6 +66,13 @@
 									<small class="text-muted">{{ $row['member']->member_no }}</small>
 								</td>
 								<td class="text-center">{{ $row['loans'] }}</td>
+								<td>
+									@forelse($row['loan_types'] as $type)
+										<span class="badge badge-light">{{ $type }}</span>
+									@empty
+										<span class="text-muted">—</span>
+									@endforelse
+								</td>
 								<td class="text-right">{{ number_format($row['disbursed'], 2) }}</td>
 								<td>
 									@php
@@ -94,7 +102,7 @@
 							</tr>
 							@empty
 							<tr>
-								<td colspan="9" class="text-center">{{ _lang('No clients found for this loan officer') }}</td>
+								<td colspan="10" class="text-center">{{ _lang('No clients found for this loan officer') }}</td>
 							</tr>
 							@endforelse
 						</tbody>
@@ -103,6 +111,7 @@
 							<tr class="font-weight-bold">
 								<td>{{ _lang('Total') }}</td>
 								<td class="text-center">{{ $totals['loans'] }}</td>
+								<td></td>
 								<td class="text-right">{{ number_format($totals['disbursed'], 2) }}</td>
 								<td>
 									{{ number_format($totals['recovery_rate'], 1) }}%

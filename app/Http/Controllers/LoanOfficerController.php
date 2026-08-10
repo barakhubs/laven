@@ -329,7 +329,8 @@ class LoanOfficerController extends Controller
             ->where('loan_officer_id', $officer->id)
             ->with(['loans' => function ($q) use ($date1, $date2) {
                 $q->withoutGlobalScope('domain_scope')
-                    ->select('id', 'borrower_id', 'applied_amount', 'total_payable', 'total_paid', 'release_date', 'status');
+                    ->with('loan_product:id,name')
+                    ->select('id', 'borrower_id', 'loan_product_id', 'applied_amount', 'total_payable', 'total_paid', 'release_date', 'status');
                 if ($date1 && $date2) {
                     $q->whereNotNull('release_date')->whereBetween('release_date', [$date1, $date2]);
                 }
@@ -410,6 +411,7 @@ class LoanOfficerController extends Controller
             $rows[] = [
                 'member'        => $client,
                 'loans'         => $client->loans->count(),
+                'loan_types'    => $client->loans->pluck('loan_product.name')->filter()->unique()->values()->all(),
                 'disbursed'     => (float) $disbursed,
                 'recovered'     => (float) $recovered,
                 'recovery_rate' => $matured > 0 ? ($recoveredDue / $matured) * 100 : 0,
