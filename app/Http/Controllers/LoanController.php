@@ -753,6 +753,27 @@ class LoanController extends Controller {
         ->filter(fn ($repayment) => $repayment->loan && $repayment->loan->borrower && $repayment->loan->borrower->exists)
         ->values();
 
+    if ($filter === 'overdue') {
+        $repayments = $repayments
+            ->groupBy(fn ($repayment) => $repayment->loan->borrower_id)
+            ->map(function ($borrowerRepayments) {
+                // Represent the borrower with their oldest (most overdue) installment,
+                // rolled up with totals across every missed payment.
+                $oldest  = $borrowerRepayments->sortBy(fn ($repayment) => $repayment->getRawOriginal('repayment_date'))->first();
+                $grouped = clone $oldest;
+
+                $grouped->amount_to_pay     = $borrowerRepayments->sum('amount_to_pay');
+                $grouped->principal_amount  = $borrowerRepayments->sum('principal_amount');
+                $grouped->interest          = $borrowerRepayments->sum('interest');
+                $grouped->penalty           = $borrowerRepayments->sum('penalty');
+                $grouped->missed_count      = $borrowerRepayments->count();
+
+                return $grouped;
+            })
+            ->sortBy(fn ($repayment) => $repayment->getRawOriginal('repayment_date'))
+            ->values();
+    }
+
     return view('backend.loan.due_payments', compact('repayments', 'filter', 'startDate', 'endDate'));
 }
 

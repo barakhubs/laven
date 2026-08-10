@@ -108,6 +108,9 @@
                                 <th>{{ _lang('Loan ID') }}</th>
                                 <th>{{ _lang('Due Date') }}</th>
                                 <th>{{ _lang('Days') }}</th>
+                                @if($filter === 'overdue')
+                                <th class="text-center">{{ _lang('Missed Payments') }}</th>
+                                @endif
                                 <th class="text-right">{{ _lang('Amount Due') }}</th>
                                 <th class="text-right">{{ _lang('Principal') }}</th>
                                 <th class="text-right">{{ _lang('Interest') }}</th>
@@ -179,6 +182,12 @@
                                 @endif
                             </td>
 
+                            @if($filter === 'overdue')
+                            <td class="align-middle text-center">
+                                <span class="badge badge-danger">{{ $repayment->missed_count ?? 1 }}</span>
+                            </td>
+                            @endif
+
                             <td class="align-middle text-right text-nowrap font-weight-semibold">
                                 {{ decimalPlace($repayment->amount_to_pay, currency($loan->currency->name)) }}
                             </td>
@@ -223,7 +232,7 @@
                         </tbody>
                         <tfoot>
                             <tr class="font-weight-bold">
-                                <td colspan="9" class="text-right">{{ _lang('Totals') }}</td>
+                                <td colspan="{{ $filter === 'overdue' ? 10 : 9 }}" class="text-right">{{ _lang('Totals') }}</td>
                                 <td class="text-right text-nowrap">
                                     {{ decimalPlace($repayments->sum('amount_to_pay'), currency()) }}
                                 </td>
@@ -259,7 +268,80 @@
         $('#customFilterBar').toggleClass('d-none');
     });
 
+    // The global DataTable init (scripts.js) sets ordering:false for every
+    // .report-table. This page needs column sorting, so re-init just this
+    // table with ordering enabled (Action column stays unsortable).
+    var $table = $('#due_payments_table');
+    if ($.fn.DataTable.isDataTable($table[0])) {
+        var headerText = $table.prev('.report-header').html();
+        $table.DataTable().destroy();
+
+        $table.DataTable({
+            responsive: true,
+            bAutoWidth: false,
+            ordering: true,
+            columnDefs: [
+                { orderable: false, targets: -1 }
+            ],
+            lengthChange: true,
+            lengthMenu: [[100, 200, 500, -1], [100, 200, 500, '{{ _lang('All') }}']],
+            pageLength: 100,
+            dom:
+                "<'row'<'col-sm-12 col-md-3'l><'col-sm-12 col-md-4'B><'col-sm-12 col-md-5'f>>" +
+                "<'row'<'col-sm-12'tr>>" +
+                "<'row'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>",
+            language: {
+                decimal: "",
+                emptyTable: $lang_no_data_found,
+                info: $lang_showing + " _START_ " + $lang_to + " _END_ " + $lang_of + " _TOTAL_ " + $lang_entries,
+                infoEmpty: $lang_showing_0_to_0_of_0_entries,
+                infoFiltered: "(filtered from _MAX_ total entries)",
+                infoPostFix: "",
+                thousands: ",",
+                lengthMenu: $lang_show + " _MENU_ " + $lang_entries,
+                loadingRecords: $lang_loading,
+                processing: $lang_processing,
+                search: $lang_search,
+                zeroRecords: $lang_no_matching_records_found,
+                paginate: {
+                    first: $lang_first,
+                    last: $lang_last,
+                    previous: "<i class='ti-angle-left'></i>",
+                    next: "<i class='ti-angle-right'></i>",
+                },
+                aria: {
+                    sortAscending: ": activate to sort column ascending",
+                    sortDescending: ": activate to sort column descending",
+                },
+                buttons: {
+                    copy: $lang_copy,
+                    excel: $lang_excel,
+                    pdf: $lang_pdf,
+                    print: $lang_print,
+                },
+            },
+            drawCallback: function () {
+                $('.dataTables_paginate > .pagination').addClass('pagination-bordered');
+            },
+            buttons: [
+                'copy',
+                'excel',
+                'pdf',
+                {
+                    extend: 'print',
+                    title: '',
+                    customize: function (win) {
+                        $(win.document.body)
+                            .css('font-size', '10pt')
+                            .prepend('<div class="text-center">' + headerText + '</div>');
+
+                        $(win.document.body).find('table').addClass('compact').css('font-size', 'inherit');
+                    },
+                },
+            ],
+        });
+    }
+
 })(jQuery);
 </script>
 @endsection
-

@@ -198,6 +198,7 @@ class SuperAdminSeeder extends Seeder
             'reports.loans_report',
             'reports.savings_report',
             'reports.revenue_report',
+            'reports.profit_simulation',
 
             // Database Backup
             'database_backups.index',
@@ -272,4 +273,3 @@ class SuperAdminSeeder extends Seeder
         $this->command->warn('Please change the password after first login!');
     }
 }
-

@@ -809,5 +809,112 @@ class ReportController extends Controller
             'profit'   => $profit,
         ]);
     }
-}
 
+    /**
+     * Profit Simulation.
+     *
+     * Estimates profit for ANY period the user picks - past, present, or
+     * future - by blending three sources depending on where each day of
+     * the period falls relative to today:
+     *
+     *  1. Past days   -> actual interest/penalty collected (loan_payments)
+     *                    and actual expenses recorded.
+     *  2. Days that already have a generated repayment schedule (loan is
+     *     active and its installments were pre-computed at disbursement)
+     *     -> the scheduled interest + penalty from loan_repayments,
+     *     whether or not it has been paid yet. This is our best-known
+     *     "money we are owed on that date".
+     *  3. Days beyond any existing schedule (e.g. simulating a period no
+     *     currently active loan reaches yet) -> projected using the
+     *     average daily interest run-rate of the active loan book over
+     *     the last 90 days, and average daily expenses over the same
+     *     window, i.e. "if we carry on giving out loans and spending the
+     *     way we have been, this is roughly what a day is worth to us".
+     */
+    public function profit_simulation(Request $request)
+    {
+        $baseCurrencyId = base_currency_id();
+        $currency       = currency(get_currency($baseCurrencyId)->name ?? '');
+        $today          = Carbon::today();
+
+        $start = $request->start_date ? Carbon::parse($request->start_date) : $today->copy()->startOfMonth();
+        $end   = $request->end_date ? Carbon::parse($request->end_date) : $today->copy()->addMonths(2)->endOfMonth();
+        if ($end->lt($start)) {
+            $end = $start->copy()->endOfMonth();
+        }
+
+        // Split the requested range into: already-happened days, and
+        // future days that fall beyond the requested end.
+        $pastEnd = $today->lt($end) ? $today->copy() : $end->copy();
+
+        // ---- 1. Actual results for the part of the range already past ----
+        $actualInterest = $actualExpenses = 0;
+        if ($start->lte($pastEnd)) {
+            $actualInterest = (float) LoanPayment::whereHas('loan', fn (Builder $q) => $q->where('currency_id', $baseCurrencyId))
+                ->forCurrentLoanDomain()
+                ->whereBetween('paid_at', [$start->toDateString(), $pastEnd->toDateString() . ' 23:59:59'])
+                ->selectRaw('COALESCE(SUM(interest),0) + COALESCE(SUM(late_penalties),0) as amt')
+                ->value('amt');
+
+            $actualExpenses = (float) Expense::whereBetween('expense_date', [$start->toDateString(), $pastEnd->toDateString() . ' 23:59:59'])->sum('amount');
+        }
+
+        // ---- 2. Known future obligations already on the repayment schedule ----
+        $scheduleStart = $today->copy()->addDay()->max($start);
+        $scheduledInterest = 0;
+        $lastScheduledDate = null;
+        if ($scheduleStart->lte($end)) {
+            $scheduledInterest = (float) LoanRepayment::whereHas('loan', fn (Builder $q) => $q->where('currency_id', $baseCurrencyId))
+                ->forCurrentLoanDomain()
+                ->whereBetween('repayment_date', [$scheduleStart->toDateString(), $end->toDateString()])
+                ->selectRaw('COALESCE(SUM(interest),0) + COALESCE(SUM(penalty),0) as amt')
+                ->value('amt');
+
+            $lastScheduledDate = LoanRepayment::whereHas('loan', fn (Builder $q) => $q->where('currency_id', $baseCurrencyId))
+                ->forCurrentLoanDomain()
+                ->max('repayment_date');
+        }
+
+        // ---- 3. Extrapolate beyond the known schedule using recent run-rate ----
+        $projectedInterest = $projectedExpenses = 0;
+        $projectionDays = 0;
+        $horizon = $lastScheduledDate ? Carbon::parse($lastScheduledDate) : $today;
+        $extraStart = $horizon->copy()->addDay()->max($scheduleStart);
+        if ($extraStart->lte($end)) {
+            $projectionDays = $extraStart->diffInDays($end) + 1;
+
+            $windowStart = $today->copy()->subDays(90);
+            $recentInterest = (float) LoanPayment::whereHas('loan', fn (Builder $q) => $q->where('currency_id', $baseCurrencyId))
+                ->forCurrentLoanDomain()
+                ->whereBetween('paid_at', [$windowStart->toDateString(), $today->toDateString() . ' 23:59:59'])
+                ->selectRaw('COALESCE(SUM(interest),0) + COALESCE(SUM(late_penalties),0) as amt')
+                ->value('amt');
+            $recentExpenses = (float) Expense::whereBetween('expense_date', [$windowStart->toDateString(), $today->toDateString() . ' 23:59:59'])->sum('amount');
+
+            $avgDailyInterest = $recentInterest / 90;
+            $avgDailyExpense  = $recentExpenses / 90;
+
+            $projectedInterest = round($avgDailyInterest * $projectionDays, 2);
+            $projectedExpenses = round($avgDailyExpense * $projectionDays, 2);
+        }
+
+        $data = [
+            'start_date'          => $start->toDateString(),
+            'end_date'            => $end->toDateString(),
+            'currency'            => $currency,
+            'actual_interest'     => round($actualInterest, 2),
+            'actual_expenses'     => round($actualExpenses, 2),
+            'scheduled_interest'  => round($scheduledInterest, 2),
+            'projected_interest'  => $projectedInterest,
+            'projected_expenses'  => $projectedExpenses,
+            'projection_days'     => $projectionDays,
+            'is_future'           => $end->gt($today),
+        ];
+
+        $data['total_revenue']  = $data['actual_interest'] + $data['scheduled_interest'] + $data['projected_interest'];
+        $data['total_expenses'] = $data['actual_expenses'] + $data['projected_expenses'];
+        $data['net_profit']     = $data['total_revenue'] - $data['total_expenses'];
+
+        return view('backend.reports.profit_simulation', $data);
+    }
+}

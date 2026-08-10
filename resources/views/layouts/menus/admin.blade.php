@@ -140,6 +140,7 @@ $upcomming_repayments = request_count('upcomming_repayments', true);
 	<a href="javascript: void(0);"><i class="ti-bar-chart"></i><span>{{ _lang('Reports') }}</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
 	<ul class="nav-second-level" aria-expanded="false">
 		<li class="nav-item"><a class="nav-link" href="{{ route('reports.financial_summary') }}">{{ _lang('Financial Summary') }}</a></li>
+		<li class="nav-item"><a class="nav-link" href="{{ route('reports.profit_simulation') }}">{{ _lang('Profit Simulation') }}</a></li>
 		<li class="nav-item"><a class="nav-link" href="{{ route('reports.account_statement') }}">{{ _lang('Account Statement') }}</a></li>
 		<li class="nav-item"><a class="nav-link" href="{{ route('reports.account_balances') }}">{{ _lang('Account Balance') }}</a></li>
 		<li class="nav-item"><a class="nav-link" href="{{ route('reports.loan_report') }}">{{ _lang('Loan Report') }}</a></li>
