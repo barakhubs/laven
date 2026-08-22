@@ -221,9 +221,11 @@
                                         <a class="dropdown-item" href="{{ route('loans.show', $loan->id) }}">
                                             <i class="ti-eye mr-1"></i> {{ _lang('View Loan') }}
                                         </a>
-                                        <a class="dropdown-item" href="{{ route('loan_payments.create') }}?loan_id={{ $loan->id }}">
-                                            <i class="ti-money mr-1"></i> {{ _lang('Record Payment') }}
-                                        </a>
+                                        @if (auth()->user()->isSuperAdmin())
+                                            <a class="dropdown-item" href="{{ route('loan_payments.create') }}?loan_id={{ $loan->id }}">
+                                                <i class="ti-money mr-1"></i> {{ _lang('Record Payment') }}
+                                            </a>
+                                        @endif
                                     </div>
                                 </div>
                             </td>

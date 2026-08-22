@@ -101,6 +101,10 @@ class LoanController extends ApiController
      */
     public function pay(Request $request, $id)
     {
+        if (!$request->user() || !$request->user()->isSuperAdmin()) {
+            return $this->error('Only Super Admins can add loan repayments.', 'FORBIDDEN', [], 403);
+        }
+
         $member = $request->attributes->get('effectiveMember');
 
         if (empty($member->nin)) {

@@ -22,7 +22,9 @@
 
 					<button type="button" id="clear_filters" class="btn btn-outline-secondary btn-xs mr-2">{{ _lang('Clear') }}</button>
 
-					<a class="btn btn-primary btn-xs" href="{{ route('loan_payments.create') }}"><i class="ti-plus"></i>&nbsp;{{ _lang('Add Repayment') }}</a>
+					@if (auth()->user()->isSuperAdmin())
+						<a class="btn btn-primary btn-xs" href="{{ route('loan_payments.create') }}"><i class="ti-plus"></i>&nbsp;{{ _lang('Add Repayment') }}</a>
+					@endif
 				</div>
 			</div>
 			<div class="card-body">

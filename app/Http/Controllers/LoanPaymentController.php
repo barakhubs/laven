@@ -168,6 +168,10 @@ class LoanPaymentController extends Controller
      */
     public function create(Request $request)
     {
+        if (! auth()->user()->isSuperAdmin()) {
+            abort(403, 'Only Super Admins can add loan repayments.');
+        }
+
         $alert_col = 'col-lg-8 offset-lg-2';
         return view('backend.loan_payment.create', compact('alert_col'));
     }
@@ -180,6 +184,10 @@ class LoanPaymentController extends Controller
      */
     public function store(Request $request)
     {
+        if (! auth()->user()->isSuperAdmin()) {
+            abort(403, 'Only Super Admins can add loan repayments.');
+        }
+
         $validator = Validator::make($request->all(), [
             'loan_id'          => 'required',
             'paid_at'          => 'required',
