@@ -387,11 +387,22 @@ class LoanController extends Controller
 
             DB::beginTransaction();
 
-            $loan            = Loan::where('id', $loan_id)->where('borrower_id', auth()->user()->member->id)->first();
-            $repayment       = $loan->next_payment;
+            // lockForUpdate() on both rows so a second concurrent payment on
+            // this same loan (e.g. a double-submitted form) blocks here
+            // instead of both requests reading the same stale total_paid
+            // and one silently overwriting the other's update.
+            $loan = Loan::where('id', $loan_id)->where('borrower_id', auth()->user()->member->id)->lockForUpdate()->first();
+
+            $repayment = LoanRepayment::where('loan_id', $loan_id)
+                ->where('status', 0)
+                ->orderBy('id', 'asc')
+                ->lockForUpdate()
+                ->first() ?? new LoanRepayment();
+
             $existing_amount = $repayment->principal_amount;
 
             if ($request->principal_amount < $repayment->principal_amount) {
+                DB::rollBack();
                 return back()->with('error', _lang('You need to pay minimum') . ' ' . $repayment->principal_amount . ' ' . $loan->currency->name)->withInput();
             }
 
@@ -409,6 +420,7 @@ class LoanController extends Controller
 
             //Check Available Balance
             if (get_account_balance($request->account_id, $loan->borrower_id) < $amount) {
+                DB::rollBack();
                 return back()->with('error', _lang('Insufficient balance !'));
             }
 
@@ -468,6 +480,7 @@ class LoanController extends Controller
                     $upCommingRepayments = LoanRepayment::where('loan_id', $loan_id)->where('status', 0)->get();
 
                     if ($upCommingRepayments->isEmpty()) {
+                        DB::rollBack();
                         return back()->with('error', _lang('You must pay the full repayment amount as this is your final scheduled payment.'));
                     }
 
@@ -565,4 +578,5 @@ class LoanController extends Controller
     }
 
 }
+
 
