@@ -5,6 +5,10 @@
       <div class="card">
          <div class="card-header d-sm-flex align-items-center justify-content-between">
             <div class="panel-title">{{ _lang('View Loan Details') }}</div>
+            @if($loan->status == 1 && auth()->user()->isSuperAdmin())
+            <a class="btn btn-primary btn-xs" href="{{ route('loan_payments.create', ['loan_id' => $loan->id]) }}">
+               <i class="fas fa-hand-holding-usd mr-1"></i>{{ _lang('Add Repayment') }}</a>
+            @endif
             @if($loan->status == 0)
             @php
                 $currentUserId    = auth()->id();
@@ -348,6 +352,12 @@
                      <h5>{{ _lang('Repayments Schedule') }}</h5>
                      <p>{{ $loan->borrower->name }}, {{ _lang('Loan ID').': '.$loan->loan_id }}</p>
                   </div>
+                  @if($loan->status == 1 && auth()->user()->isSuperAdmin())
+                  <div class="mb-3">
+                     <a class="btn btn-primary btn-xs" href="{{ route('loan_payments.create', ['loan_id' => $loan->id]) }}">
+                        <i class="fas fa-hand-holding-usd mr-1"></i>{{ _lang('Add Repayment') }}</a>
+                  </div>
+                  @endif
                   <table class="table table-bordered report-table">
                      <thead>
                         <tr>

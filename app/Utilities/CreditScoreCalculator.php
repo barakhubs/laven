@@ -5,6 +5,7 @@ namespace App\Utilities;
 use App\Models\Loan;
 use App\Models\LoanCreditScore;
 use App\Models\LoanPayment;
+use App\Models\LoanRepayment;
 use Carbon\Carbon;
 
 class CreditScoreCalculator {
@@ -32,7 +33,16 @@ class CreditScoreCalculator {
         $overdueCount = 0;
         $totalSchedules = 0;
 
-        $repayments = $loan->repayments()->get();
+        // LoanRepayment carries a global scope that restricts every query to
+        // the *currently logged-in user's* session branch. This method runs
+        // synchronously right after a payment/delete, so it inherits whoever
+        // happened to be acting at the time — not the loan's own branch. If
+        // those differ, $loan->repayments() silently returns an incomplete
+        // (sometimes empty) schedule and the score is computed on partial
+        // data. Credit scoring must always see the loan's true, full history.
+        $repayments = LoanRepayment::withoutGlobalScope('borrower_id')
+            ->where('loan_id', $loan->id)
+            ->get();
 
         // Preload payments for this loan keyed by repayment_id
         $payments = LoanPayment::where('loan_id', $loan->id)->get()->keyBy('repayment_id');

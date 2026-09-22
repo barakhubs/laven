@@ -122,8 +122,15 @@ class LoanPaymentController extends Controller
                 return show_status(_lang('Cash'), 'success');
             })
             ->filterColumn('member.first_name', function ($query, $keyword) {
+                // Member has a global scope restricting queries to status = 1
+                // (active). whereHas() builds its subquery against that scope,
+                // so searching by name silently found nothing for borrowers
+                // whose member record is inactive/suspended, even though their
+                // payment history is right there. Loan ID search never hits
+                // Member at all, which is why it always "worked".
                 $query->whereHas('member', function ($query) use ($keyword) {
-                    $query->where('first_name', 'like', "%{$keyword}%")
+                    $query->withoutGlobalScope('status')
+                        ->where('first_name', 'like', "%{$keyword}%")
                         ->orWhere('last_name', 'like', "%{$keyword}%")
                         ->orWhere('member_no', 'like', "%{$keyword}%")
                         ->orWhere('mobile', 'like', "%{$keyword}%")
@@ -172,8 +179,9 @@ class LoanPaymentController extends Controller
             abort(403, 'Only Super Admins can add loan repayments.');
         }
 
-        $alert_col = 'col-lg-8 offset-lg-2';
-        return view('backend.loan_payment.create', compact('alert_col'));
+        $alert_col       = 'col-lg-8 offset-lg-2';
+        $selected_loan_id = $request->query('loan_id');
+        return view('backend.loan_payment.create', compact('alert_col', 'selected_loan_id'));
     }
 
     /**
@@ -211,7 +219,11 @@ class LoanPaymentController extends Controller
 
         // Reject the request outright if loan_id doesn't resolve on this
         // domain (e.g. an emergency loan_id posted to the main domain).
-        $loan = Loan::find($request->loan_id);
+        // lockForUpdate() holds the row lock for the rest of this transaction
+        // so a second concurrent payment on the same loan blocks here instead
+        // of both requests reading the same stale total_paid and one silently
+        // overwriting the other's update (lost update).
+        $loan = Loan::lockForUpdate()->find($request->loan_id);
         if (! $loan) {
             DB::rollBack();
             return back()->with('error', _lang('Invalid loan selected for this domain'));
@@ -220,9 +232,11 @@ class LoanPaymentController extends Controller
         $repayment = LoanRepayment::where('loan_id', $request->loan_id)
             ->where('status', 0)
             ->orderBy('id', 'asc')
+            ->lockForUpdate()
             ->first();
 
         if ($repayment->id != $request->due_amount_of) {
+            DB::rollBack();
             return back()->with('error', _lang('Invalid Operation !'));
         }
 
@@ -236,11 +250,13 @@ class LoanPaymentController extends Controller
                 ->first();
 
             if (! $account) {
+                DB::rollBack();
                 return back()->with('error', _lang('Invalid account !'));
             }
 
             //Check Available Balance
             if (get_account_balance($request->account_id, $loan->borrower_id) < $amount) {
+                DB::rollBack();
                 return back()->with('error', _lang('Insufficient balance !'));
             }
         }
@@ -306,6 +322,7 @@ class LoanPaymentController extends Controller
                     ->get();
 
                 if ($upCommingRepayments->isEmpty()) {
+                    DB::rollBack();
                     return back()->with('error', _lang('You must pay the full repayment amount as this is your final scheduled payment.'));
                 }
 
@@ -420,7 +437,7 @@ class LoanPaymentController extends Controller
         $repayment->status = 0;
         $repayment->save();
 
-        $loan             = Loan::findOrFail($loanpayment->loan_id);
+        $loan             = Loan::lockForUpdate()->findOrFail($loanpayment->loan_id);
         $loan->total_paid = $loan->total_paid - $repayment->principal_amount;
         if ($loan->total_paid < $loan->applied_amount) {
             $loan->status = 1;
@@ -428,6 +445,57 @@ class LoanPaymentController extends Controller
         $loan->save();
 
         $loanpayment->delete();
+
+        // Reversing this payment changes total_paid, so every still-unpaid
+        // installment (now including the one just reverted) is redistributed
+        // over the loan's real remaining principal. Skipping this step is
+        // what leaves the schedule showing stale figures from before the
+        // delete: total_paid goes back down, but the visible schedule keeps
+        // principal/balance numbers computed for a remaining amount that no
+        // longer exists.
+        $upCommingRepayments = LoanRepayment::where('loan_id', $loan->id)
+            ->where('status', 0)
+            ->orderBy('id', 'asc')
+            ->get();
+
+        if ($upCommingRepayments->isNotEmpty()) {
+            $interest_type = $loan->loan_product->interest_type;
+            $calculator    = new Calculator(
+                $loan->applied_amount - $loan->total_paid,
+                $upCommingRepayments[0]->repayment_date,
+                $loan->loan_product->interest_rate,
+                $upCommingRepayments->count(),
+                $loan->loan_product->term_period,
+                $loan->late_payment_penalties,
+                $loan->applied_amount
+            );
+
+            if ($interest_type == 'flat_rate') {
+                $repayments = $calculator->get_flat_rate();
+            } else if ($interest_type == 'fixed_rate') {
+                $repayments = $calculator->get_fixed_rate();
+            } else if ($interest_type == 'mortgage') {
+                $repayments = $calculator->get_mortgage();
+            } else if ($interest_type == 'one_time') {
+                $repayments = $calculator->get_one_time();
+            } else if ($interest_type == 'reducing_amount') {
+                $repayments = $calculator->get_reducing_amount();
+            } else if ($interest_type == 'interest_only') {
+                $repayments = $calculator->get_interest_only();
+            }
+
+            $index = 0;
+            foreach ($repayments as $newRepayment) {
+                $upCommingRepayment                   = $upCommingRepayments[$index];
+                $upCommingRepayment->amount_to_pay    = $newRepayment['amount_to_pay'];
+                $upCommingRepayment->penalty          = $newRepayment['penalty'];
+                $upCommingRepayment->principal_amount = $newRepayment['principal_amount'];
+                $upCommingRepayment->interest         = $newRepayment['interest'];
+                $upCommingRepayment->balance          = $newRepayment['balance'];
+                $upCommingRepayment->save();
+                $index++;
+            }
+        }
 
         DB::commit();
 
