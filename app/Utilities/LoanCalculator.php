@@ -131,12 +131,12 @@ class LoanCalculator
         $principal_amount     = $this->amount;
         $amount_to_pay        = $principal_amount + (($this->interest_rate / 100) * $principal_amount);
         $interest             = (($this->interest_rate / 100) * $this->amount);
-        $balance              = $this->payable_amount;
+        $balance              = $this->amount;
         //$penalty              = (($this->late_payment_penalties / 100) * $this->amount);
         $penalty = ($this->late_payment_penalties / 100) * $principal_amount;
 
         $data    = [];
-        $balance = $balance - $amount_to_pay;
+        $balance = $balance - $principal_amount;
         $data[]  = [
             'date'             => $date,
             'amount_to_pay'    => $amount_to_pay,

@@ -192,7 +192,7 @@ class LoanOfficerController extends Controller
         $disbursedQuery = Loan::withoutGlobalScope('domain_scope')
             ->join('members', 'members.id', '=', 'loans.borrower_id')
             ->whereNotNull('members.loan_officer_id')
-            ->whereNotNull('loans.release_date');
+            ->disbursed();
         if ($date1 && $date2) {
             $disbursedQuery->whereBetween('loans.release_date', [$date1, $date2]);
         }
@@ -399,7 +399,7 @@ class LoanOfficerController extends Controller
 
         $rows = [];
         foreach ($clients as $client) {
-            $releasedLoans = $client->loans->whereNotNull('release_date');
+            $releasedLoans = $client->loans->whereIn('status', [1, 2]);
             $disbursed = $releasedLoans->sum('applied_amount');
             $recovered    = (float) ($recoveredByMember[$client->id] ?? 0);
             $due          = (float) ($dueByMember[$client->id] ?? 0);

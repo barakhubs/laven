@@ -328,7 +328,7 @@
                                 </thead>
                                 <tbody>
                                     @foreach($loans as $loan)
-                                    @php $lInt = $loan->payments->sum('interest'); $lPen = $loan->payments->sum('late_penalties'); $lDue = $loan->applied_amount - $loan->total_paid; @endphp
+                                    @php $lInt = $loan->payments->sum('interest'); $lPen = $loan->payments->sum('late_penalties'); $lDue = $loan->remaining_balance; @endphp
                                     <tr>
                                         <td><a href="{{ route('loans.show', $loan->id) }}" class="font-weight-bold">{{ $loan->loan_id ?: '#'.$loan->id }}</a></td>
                                         <td>{{ $loan->loan_product->name }}</td>
@@ -397,7 +397,7 @@
                                 </thead>
                                 <tbody>
                                     @foreach($loans as $loan)
-                                    @php $lInt = $loan->payments->sum('interest'); $lBal = $loan->applied_amount - $loan->total_paid; @endphp
+                                    @php $lInt = $loan->payments->sum('interest'); $lBal = $loan->remaining_balance; @endphp
                                     <tr>
                                         <td><a href="{{ route('loans.show', $loan->id) }}" class="font-weight-bold">{{ $loan->loan_id ?: '#'.$loan->id }}</a></td>
                                         <td>{{ $loan->loan_product->name }}</td>

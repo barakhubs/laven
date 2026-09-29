@@ -412,7 +412,7 @@ class MemberController extends Controller {
             $totalLoanApplied   = $loans->sum('applied_amount');
             $totalLoanPaid      = $loans->sum('total_paid');
             $totalLoanDue       = $loans->where('status', 1)->sum(function ($loan) {
-                return $loan->applied_amount - $loan->total_paid;
+                return $loan->remaining_balance;
             });
             $totalInterestPaid  = $loans->flatMap->payments->sum('interest');
             $totalPenaltiesPaid = $loans->flatMap->payments->sum('late_penalties');

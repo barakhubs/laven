@@ -136,6 +136,9 @@ class ReportController extends Controller
 
             $data['report_data'] = Loan::select('loans.*')
                 ->with(['borrower', 'loan_product'])
+                ->withSum(['repayments as remaining_balance_sum' => function ($query) {
+                    $query->where('status', 0);
+                }], 'amount_to_pay')
                 ->when($status, function ($query, $status) {
                     return $query->where('status', $status);
                 }, function ($query, $status) {

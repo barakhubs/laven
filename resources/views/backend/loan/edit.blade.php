@@ -106,7 +106,7 @@
 
 						<div class="col-lg-12">
 							<div class="form-group">
-								<label class="control-label">{{ _lang('Fee Deduct Account') }}</label>
+								<label class="control-label">{{ _lang('Linked Savings Account') }}</label>
 								<select class="form-control auto-select select2" data-selected="{{  $loan->debit_account_id }}" name="debit_account_id" id="debit_account" required>
 									<option value="">{{ _lang('Select One') }}</option>
 									@foreach(\App\Models\SavingsAccount::where('member_id', $loan->borrower_id)->get() as $account)

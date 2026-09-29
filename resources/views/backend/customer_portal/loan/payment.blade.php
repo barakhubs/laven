@@ -65,7 +65,7 @@
                             <div class="form-group">
                                 <label class="control-label">{{ _lang('Total Due Amount') }}</label>
                                 <div class="input-group">
-                                    <input type="text" class="form-control float-field" name="total_due" id="total_due" value="{{ $loan->applied_amount - $loan->total_paid  }}" readonly>
+                                    <input type="text" class="form-control float-field" name="total_due" id="total_due" value="{{ $loan->remaining_balance }}" readonly>
                                     <div class="input-group-append">
                                         <span class="input-group-text currency">{{ $loan->currency->name }}</span>
                                     </div>

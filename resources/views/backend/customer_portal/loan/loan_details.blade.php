@@ -76,7 +76,7 @@
                         <tr>
                             <td>{{ _lang("Due Amount") }}</td>
                             <td class="text-danger">
-                            {{ decimalPlace($loan->applied_amount - $loan->total_paid, currency($loan->currency->name)) }}
+                            {{ decimalPlace($loan->remaining_balance, currency($loan->currency->name)) }}
                             </td>
                         </tr>
                         <tr><td>{{ _lang('Late Payment Penalties') }}</td><td>{{ $loan->late_payment_penalties }} %</td></tr>

@@ -284,7 +284,7 @@ class LoanController extends ApiController
                     'principal'        => (float) $principalAmount,
                     'interest'         => (float) $repayment->interest,
                     'loan_status'      => $loan->status == 2 ? 'Closed' : 'Active',
-                    'remaining_balance'=> (float) ($loan->applied_amount - $loan->total_paid),
+                    'remaining_balance'=> (float) $loan->remaining_balance,
                 ],
             ], 'Loan payment recorded successfully.');
 
@@ -303,7 +303,7 @@ class LoanController extends ApiController
             'product_name'      => $loan->loan_product->name ?? 'N/A',
             'applied_amount'    => (float) $loan->applied_amount,
             'total_paid'        => (float) $loan->total_paid,
-            'remaining_balance' => (float) ($loan->applied_amount - $loan->total_paid),
+            'remaining_balance' => (float) $loan->remaining_balance,
             'currency'          => $loan->currency->name ?? get_option('currency'),
             'status'            => $statusMap[$loan->status] ?? 'Unknown',
             'status_code'       => $loan->status,

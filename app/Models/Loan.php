@@ -140,6 +140,28 @@ class Loan extends Model {
             ->withDefault();
     }
 
+    /**
+     * The single source of truth for "how much is left to clear this loan" —
+     * principal + unpaid interest + unpaid penalty, taken from the actual
+     * repayment schedule rather than re-derived from applied_amount/total_paid.
+     * Every place in the app showing a loan's remaining balance should read
+     * this instead of recomputing its own formula (see the divergence between
+     * applied_amount-total_paid and the schedule sum that used to exist here).
+     */
+    public function getRemainingBalanceAttribute() {
+        return (float) $this->repayments()->where('status', 0)->sum('amount_to_pay');
+    }
+
+    /**
+     * Canonical "counts as disbursed" definition — Active or Completed.
+     * Use this instead of re-deriving disbursed status independently
+     * (previously one report counted any loan with a release_date regardless
+     * of status, which could include cancelled loans).
+     */
+    public function scopeDisbursed(Builder $query) {
+        return $query->whereIn('status', [1, 2]);
+    }
+
     public function getFirstPaymentDateAttribute($value) {
         $date_format = get_date_format();
         return \Carbon\Carbon::parse($value)->format("$date_format");

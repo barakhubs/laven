@@ -98,7 +98,7 @@
 								<td>{{ $loan->loan_product->name }}</td>
 								<td>{{ $loan->borrower->name }}<br>{{ $loan->borrower->email }}</td>
 								<td class="text-right">{{ decimalPlace($loan->applied_amount, currency($loan->currency->name)) }}</td>
-								<td class="text-right">{{ decimalPlace($loan->applied_amount - $loan->total_paid, currency($loan->currency->name)) }}</td>
+								<td class="text-right">{{ decimalPlace($loan->remaining_balance_sum ?? 0, currency($loan->currency->name)) }}</td>
 								<td>
 									@if($loan->status == 0)
 										{!! xss_clean(show_status(_lang('Pending'), 'warning')) !!}

@@ -64,7 +64,7 @@ class DashboardController extends ApiController
                 'product_name'      => $loan->loan_product->name ?? 'N/A',
                 'applied_amount'    => (float) $loan->applied_amount,
                 'total_paid'        => (float) $loan->total_paid,
-                'remaining_balance' => (float) ($loan->applied_amount - $loan->total_paid),
+                'remaining_balance' => (float) $loan->remaining_balance,
                 'currency'          => $loan->currency->name ?? get_option('currency'),
                 'status'            => 'Active',
                 'next_repayment'    => ($loan->next_payment && $loan->next_payment->exists) ? [

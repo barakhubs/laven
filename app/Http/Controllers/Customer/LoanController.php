@@ -317,19 +317,8 @@ class LoanController extends Controller
             $loan->total_payable = $calculator->payable_amount;
             $loan->save();
 
-            //Check Account has enough balance for deducting fee
-            $convertedAmount = convert_currency($loan->currency->name, $account->savings_type->currency->name, $loan->applied_amount);
-
-            $charge = 0;
-            $charge += $loanProduct->loan_application_fee_type == 1 ? ($loanProduct->loan_application_fee / 100) * $convertedAmount : $loanProduct->loan_application_fee;
-            $charge += $loanProduct->loan_insurance_fee_type == 1 ? ($loanProduct->loan_insurance_fee / 100) * $convertedAmount : $loanProduct->loan_insurance_fee;
-
-            if (get_account_balance($account->id, $loan->borrower_id) < $charge) {
-                return back()->with('error', _lang('Insufficient balance for deducting loan application and insurance fee !'));
-            }
-
-            //Deduct Loan Processing Fee
-            process_loan_fee('loan_application_fee', $loan->borrower_id, $request->debit_account_id, $convertedAmount, $loanProduct->loan_application_fee, $loanProduct->loan_application_fee_type, $loan->id);
+            // Loan application fee is no longer collected as cash from clients
+            // (policy change) — the principal above is unaffected either way.
 
             //Increment Loan ID
             if ($loanProduct->starting_loan_id != null) {
