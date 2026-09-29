@@ -135,6 +135,12 @@
                         </td>
                      </tr>
                      <tr>
+                        <td>{{ _lang("30% Savings Deposit") }}</td>
+                        <td>
+                           {{ decimalPlace($loan->applied_amount * 0.3, currency($loan->currency->name)) }}
+                        </td>
+                     </tr>
+                     <tr>
                         <td>{{ _lang("Total Principal Paid") }}</td>
                         <td class="text-success">
                            {{ decimalPlace($loan->total_paid, currency($loan->currency->name)) }}

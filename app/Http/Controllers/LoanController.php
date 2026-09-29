@@ -443,13 +443,20 @@ class LoanController extends Controller {
             $loan_repayment->save();
         }
 
+        // 30% of the applied amount is set aside into the borrower's linked
+        // savings account rather than handed out with the rest of the
+        // disbursement. This does not change what the borrower owes — the
+        // repayment schedule above is still built on the full applied_amount.
+        $savingsAmount   = round($loan->applied_amount * 0.3, 2);
+        $disbursedAmount = $loan->applied_amount - $savingsAmount;
+
         if ($request->account_id != 'cash') {
             //Transfer money to use account
             $transaction                     = new Transaction();
             $transaction->trans_date         = now();
             $transaction->member_id          = $loan->borrower_id;
             $transaction->savings_account_id = $request->account_id;
-            $transaction->amount             = $loan->applied_amount;
+            $transaction->amount             = $disbursedAmount;
             $transaction->dr_cr              = 'cr';
             $transaction->type               = 'Loan';
             $transaction->method             = 'Manual';
@@ -459,6 +466,20 @@ class LoanController extends Controller {
             $transaction->loan_id            = $loan->id;
             $transaction->save();
         }
+
+        $savingsCredit                     = new Transaction();
+        $savingsCredit->trans_date         = now();
+        $savingsCredit->member_id          = $loan->borrower_id;
+        $savingsCredit->savings_account_id = $loan->debit_account_id;
+        $savingsCredit->amount             = $savingsAmount;
+        $savingsCredit->dr_cr              = 'cr';
+        $savingsCredit->type               = 'loan_savings';
+        $savingsCredit->method             = 'Manual';
+        $savingsCredit->status             = 2;
+        $savingsCredit->description        = '30% loan savings deposit';
+        $savingsCredit->created_user_id    = auth()->id();
+        $savingsCredit->loan_id            = $loan->id;
+        $savingsCredit->save();
 
         DB::commit();
 
