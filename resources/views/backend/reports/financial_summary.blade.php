@@ -4,8 +4,22 @@
 
 @php
 	$currencySymbol = $currency;
-	$netProfitClass = $net_profit >= 0 ? 'success-card' : 'danger-card';
 	$portfolioAtRiskClass = $portfolio_at_risk > 10 ? 'text-danger' : ($portfolio_at_risk > 5 ? 'text-warning' : 'text-success');
+
+	// Renders a small "▲ 4.2%" / "▼ 1.1%" / "New" badge for a month-over-month
+	// percentage. $pct is null when last month had nothing to compare against.
+	$momBadge = function ($pct) {
+		if (is_null($pct)) {
+			return '<span class="badge badge-info" style="font-size:11px;font-weight:600;">' . _lang('New') . '</span>';
+		}
+		if ($pct == 0) {
+			return '<span class="text-muted" style="font-size:12px;font-weight:600;">&#9644; ' . _lang('No Change') . '</span>';
+		}
+		$up    = $pct > 0;
+		$class = $up ? 'text-success' : 'text-danger';
+		$arrow = $up ? '&#9650;' : '&#9660;';
+		return '<span class="' . $class . '" style="font-size:12px;font-weight:600;">' . $arrow . ' ' . number_format(abs($pct), 1) . '% ' . _lang('vs last month') . '</span>';
+	};
 @endphp
 
 <div class="row">
@@ -13,11 +27,11 @@
 		<div class="d-flex flex-wrap align-items-center justify-content-between mb-3">
 			<div>
 				<h4 class="mb-0">{{ _lang('Financial Summary') }}</h4>
-				<p class="text-muted mb-0">{{ _lang('A complete picture of what the business has earned, spent, collected and could still collect.') }}</p>
+				<p class="text-muted mb-0">{{ _lang('A complete picture of what the business has earned, collected and could still collect.') }}</p>
 			</div>
 			<form method="get" action="{{ route('reports.financial_summary') }}" class="d-flex align-items-end">
 				<div class="form-group mb-0 mr-2">
-					<label class="control-label mb-0">{{ _lang('Trend Chart Year') }}</label>
+					<label class="control-label mb-0">{{ _lang('Report Year') }}</label>
 					<select class="form-control" name="year" onchange="this.form.submit()">
 						@for($y = date('Y'); $y >= 2020; $y--)
 							<option value="{{ $y }}" {{ $y == $year ? 'selected' : '' }}>{{ $y }}</option>
@@ -32,7 +46,7 @@
 {{-- ================= HEADLINE FINANCIAL CARDS ================= --}}
 <div class="row">
 	<div class="col-xl-3 col-md-6">
-		<div class="card mb-4 primary-card dashboard-card">
+		<div class="card mb-4 success-card dashboard-card">
 			<div class="card-body">
 				<div class="d-flex">
 					<div class="flex-grow-1">
@@ -46,13 +60,13 @@
 	</div>
 
 	<div class="col-xl-3 col-md-6">
-		<div class="card mb-4 danger-card dashboard-card">
+		<div class="card mb-4 primary-card dashboard-card">
 			<div class="card-body">
 				<div class="d-flex">
 					<div class="flex-grow-1">
-						<h5>{{ _lang('Total Expenses') }}</h5>
-						<h4 class="pt-1 mb-0"><b>{{ decimalPlace($total_expenses, $currencySymbol) }}</b></h4>
-						<small>{{ _lang('All recorded operating expenses') }}</small>
+						<h5>{{ _lang('Interest Income') }}</h5>
+						<h4 class="pt-1 mb-0"><b>{{ decimalPlace($interest_income, $currencySymbol) }}</b></h4>
+						<small>{{ _lang('Earned on loan repayments (Lifetime)') }}</small>
 					</div>
 				</div>
 			</div>
@@ -60,13 +74,13 @@
 	</div>
 
 	<div class="col-xl-3 col-md-6">
-		<div class="card mb-4 {{ $netProfitClass }} dashboard-card">
+		<div class="card mb-4 danger-card dashboard-card">
 			<div class="card-body">
 				<div class="d-flex">
 					<div class="flex-grow-1">
-						<h5>{{ _lang('Net Profit') }}</h5>
-						<h4 class="pt-1 mb-0"><b>{{ decimalPlace($net_profit, $currencySymbol) }}</b></h4>
-						<small>{{ _lang('Revenue minus Expenses (Lifetime)') }}</small>
+						<h5>{{ _lang('Penalty Income') }}</h5>
+						<h4 class="pt-1 mb-0"><b>{{ decimalPlace($penalty_income, $currencySymbol) }}</b></h4>
+						<small>{{ _lang('Late payment penalties (Lifetime)') }}</small>
 					</div>
 				</div>
 			</div>
@@ -78,9 +92,53 @@
 			<div class="card-body">
 				<div class="d-flex">
 					<div class="flex-grow-1">
-						<h5>{{ _lang('Uncollected Interest') }}</h5>
-						<h4 class="pt-1 mb-0"><b>{{ decimalPlace($potential_extra_profit, $currencySymbol) }}</b></h4>
-						<small>{{ _lang('Extra profit still owed to the business') }}</small>
+						<h5>{{ _lang('Other Fee Income') }}</h5>
+						<h4 class="pt-1 mb-0"><b>{{ decimalPlace($other_fee_income, $currencySymbol) }}</b></h4>
+						<small>{{ _lang('Account charges, not loan related (Lifetime)') }}</small>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+
+{{-- ================= THIS MONTH AT A GLANCE ================= --}}
+<div class="row">
+	<div class="col-12">
+		<div class="card mb-4">
+			<div class="card-header">
+				<span class="panel-title">{{ _lang('This Month At A Glance') }} &mdash; {{ $this_month_label }}</span>
+			</div>
+			<div class="card-body">
+				<p class="mb-4" style="font-size:14px;">
+					@if(is_null($mom_total_pct))
+						{{ _lang('The business has earned') }} <b>{{ decimalPlace($this_month_total, $currencySymbol) }}</b> {{ _lang('so far this month') }} &mdash; {{ _lang('there was no revenue recorded last month to compare against.') }}
+					@else
+						{{ _lang('The business has earned') }} <b>{{ decimalPlace($this_month_total, $currencySymbol) }}</b> {{ _lang('so far this month, which is') }}
+						<b class="{{ $mom_total_pct > 0 ? 'text-success' : ($mom_total_pct < 0 ? 'text-danger' : 'text-muted') }}">{{ number_format(abs($mom_total_pct), 1) }}%</b>
+						{{ $mom_total_pct >= 0 ? _lang('more than') : _lang('less than') }} {{ _lang('last month') }} ({{ $last_month_label }}: {{ decimalPlace($last_month_total, $currencySymbol) }}).
+					@endif
+				</p>
+				<div class="row text-center">
+					<div class="col-md-3 col-6 mb-3 mb-md-0" style="border-left:4px solid rgba(77, 77, 253, 0.85);">
+						<div class="text-muted" style="font-size:13px;">{{ _lang('Interest') }}</div>
+						<div style="font-size:22px;font-weight:700;">{{ decimalPlace($this_month_interest, $currencySymbol) }}</div>
+						<div>{!! $momBadge($mom_interest_pct) !!}</div>
+					</div>
+					<div class="col-md-3 col-6 mb-3 mb-md-0" style="border-left:4px solid rgba(216, 79, 130, 0.85);">
+						<div class="text-muted" style="font-size:13px;">{{ _lang('Penalties') }}</div>
+						<div style="font-size:22px;font-weight:700;">{{ decimalPlace($this_month_penalty, $currencySymbol) }}</div>
+						<div>{!! $momBadge($mom_penalty_pct) !!}</div>
+					</div>
+					<div class="col-md-3 col-6" style="border-left:4px solid rgba(254, 208, 63, 0.85);">
+						<div class="text-muted" style="font-size:13px;">{{ _lang('Other Fees') }}</div>
+						<div style="font-size:22px;font-weight:700;">{{ decimalPlace($this_month_fees, $currencySymbol) }}</div>
+						<div>{!! $momBadge($mom_fees_pct) !!}</div>
+					</div>
+					<div class="col-md-3 col-6" style="border-left:4px solid rgba(30, 202, 123, 0.85);">
+						<div class="text-muted" style="font-size:13px;">{{ _lang('Total Revenue') }}</div>
+						<div style="font-size:22px;font-weight:700;">{{ decimalPlace($this_month_total, $currencySymbol) }}</div>
+						<div>{!! $momBadge($mom_total_pct) !!}</div>
 					</div>
 				</div>
 			</div>
@@ -102,15 +160,22 @@
 							{{ _lang('across all active loans, made up of') }}
 							<b>{{ decimalPlace($outstanding_principal, $currencySymbol) }}</b> {{ _lang('in principal') }}
 							{{ _lang('and') }}
-							<b>{{ decimalPlace($outstanding_interest, $currencySymbol) }}</b> {{ _lang('in interest that has not yet been earned into profit.') }}
-							{{ _lang('Collecting all of it would push net profit to') }}
-							<b>{{ decimalPlace($net_profit + $potential_extra_profit, $currencySymbol) }}</b>.
+							<b>{{ decimalPlace($outstanding_interest, $currencySymbol) }}</b> {{ _lang('in interest that has not yet been earned into revenue.') }}
+							{{ _lang('Collecting all of it would push total revenue to') }}
+							<b>{{ decimalPlace($total_revenue + $potential_extra_profit, $currencySymbol) }}</b>.
 						</p>
 					</div>
 					<div class="col-md-4 text-md-right mt-3 mt-md-0">
-						<div style="font-size:13px;opacity:0.75;">{{ _lang('Collection Rate') }}</div>
+						<div style="font-size:13px;opacity:0.75;">
+							{{ _lang('Collection Rate') }}
+							<i class="fas fa-question-circle" data-toggle="tooltip" title="{{ _lang('Of every shilling that has come due so far (collected + overdue), the share that has actually been collected. Higher is better.') }}" style="cursor:help;"></i>
+						</div>
 						<div style="font-size:32px;font-weight:700;color:#1eca7b;">{{ $collection_rate }}%</div>
-						<div style="font-size:13px;opacity:0.75;" class="{{ $portfolioAtRiskClass }}">{{ _lang('Portfolio at Risk') }}: <b>{{ $portfolio_at_risk }}%</b></div>
+						<div style="font-size:13px;opacity:0.75;" class="{{ $portfolioAtRiskClass }}">
+							{{ _lang('Portfolio at Risk') }}
+							<i class="fas fa-question-circle" data-toggle="tooltip" title="{{ _lang('The share of currently active loans that is overdue (past its due date and still unpaid). Lower is better; above 10% is generally considered high risk.') }}" style="cursor:help;"></i>:
+							<b>{{ $portfolio_at_risk }}%</b>
+						</div>
 					</div>
 				</div>
 			</div>
@@ -158,15 +223,44 @@
 	</div>
 </div>
 
-{{-- ================= MONTHLY TREND ================= --}}
+{{-- ================= MONTHLY REVENUE BREAKDOWN ================= --}}
 <div class="row">
 	<div class="col-12">
 		<div class="card mb-4">
 			<div class="card-header">
-				<span class="panel-title">{{ _lang('Monthly Revenue vs Expenses vs Net Profit') }} &mdash; {{ $year }}</span>
+				<span class="panel-title">{{ _lang('Monthly Revenue Breakdown') }} &mdash; {{ _lang('Interest, Penalties & Other Fees') }} ({{ $year }})</span>
 			</div>
 			<div class="card-body">
 				<canvas id="financialTrendChart" height="90"></canvas>
+			</div>
+			<div class="card-body p-0 border-top">
+				<div class="table-responsive">
+					<table class="table table-borderless mb-0">
+						<thead>
+							<tr>
+								<th class="pl-4">{{ _lang('Month') }}</th>
+								<th class="text-right">{{ _lang('Interest') }}</th>
+								<th class="text-right">{{ _lang('Penalties') }}</th>
+								<th class="text-right">{{ _lang('Other Fees') }}</th>
+								<th class="text-right">{{ _lang('Total Revenue') }}</th>
+								<th class="text-right pr-4">{{ _lang('Growth') }} <i class="fas fa-question-circle" data-toggle="tooltip" title="{{ _lang('Change in total revenue compared to the previous month shown in this table.') }}" style="cursor:help;"></i></th>
+							</tr>
+						</thead>
+						<tbody id="monthlyBreakdownTableBody">
+							<tr><td colspan="6" class="text-center py-3">{{ _lang('Loading...') }}</td></tr>
+						</tbody>
+						<tfoot>
+							<tr style="font-weight:700;border-top:2px solid #eee;">
+								<td class="pl-4">{{ _lang('Total') }}</td>
+								<td class="text-right" id="monthlyBreakdownTotalInterest">&mdash;</td>
+								<td class="text-right" id="monthlyBreakdownTotalPenalty">&mdash;</td>
+								<td class="text-right" id="monthlyBreakdownTotalFees">&mdash;</td>
+								<td class="text-right" id="monthlyBreakdownTotalRevenue">&mdash;</td>
+								<td class="pr-4">&nbsp;</td>
+							</tr>
+						</tfoot>
+					</table>
+				</div>
 			</div>
 		</div>
 	</div>
@@ -195,48 +289,6 @@
 			<div class="card-header"><span class="panel-title">{{ _lang('Loan Status Distribution') }}</span></div>
 			<div class="card-body">
 				<canvas id="loanStatusChart" height="240"></canvas>
-			</div>
-		</div>
-	</div>
-</div>
-
-{{-- ================= EXPENSES ================= --}}
-<div class="row">
-	<div class="col-xl-6">
-		<div class="card mb-4">
-			<div class="card-header"><span class="panel-title">{{ _lang('Expenses By Category') }}</span></div>
-			<div class="card-body">
-				<canvas id="expenseChart" height="260"></canvas>
-			</div>
-		</div>
-	</div>
-	<div class="col-xl-6">
-		<div class="card mb-4">
-			<div class="card-header"><span class="panel-title">{{ _lang('Top Expense Categories') }}</span></div>
-			<div class="card-body p-0">
-				<table class="table table-borderless mb-0">
-					<thead>
-						<tr>
-							<th class="pl-4">{{ _lang('Category') }}</th>
-							<th class="text-right">{{ _lang('Amount') }}</th>
-							<th class="text-right pr-4">{{ _lang('% of Total') }}</th>
-						</tr>
-					</thead>
-					<tbody>
-						@forelse($expense_by_category as $row)
-							<tr>
-								<td class="pl-4">
-									<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:{{ $row->expense_category->color ?? '#4d4dfd' }};margin-right:8px;"></span>
-									{{ $row->expense_category->name ?? _lang('Uncategorized') }}
-								</td>
-								<td class="text-right">{{ decimalPlace($row->total, $currencySymbol) }}</td>
-								<td class="text-right pr-4">{{ $total_expenses > 0 ? round(($row->total / $total_expenses) * 100, 1) : 0 }}%</td>
-							</tr>
-						@empty
-							<tr><td colspan="3" class="text-center py-3">{{ _lang('No Expenses Recorded') }}</td></tr>
-						@endforelse
-					</tbody>
-				</table>
 			</div>
 		</div>
 	</div>
@@ -293,23 +345,28 @@
 		return currency + ' ' + Number(v).toLocaleString(undefined, {maximumFractionDigits: 2});
 	}
 
-	// ---- Monthly Revenue vs Expenses vs Net Profit ----
+	if (window.jQuery && jQuery.fn.tooltip) {
+		jQuery('[data-toggle="tooltip"]').tooltip();
+	}
+
+	// ---- Monthly Revenue Breakdown: Interest / Penalties / Other Fees ----
 	var trendCtx = document.getElementById('financialTrendChart').getContext('2d');
 	var trendChart = new Chart(trendCtx, {
 		data: {
 			labels: [],
 			datasets: [
-				{ type: 'bar', label: @json(_lang('Revenue')), data: [], backgroundColor: 'rgba(30, 202, 123, 0.85)', borderRadius: 6 },
-				{ type: 'bar', label: @json(_lang('Expenses')), data: [], backgroundColor: 'rgba(216, 79, 130, 0.85)', borderRadius: 6 },
-				{ type: 'line', label: @json(_lang('Net Profit')), data: [], borderColor: 'rgba(77, 77, 253, 1)', backgroundColor: 'rgba(77, 77, 253, 1)', borderWidth: 3, tension: 0.3 }
+				{ type: 'bar', label: @json(_lang('Interest')), data: [], backgroundColor: 'rgba(77, 77, 253, 0.85)', borderRadius: 4, stack: 'revenue' },
+				{ type: 'bar', label: @json(_lang('Penalties')), data: [], backgroundColor: 'rgba(216, 79, 130, 0.85)', borderRadius: 4, stack: 'revenue' },
+				{ type: 'bar', label: @json(_lang('Other Fees')), data: [], backgroundColor: 'rgba(254, 208, 63, 0.85)', borderRadius: 4, stack: 'revenue' },
+				{ type: 'line', label: @json(_lang('Total Revenue')), data: [], borderColor: 'rgba(30, 202, 123, 1)', backgroundColor: 'rgba(30, 202, 123, 1)', borderWidth: 3, tension: 0.3 }
 			]
 		},
 		options: {
 			responsive: true,
 			interaction: { mode: 'index', intersect: false },
 			scales: {
-				x: { grid: { display: false } },
-				y: { ticks: { callback: function(v) { return money(v); } } }
+				x: { grid: { display: false }, stacked: true },
+				y: { stacked: true, ticks: { callback: function(v) { return money(v); } } }
 			},
 			plugins: {
 				legend: { position: 'top' },
@@ -318,14 +375,60 @@
 		}
 	});
 
+	function fillMoneyCell(id, value) {
+		var el = document.getElementById(id);
+		if (el) { el.textContent = money(value); }
+	}
+
+	function growthCell(current, previous) {
+		if (previous === null || typeof previous === 'undefined') {
+			return '<span class="text-muted">&mdash;</span>';
+		}
+		if (previous === 0) {
+			return current > 0 ? '<span class="badge badge-info" style="font-size:11px;">' + @json(_lang('New')) + '</span>' : '<span class="text-muted">&#9644; 0%</span>';
+		}
+		var pct = ((current - previous) / previous) * 100;
+		if (Math.round(pct * 10) === 0) {
+			return '<span class="text-muted">&#9644; 0%</span>';
+		}
+		var up = pct > 0;
+		return '<span class="' + (up ? 'text-success' : 'text-danger') + '">' + (up ? '&#9650; ' : '&#9660; ') + Math.abs(pct).toFixed(1) + '%</span>';
+	}
+
 	fetch(@json(route('reports.financial_summary.monthly_trend')) + '?year=' + @json($year))
 		.then(function(r) { return r.json(); })
 		.then(function(json) {
 			trendChart.data.labels = json.labels;
-			trendChart.data.datasets[0].data = json.revenue;
-			trendChart.data.datasets[1].data = json.expenses;
-			trendChart.data.datasets[2].data = json.profit;
+			trendChart.data.datasets[0].data = json.interest;
+			trendChart.data.datasets[1].data = json.penalty;
+			trendChart.data.datasets[2].data = json.fees;
+			trendChart.data.datasets[3].data = json.total;
 			trendChart.update();
+
+			var totals = { interest: 0, penalty: 0, fees: 0, total: 0 };
+			var rows = json.labels.map(function(label, i) {
+				totals.interest += json.interest[i];
+				totals.penalty  += json.penalty[i];
+				totals.fees     += json.fees[i];
+				totals.total    += json.total[i];
+
+				var previousTotal = i > 0 ? json.total[i - 1] : null;
+
+				return '<tr>' +
+					'<td class="pl-4">' + label + ' ' + @json($year) + '</td>' +
+					'<td class="text-right">' + money(json.interest[i]) + '</td>' +
+					'<td class="text-right">' + money(json.penalty[i]) + '</td>' +
+					'<td class="text-right">' + money(json.fees[i]) + '</td>' +
+					'<td class="text-right"><b>' + money(json.total[i]) + '</b></td>' +
+					'<td class="text-right pr-4">' + growthCell(json.total[i], previousTotal) + '</td>' +
+				'</tr>';
+			});
+
+			document.getElementById('monthlyBreakdownTableBody').innerHTML = rows.join('');
+			fillMoneyCell('monthlyBreakdownTotalInterest', totals.interest);
+			fillMoneyCell('monthlyBreakdownTotalPenalty', totals.penalty);
+			fillMoneyCell('monthlyBreakdownTotalFees', totals.fees);
+			fillMoneyCell('monthlyBreakdownTotalRevenue', totals.total);
 		});
 
 	// ---- Loan Portfolio Composition ----
@@ -379,29 +482,6 @@
 		options: {
 			responsive: true,
 			plugins: { legend: { position: 'bottom' } }
-		}
-	});
-
-	// ---- Expenses By Category ----
-	new Chart(document.getElementById('expenseChart').getContext('2d'), {
-		type: 'bar',
-		data: {
-			labels: [@foreach($expense_by_category as $row)@json($row->expense_category->name ?? _lang('Uncategorized')),@endforeach],
-			datasets: [{
-				label: @json(_lang('Amount')),
-				data: [@foreach($expense_by_category as $row){{ $row->total }},@endforeach],
-				backgroundColor: [@foreach($expense_by_category as $row)@json($row->expense_category->color ?? '#4d4dfd'),@endforeach],
-				borderRadius: 6
-			}]
-		},
-		options: {
-			indexAxis: 'y',
-			responsive: true,
-			plugins: {
-				legend: { display: false },
-				tooltip: { callbacks: { label: function(c) { return ' ' + money(c.parsed.x); } } }
-			},
-			scales: { x: { ticks: { callback: function(v) { return money(v); } } } }
 		}
 	});
 

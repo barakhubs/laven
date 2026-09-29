@@ -661,15 +661,72 @@ class ReportController extends Controller
 
         $data['total_revenue'] = $data['interest_income'] + $data['penalty_income'] + $data['other_fee_income'];
 
-        // ---- Expenses ----
-        $data['total_expenses'] = (float) Expense::sum('amount');
-        $data['net_profit']     = $data['total_revenue'] - $data['total_expenses'];
+        // ---- This calendar month, at a glance ----
+        $monthStart = Carbon::now()->startOfMonth();
+        $monthEnd   = Carbon::now()->endOfMonth();
 
-        $data['expense_by_category'] = Expense::selectRaw('expense_category_id, COALESCE(SUM(amount),0) as total')
-            ->with('expense_category')
-            ->groupBy('expense_category_id')
-            ->orderByDesc('total')
-            ->get();
+        $thisMonthPayments = LoanPayment::whereHas('loan', function (Builder $q) use ($baseCurrencyId) {
+            $q->where('currency_id', $baseCurrencyId);
+        })
+            ->forCurrentLoanDomain()
+            ->whereBetween('paid_at', [$monthStart->toDateString(), $monthEnd->toDateString() . ' 23:59:59'])
+            ->selectRaw('COALESCE(SUM(interest),0) as interest, COALESCE(SUM(late_penalties),0) as penalty')
+            ->first();
+
+        $thisMonthFees = (float) Transaction::where('charge', '>', 0)
+            ->where('status', 2)
+            ->whereHas('account.savings_type', function (Builder $q) use ($baseCurrencyId) {
+                $q->where('currency_id', $baseCurrencyId);
+            })
+            ->whereBetween('trans_date', [$monthStart->toDateString(), $monthEnd->toDateString() . ' 23:59:59'])
+            ->sum('charge');
+
+        $data['this_month_label']    = $monthStart->format('F Y');
+        $data['this_month_interest'] = (float) $thisMonthPayments->interest;
+        $data['this_month_penalty']  = (float) $thisMonthPayments->penalty;
+        $data['this_month_fees']     = $thisMonthFees;
+        $data['this_month_total']    = $data['this_month_interest'] + $data['this_month_penalty'] + $data['this_month_fees'];
+
+        // ---- Last calendar month, so "this month" can be read as up/down ----
+        $lastMonthStart = Carbon::now()->subMonthNoOverflow()->startOfMonth();
+        $lastMonthEnd   = Carbon::now()->subMonthNoOverflow()->endOfMonth();
+
+        $lastMonthPayments = LoanPayment::whereHas('loan', function (Builder $q) use ($baseCurrencyId) {
+            $q->where('currency_id', $baseCurrencyId);
+        })
+            ->forCurrentLoanDomain()
+            ->whereBetween('paid_at', [$lastMonthStart->toDateString(), $lastMonthEnd->toDateString() . ' 23:59:59'])
+            ->selectRaw('COALESCE(SUM(interest),0) as interest, COALESCE(SUM(late_penalties),0) as penalty')
+            ->first();
+
+        $lastMonthFees = (float) Transaction::where('charge', '>', 0)
+            ->where('status', 2)
+            ->whereHas('account.savings_type', function (Builder $q) use ($baseCurrencyId) {
+                $q->where('currency_id', $baseCurrencyId);
+            })
+            ->whereBetween('trans_date', [$lastMonthStart->toDateString(), $lastMonthEnd->toDateString() . ' 23:59:59'])
+            ->sum('charge');
+
+        $lastMonthInterest = (float) $lastMonthPayments->interest;
+        $lastMonthPenalty  = (float) $lastMonthPayments->penalty;
+        $lastMonthTotal    = $lastMonthInterest + $lastMonthPenalty + (float) $lastMonthFees;
+
+        $data['last_month_label'] = $lastMonthStart->format('F Y');
+        $data['last_month_total'] = $lastMonthTotal;
+
+        // Percentage change; null means "no baseline last month" rather than
+        // a misleading divide-by-zero result, so the view can show "New".
+        $pctChange = function ($current, $previous) {
+            if ($previous == 0) {
+                return $current > 0 ? null : 0;
+            }
+            return round((($current - $previous) / $previous) * 100, 1);
+        };
+
+        $data['mom_interest_pct'] = $pctChange($data['this_month_interest'], $lastMonthInterest);
+        $data['mom_penalty_pct']  = $pctChange($data['this_month_penalty'], $lastMonthPenalty);
+        $data['mom_fees_pct']     = $pctChange($data['this_month_fees'], (float) $lastMonthFees);
+        $data['mom_total_pct']    = $pctChange($data['this_month_total'], $lastMonthTotal);
 
         // ---- Still-outstanding / not-yet-collected money (unpaid schedule lines) ----
         $unpaidTotals = LoanRepayment::whereHas('loan', function (Builder $q) use ($baseCurrencyId) {
@@ -755,10 +812,10 @@ class ReportController extends Controller
     }
 
     /**
-     * JSON data source for the monthly Revenue vs Expenses vs Net Profit
-     * chart on the Financial Summary page. Kept as a light-weight ajax
-     * endpoint so the main page loads fast and the chart can be refreshed
-     * independently when the year filter changes.
+     * JSON data source for the monthly Interest / Penalties / Other Fees
+     * breakdown on the Financial Summary page. Kept as a light-weight ajax
+     * endpoint so the main page loads fast and the chart & table can be
+     * refreshed independently when the year filter changes.
      */
     public function financial_summary_monthly_trend(Request $request)
     {
@@ -766,9 +823,10 @@ class ReportController extends Controller
         $year           = $request->year ?: date('Y');
 
         $labels   = [];
-        $revenue  = [];
-        $expenses = [];
-        $profit   = [];
+        $interest = [];
+        $penalty  = [];
+        $fees     = [];
+        $total    = [];
 
         for ($m = 1; $m <= 12; $m++) {
             $start = Carbon::createFromDate($year, $m, 1)->startOfMonth();
@@ -778,9 +836,9 @@ class ReportController extends Controller
                 $q->where('currency_id', $baseCurrencyId);
             })
                 ->forCurrentLoanDomain()
-                ->whereBetween('paid_at', [$start->toDateString(), $end->toDateString()])
-                ->selectRaw('COALESCE(SUM(interest),0) + COALESCE(SUM(late_penalties),0) as amt')
-                ->value('amt');
+                ->whereBetween('paid_at', [$start->toDateString(), $end->toDateString() . ' 23:59:59'])
+                ->selectRaw('COALESCE(SUM(interest),0) as interest, COALESCE(SUM(late_penalties),0) as penalty')
+                ->first();
 
             $feeIncome = Transaction::where('charge', '>', 0)
                 ->where('status', 2)
@@ -790,23 +848,23 @@ class ReportController extends Controller
                 ->whereBetween('trans_date', [$start->toDateString(), $end->toDateString() . ' 23:59:59'])
                 ->sum('charge');
 
-            $monthlyExpense = Expense::whereBetween('expense_date', [$start->toDateString(), $end->toDateString() . ' 23:59:59'])
-                ->sum('amount');
-
-            $monthlyRevenue = round((float) $loanIncome + (float) $feeIncome, 2);
-            $monthlyExpense = round((float) $monthlyExpense, 2);
+            $monthInterest = round((float) $loanIncome->interest, 2);
+            $monthPenalty  = round((float) $loanIncome->penalty, 2);
+            $monthFees     = round((float) $feeIncome, 2);
 
             $labels[]   = $start->format('M');
-            $revenue[]  = $monthlyRevenue;
-            $expenses[] = $monthlyExpense;
-            $profit[]   = round($monthlyRevenue - $monthlyExpense, 2);
+            $interest[] = $monthInterest;
+            $penalty[]  = $monthPenalty;
+            $fees[]     = $monthFees;
+            $total[]    = round($monthInterest + $monthPenalty + $monthFees, 2);
         }
 
         return response()->json([
             'labels'   => $labels,
-            'revenue'  => $revenue,
-            'expenses' => $expenses,
-            'profit'   => $profit,
+            'interest' => $interest,
+            'penalty'  => $penalty,
+            'fees'     => $fees,
+            'total'    => $total,
         ]);
     }
 
