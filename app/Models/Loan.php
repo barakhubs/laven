@@ -160,7 +160,9 @@ class Loan extends Model {
      * of status, which could include cancelled loans).
      */
     public function scopeDisbursed(Builder $query) {
-        return $query->whereIn('status', [1, 2]);
+        // Qualified (loans.status) so it still works when the query joins
+        // another table with a status column, e.g. members.
+        return $query->whereIn($query->qualifyColumn('status'), [1, 2]);
     }
 
     public function getFirstPaymentDateAttribute($value) {
