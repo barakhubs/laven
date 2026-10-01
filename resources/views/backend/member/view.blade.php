@@ -181,7 +181,7 @@
                         @else
                             <div class="row mb-3">
                                 @foreach($savingsAccounts as $account)
-                                @php $bal = get_account_balance($account->id, $member->id); $blk = get_blocked_balance($account->id, $member->id); @endphp
+                                @php $avl = get_account_balance($account->id, $member->id); $blk = get_blocked_balance($account->id, $member->id); $res = get_loan_reserve_balance($account->id, $member->id); $bal = $avl + $blk + $res; @endphp
                                 <div class="col-md-6 mb-3">
                                     <div class="card border" style="border-left: 4px solid #28a745 !important;">
                                         <div class="card-body py-3">
@@ -198,15 +198,19 @@
                                             </div>
                                             <hr class="my-2">
                                             <div class="row text-center" style="font-size:12px;">
-                                                <div class="col-4">
+                                                <div class="col-3">
                                                     <p class="mb-0 text-muted">{{ _lang('Guarantee') }}</p>
                                                     <strong class="text-warning">{{ decimalPlace($blk, currency($account->savings_type->currency->name)) }}</strong>
                                                 </div>
-                                                <div class="col-4">
-                                                    <p class="mb-0 text-muted">{{ _lang('Available') }}</p>
-                                                    <strong class="text-success">{{ decimalPlace($bal - $blk, currency($account->savings_type->currency->name)) }}</strong>
+                                                <div class="col-3">
+                                                    <p class="mb-0 text-muted">{{ _lang('30% Reserve') }}</p>
+                                                    <strong class="text-info">{{ decimalPlace($res, currency($account->savings_type->currency->name)) }}</strong>
                                                 </div>
-                                                <div class="col-4">
+                                                <div class="col-3">
+                                                    <p class="mb-0 text-muted">{{ _lang('Available') }}</p>
+                                                    <strong class="text-success">{{ decimalPlace($avl, currency($account->savings_type->currency->name)) }}</strong>
+                                                </div>
+                                                <div class="col-3">
                                                     <p class="mb-0 text-muted">{{ _lang('Status') }}</p>
                                                     {!! xss_clean(status($account->status)) !!}
                                                 </div>
@@ -225,6 +229,7 @@
                                             <th>{{ _lang('Currency') }}</th>
                                             <th class="text-right">{{ _lang('Balance') }}</th>
                                             <th class="text-right">{{ _lang('Loan Guarantee') }}</th>
+                                            <th class="text-right">{{ _lang('30% Reserve') }}</th>
                                             <th class="text-right">{{ _lang('Available Balance') }}</th>
                                             <th class="text-center">{{ _lang('Status') }}</th>
                                             <th class="text-center">{{ _lang('Action') }}</th>
@@ -232,14 +237,15 @@
                                     </thead>
                                     <tbody>
                                         @foreach($savingsAccounts as $account)
-                                        @php $bal = get_account_balance($account->id, $member->id); $blk = get_blocked_balance($account->id, $member->id); @endphp
+                                        @php $avl = get_account_balance($account->id, $member->id); $blk = get_blocked_balance($account->id, $member->id); $res = get_loan_reserve_balance($account->id, $member->id); $bal = $avl + $blk + $res; @endphp
                                         <tr>
                                             <td><strong>{{ $account->account_number }}</strong></td>
                                             <td>{{ $account->savings_type->name }}</td>
                                             <td>{{ $account->savings_type->currency->name }}</td>
                                             <td class="text-right text-success font-weight-bold">{{ decimalPlace($bal, currency($account->savings_type->currency->name)) }}</td>
                                             <td class="text-right text-warning">{{ decimalPlace($blk, currency($account->savings_type->currency->name)) }}</td>
-                                            <td class="text-right text-primary font-weight-bold">{{ decimalPlace($bal - $blk, currency($account->savings_type->currency->name)) }}</td>
+                                            <td class="text-right text-info">{{ decimalPlace($res, currency($account->savings_type->currency->name)) }}</td>
+                                            <td class="text-right text-primary font-weight-bold">{{ decimalPlace($avl, currency($account->savings_type->currency->name)) }}</td>
                                             <td class="text-center">{!! xss_clean(status($account->status)) !!}</td>
                                             <td class="text-center">
                                                 <a href="{{ route('savings_accounts.show', $account->id) }}" class="btn btn-xs btn-outline-primary"><i class="ti-eye"></i></a>
@@ -252,7 +258,7 @@
                                         <tr>
                                             <th colspan="3">{{ _lang('Total') }}</th>
                                             <th class="text-right text-success">{{ decimalPlace($totalSavingsBalance) }}</th>
-                                            <th colspan="4"></th>
+                                            <th colspan="5"></th>
                                         </tr>
                                     </tfoot>
                                 </table>

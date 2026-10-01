@@ -135,9 +135,30 @@
                         </td>
                      </tr>
                      <tr>
-                        <td>{{ _lang("30% Savings Deposit") }}</td>
+                        <td>{{ _lang("30% Reserve") }}</td>
                         <td>
-                           {{ decimalPlace($loan->applied_amount * 0.3, currency($loan->currency->name)) }}
+                           {{ decimalPlace($reserve['target'], currency($loan->currency->name)) }}
+                           @if($reserve['used'] > 0)
+                           <br><small class="text-muted">{{ _lang('Used') }}: {{ decimalPlace($reserve['used'], currency($loan->currency->name)) }}</small>
+                           @endif
+                           @if($loan->status == 1)
+                           <br><small class="text-muted">{{ _lang('Locked in savings for the final installment(s)') }}: {{ decimalPlace($reserve['remaining'], currency($loan->currency->name)) }}</small>
+                           @if($reserve['available'] + 0.005 < $reserve['remaining'])
+                           <br><small class="text-danger">{{ _lang('Savings account only holds') }} {{ decimalPlace($reserve['available'], currency($loan->currency->name)) }}</small>
+                           @endif
+                           <br><strong>{{ _lang('Client must still pay') }}: {{ decimalPlace($reserve['client_must_pay'], currency($loan->currency->name)) }}</strong>
+                           @if(auth()->user()->isSuperAdmin())
+                           <form method="post" action="{{ route('loans.apply_reserve', $loan->id) }}" class="mt-2" onsubmit="return confirm('{{ _lang('Pay the remaining') }} {{ decimalPlace($reserve['owed']) }} {{ _lang('from the 30% reserve and close this loan?') }}');">
+                              {{ csrf_field() }}
+                              <button type="submit" class="btn btn-xs btn-success" {{ $reserve['can_apply'] ? '' : 'disabled' }}>
+                                 <i class="fas fa-piggy-bank mr-1"></i>{{ _lang('Apply 30% Reserve') }}
+                              </button>
+                              @if(! $reserve['can_apply'])
+                              <small class="text-muted d-block">{{ _lang('Available once the client has paid everything except what the reserve covers.') }}</small>
+                              @endif
+                           </form>
+                           @endif
+                           @endif
                         </td>
                      </tr>
                      <tr>
@@ -373,6 +394,8 @@
                            <th class="text-right">{{ _lang("Interest") }}</th>
                            <th class="text-right">{{ _lang("Late Penalty") }}</th>
                            <th class="text-right">{{ _lang("Balance") }}</th>
+                           <th class="text-right">{{ _lang("Client Pays") }}</th>
+                           <th class="text-right">{{ _lang("From 30% Reserve") }}</th>
                            <th class="text-center">{{ _lang("Status") }}</th>
                         </tr>
                      </thead>
@@ -397,6 +420,20 @@
                            </td>
                            <td class="text-right">
                               {{ decimalPlace($repayment['balance'], currency($loan->currency->name)) }}
+                           </td>
+                           @php
+                              $owedNow = $repayment['status'] == 0 ? \App\Services\LoanRepaymentService::due($repayment, date('Y-m-d'))['total'] : 0;
+                              $fromReserve = $reserveCoverage[$repayment->id] ?? 0;
+                           @endphp
+                           <td class="text-right">
+                              @if($repayment['status'] == 0)
+                              <strong>{{ decimalPlace(max(0, $owedNow - $fromReserve), currency($loan->currency->name)) }}</strong>
+                              @else
+                              -
+                              @endif
+                           </td>
+                           <td class="text-right text-info">
+                              {{ $fromReserve > 0 ? decimalPlace($fromReserve, currency($loan->currency->name)) : '-' }}
                            </td>
                            <td class="text-center">
                               @if($repayment['status'] == 0 && date('Y-m-d') > $repayment->getRawOriginal('repayment_date'))

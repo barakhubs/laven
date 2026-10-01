@@ -44,6 +44,7 @@
 										<option value="loan_application_fee">{{ _lang('Loan Application Fee') }}</option>
 										<option value="loan_processing_fee">{{ _lang('Loan Processing Fee') }}</option>
 										<option value="loan_savings">{{ _lang('Loan Savings Deposit') }}</option>
+										<option value="loan_savings_adjustment">{{ _lang('Loan Savings Correction') }}</option>
 										@foreach(App\Models\TransactionCategory::all() as $category)
 										<option value="{{ $category->name }}">{{ $category->name }}</option>
 										@endforeach

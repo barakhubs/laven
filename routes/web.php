@@ -237,6 +237,7 @@ Route::group(['middleware' => ['install']], function () {
                 Route::match(['get', 'post'], 'loans/approve/{id}', [LoanController::class, 'approve'])->name('loans.approve');
                 Route::get('loans/reject/{id}', [LoanController::class, 'reject'])->name('loans.reject');
                 Route::get('loans/filter/{status?}', [LoanController::class, 'index'])->name('loans.filter')->where('status', '[A-Za-z]+');
+                Route::post('loans/{id}/apply_reserve', [LoanController::class, 'apply_reserve'])->name('loans.apply_reserve');
                 Route::resource('loans', LoanController::class);
 
                 // Loan Collateral Controller

@@ -7,6 +7,7 @@ use App\Models\SavingsAccount;
 use App\Models\Transaction;
 use App\Notifications\LoanPaymentReceived;
 use App\Services\LoanRepaymentService;
+use App\Services\LoanReserveService;
 use DataTables;
 use DB;
 use Exception;
@@ -320,8 +321,9 @@ class LoanPaymentController extends Controller
             return response()->json(['installments' => [], 'accounts' => []]);
         }
 
-        $asOf    = $request->filled('paid_at') ? $request->paid_at : date('Y-m-d');
-        $arrears = LoanRepaymentService::arrears($loan, $asOf);
+        $asOf     = $request->filled('paid_at') ? $request->paid_at : date('Y-m-d');
+        $arrears  = LoanRepaymentService::arrears($loan, $asOf);
+        $coverage = LoanReserveService::coverage($loan, $arrears['installments']);
 
         $installments = array_map(fn ($due) => [
             'id'             => $due['repayment']->id,
@@ -332,6 +334,8 @@ class LoanPaymentController extends Controller
             'interest'       => $due['interest'],
             'principal'      => $due['principal'],
             'total'          => $due['total'],
+            'from_reserve'   => $coverage[$due['repayment']->id] ?? 0,
+            'client_pays'    => round($due['total'] - ($coverage[$due['repayment']->id] ?? 0), 2),
         ], $arrears['installments']);
 
         $plan = null;
@@ -354,6 +358,7 @@ class LoanPaymentController extends Controller
             'overdue'      => $arrears['overdue'],
             'owed'         => $arrears['owed'],
             'plan'         => $plan,
+            'reserve'      => LoanReserveService::status($loan, $asOf),
             'accounts'     => $accounts,
         ]);
     }

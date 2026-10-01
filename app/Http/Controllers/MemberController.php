@@ -406,7 +406,9 @@ class MemberController extends Controller {
             // Totals
             $totalSavingsBalance = 0;
             foreach ($savingsAccounts as $account) {
-                $totalSavingsBalance += get_account_balance($account->id, $id);
+                // Whole balance (shown under the Balance column): what's
+                // available plus what's held by guarantees and 30% reserves.
+                $totalSavingsBalance += get_account_balance($account->id, $id) + get_blocked_balance($account->id, $id) + get_loan_reserve_balance($account->id, $id);
             }
 
             $totalLoanApplied   = $loans->sum('applied_amount');

@@ -122,22 +122,35 @@ $(function() {
 				+ '<td class="text-right">' + money(inst.penalty) + '</td>'
 				+ '<td class="text-right">' + money(inst.interest) + '</td>'
 				+ '<td class="text-right">' + money(inst.principal) + '</td>'
-				+ '<td class="text-right font-weight-bold">' + money(inst.total) + '</td></tr>';
+				+ '<td class="text-right">' + money(inst.total) + '</td>'
+				+ '<td class="text-right text-info">' + (inst.from_reserve > 0 ? money(inst.from_reserve) : '-') + '</td>'
+				+ '<td class="text-right font-weight-bold">' + money(inst.client_pays) + '</td></tr>';
 		});
+
+		var clientOverdue = 0;
+		$.each(json.installments, function(i, inst) { if (inst.overdue) clientOverdue += inst.client_pays; });
 
 		$("#arrears").html(
 			'<label class="control-label">{{ _lang('Open Installments as of Payment Date') }}</label>'
 			+ '<div class="table-responsive"><table class="table table-sm table-bordered mb-2">'
 			+ '<thead><tr><th>{{ _lang('Due Date') }}</th><th class="text-right">{{ _lang('Days Late') }}</th><th class="text-right">{{ _lang('Penalty') }}</th>'
-			+ '<th class="text-right">{{ _lang('Interest') }}</th><th class="text-right">{{ _lang('Principal') }}</th><th class="text-right">{{ _lang('Owed') }}</th></tr></thead>'
+			+ '<th class="text-right">{{ _lang('Interest') }}</th><th class="text-right">{{ _lang('Principal') }}</th><th class="text-right">{{ _lang('Owed') }}</th>'
+			+ '<th class="text-right">{{ _lang('From 30% Reserve') }}</th><th class="text-right">{{ _lang('Client Pays') }}</th></tr></thead>'
 			+ '<tbody>' + rows + '</tbody>'
 			+ '<tfoot><tr class="text-danger font-weight-bold"><td colspan="2">' + json.overdue.count + ' {{ _lang('overdue') }}</td>'
 			+ '<td class="text-right">' + money(json.overdue.penalty) + '</td><td class="text-right">' + money(json.overdue.interest) + '</td>'
-			+ '<td class="text-right">' + money(json.overdue.principal) + '</td><td class="text-right">' + money(json.overdue.total) + '</td></tr>'
+			+ '<td class="text-right">' + money(json.overdue.principal) + '</td><td class="text-right">' + money(json.overdue.total) + '</td>'
+			+ '<td></td><td class="text-right">' + money(clientOverdue) + '</td></tr>'
 			+ '<tr class="font-weight-bold"><td colspan="2">{{ _lang('Whole loan') }}</td>'
 			+ '<td class="text-right">' + money(json.owed.penalty) + '</td><td class="text-right">' + money(json.owed.interest) + '</td>'
-			+ '<td class="text-right">' + money(json.owed.principal) + '</td><td class="text-right">' + money(json.owed.total) + '</td></tr></tfoot>'
+			+ '<td class="text-right">' + money(json.owed.principal) + '</td><td class="text-right">' + money(json.owed.total) + '</td>'
+			+ '<td class="text-right text-info">' + money(json.owed.total - json.reserve.client_must_pay) + '</td>'
+			+ '<td class="text-right">' + money(json.reserve.client_must_pay) + '</td></tr></tfoot>'
 			+ '</table></div>'
+			+ (json.reserve.remaining > 0
+				? '<p class="text-info mb-3">{{ _lang('The 30% reserve') }} (' + money(json.reserve.remaining) + ') {{ _lang('pays the final installment(s); the client must pay') }} ' + money(json.reserve.client_must_pay) + '. '
+					+ (json.reserve.can_apply ? '<strong>{{ _lang('The client has paid their share: apply the reserve from the loan page.') }}</strong>' : '') + '</p>'
+				: '')
 		);
 	}
 
@@ -201,8 +214,11 @@ $(function() {
 
 				if (resetFields) {
 					$("#late_penalties").val(json.owed.penalty.toFixed(2));
-					if ($("#total_amount").val() == '' && json.installments.length) {
-						var suggested = json.overdue.count > 0 ? json.overdue.total : json.installments[0].total;
+					if ($("#total_amount").val() == '' && json.installments.length && json.reserve.client_must_pay > 0) {
+						// Suggest the client's share only; the 30% reserve pays the end of the loan.
+						var overdueShare = 0;
+						$.each(json.installments, function(i, inst) { if (inst.overdue) overdueShare += inst.client_pays; });
+						var suggested = overdueShare > 0 ? overdueShare : json.installments[0].client_pays;
 						$("#total_amount").val(parseFloat(suggested).toFixed(2));
 					}
 					refresh(false, false);

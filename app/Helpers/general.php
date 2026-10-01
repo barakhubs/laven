@@ -1070,7 +1070,22 @@ if (! function_exists('get_account_balance')) {
 	    AND member_id = $member_id AND savings_account_id = $account_id AND status = 2) - (SELECT COALESCE(SUM(amount),0) FROM transactions
 	    WHERE dr_cr = 'dr' AND member_id = $member_id AND savings_account_id = $account_id AND status != 1)) as balance");
 
-        return $result[0]->balance - $blockedAmount;
+        // The 30% reserve of each active loan linked to this account is
+        // locked until an admin uses it for the loan's final installments.
+        $reservedAmount = \App\Services\LoanReserveService::lockedOnAccount($account_id, $member_id);
+
+        return $result[0]->balance - $blockedAmount - $reservedAmount;
+    }
+}
+
+if (! function_exists('get_loan_reserve_balance')) {
+
+    /**
+     * 30% loan reserve locked on a savings account (see LoanReserveService).
+     */
+    function get_loan_reserve_balance($account_id, $member_id)
+    {
+        return \App\Services\LoanReserveService::lockedOnAccount($account_id, $member_id);
     }
 }
 

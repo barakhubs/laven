@@ -352,8 +352,46 @@ class LoanController extends Controller {
 
         $payments = LoanPayment::where('loan_id', $loan->id)->orderBy('id', 'desc')->get();
 
-        return view('backend.loan.view', compact('loan', 'loancollaterals', 'repayments', 'payments', 'guarantors', 'customFields'));
+        // 30% reserve: how much of each open installment it will cover
+        // (from the last one backwards) and whether it can be used yet.
+        $reserve         = \App\Services\LoanReserveService::status($loan, date('Y-m-d'));
+        $reserveCoverage = $loan->status == 1
+            ? \App\Services\LoanReserveService::coverage($loan, \App\Services\LoanRepaymentService::arrears($loan, date('Y-m-d'))['installments'])
+            : [];
 
+        return view('backend.loan.view', compact('loan', 'loancollaterals', 'repayments', 'payments', 'guarantors', 'customFields', 'reserve', 'reserveCoverage'));
+
+    }
+
+    /**
+     * Use the loan's 30% reserve to clear its remaining installments. Only
+     * allowed once the client has paid everything except what it covers.
+     */
+    public function apply_reserve($id) {
+        if (! auth()->user()->isSuperAdmin()) {
+            abort(403, 'Only Super Admins can add loan repayments.');
+        }
+
+        DB::beginTransaction();
+
+        $loan = Loan::lockForUpdate()->findOrFail($id);
+
+        try {
+            $loanpayment = \App\Services\LoanReserveService::apply($loan, date('Y-m-d'));
+        } catch (\InvalidArgumentException $e) {
+            DB::rollBack();
+            return back()->with('error', $e->getMessage());
+        }
+
+        DB::commit();
+
+        \App\Utilities\CreditScoreCalculator::recalculate($loan);
+
+        try {
+            $loanpayment->member->notify(new \App\Notifications\LoanPaymentReceived($loanpayment));
+        } catch (\Exception $e) {}
+
+        return redirect()->route('loans.show', $loan->id)->with('success', _lang('Remaining installments paid from the 30% reserve'));
     }
 
     /**
@@ -447,7 +485,7 @@ class LoanController extends Controller {
         // savings account rather than handed out with the rest of the
         // disbursement. This does not change what the borrower owes — the
         // repayment schedule above is still built on the full applied_amount.
-        $savingsAmount   = round($loan->applied_amount * 0.3, 2);
+        $savingsAmount   = \App\Services\LoanReserveService::target($loan);
         $disbursedAmount = $loan->applied_amount - $savingsAmount;
 
         if ($request->account_id != 'cash') {
