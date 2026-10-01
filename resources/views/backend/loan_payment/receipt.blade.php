@@ -18,7 +18,9 @@
         @page { margin: 0; }
         * { box-sizing: border-box; }
         html, body { margin: 0; padding: 0; background: #fff; color: #000; }
-        body { width: 48mm; margin: 0 auto; padding: 2mm 0 6mm; font-family: Arial, Helvetica, sans-serif; font-size: 11px; line-height: 1.3; }
+        /* The head prints 48mm; keep 3mm clear each side so nothing on the
+           right gets cut off if the page lands a little off-centre. */
+        body { width: 48mm; margin: 0 auto; padding: 2mm 3mm 6mm; font-family: Arial, Helvetica, sans-serif; font-size: 11px; line-height: 1.3; }
         .center { text-align: center; }
         .company { font-size: 14px; font-weight: bold; }
         .title { font-size: 12px; font-weight: bold; margin-top: 1mm; }
@@ -64,14 +66,17 @@
     </table>
 
     @if($loanpayment->allocations->count() > 0)
+    {{-- Which scheduled installment(s) this money went to, and whether each is now fully paid. --}}
     <div class="rule"></div>
-    <div class="small"><strong>{{ _lang('Installments') }}</strong></div>
+    <div class="small"><strong>{{ _lang('Applied to installment due') }}</strong></div>
     <table class="small">
         @foreach($loanpayment->allocations as $allocation)
         <tr>
             <td>{{ $allocation->repayment->exists ? $allocation->repayment->repayment_date : '-' }}</td>
             <td class="r">{{ decimalPlace($allocation->penalty + $allocation->interest + $allocation->principal, $cur) }}</td>
-            <td class="r">{{ $allocation->repayment->status == 1 ? _lang('Cleared') : _lang('Part') }}</td>
+        </tr>
+        <tr>
+            <td colspan="2" class="r">{{ $allocation->repayment->status == 1 ? _lang('Fully paid') : _lang('Still part owed') }}</td>
         </tr>
         @endforeach
     </table>
