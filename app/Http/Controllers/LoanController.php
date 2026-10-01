@@ -391,7 +391,8 @@ class LoanController extends Controller {
             $loanpayment->member->notify(new \App\Notifications\LoanPaymentReceived($loanpayment));
         } catch (\Exception $e) {}
 
-        return redirect()->route('loans.show', $loan->id)->with('success', _lang('Remaining installments paid from the 30% reserve'));
+        return redirect()->route('loan_payments.receipt', [$loanpayment->id, 'next' => route('loans.show', $loan->id)])
+            ->with('success', _lang('Remaining installments paid from the 30% reserve'));
     }
 
     /**

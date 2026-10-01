@@ -290,7 +290,9 @@ class LoanPaymentController extends Controller
             $loanpayment->member->notify(new LoanPaymentReceived($loanpayment));
         } catch (Exception $e) {}
 
-        return redirect()->route('loan_payments.index')->with('success', _lang('Loan Payment Made Sucessfully'));
+        // Print the receipt straight away, then come back to the list.
+        return redirect()->route('loan_payments.receipt', [$loanpayment->id, 'next' => route('loan_payments.index')])
+            ->with('success', _lang('Loan Payment Made Sucessfully'));
     }
 
     /**
@@ -307,6 +309,30 @@ class LoanPaymentController extends Controller
         } else {
             return view('backend.loan_payment.modal.view', compact('loanpayment', 'id'));
         }
+    }
+
+    /**
+     * 58mm thermal receipt. Prints itself on load (silently when Chrome runs
+     * with --kiosk-printing) and then goes to ?next=, or back.
+     */
+    public function receipt(Request $request, $id)
+    {
+        $loanpayment = LoanPayment::forCurrentLoanDomain()->with(['loan.borrower', 'loan.currency', 'allocations.repayment', 'transaction'])->findOrFail($id);
+        $loan        = $loanpayment->loan;
+
+        // Only follow next= within this site.
+        $next = $request->query('next');
+        if (! $next || ! str_starts_with($next, url('/'))) {
+            $next = route('loan_payments.show', $loanpayment->id);
+        }
+
+        // Keep the "payment made" message for the page we go back to.
+        session()->reflash();
+
+        $owed    = LoanRepaymentService::arrears($loan, $loanpayment->getRawOriginal('paid_at'))['owed'];
+        $reserve = LoanReserveService::status($loan, $loanpayment->getRawOriginal('paid_at'));
+
+        return view('backend.loan_payment.receipt', compact('loanpayment', 'loan', 'next', 'owed', 'reserve'));
     }
 
     /**

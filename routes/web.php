@@ -250,6 +250,7 @@ Route::group(['middleware' => ['install']], function () {
                 // Loan Payment Controller
                 Route::get('loan_payments/get_repayment_by_loan_id/{loan_id}', [LoanPaymentController::class, 'get_repayment_by_loan_id']);
                 Route::get('loan_payments/get_table_data', [LoanPaymentController::class, 'get_table_data']);
+                Route::get('loan_payments/{id}/receipt', [LoanPaymentController::class, 'receipt'])->name('loan_payments.receipt');
                 Route::resource('loan_payments', LoanPaymentController::class);
 
                 // Bank Accounts

@@ -13,7 +13,7 @@
 					</button>
 					<div class="dropdown-menu">
 						<a class="dropdown-item print print-1" href="#" data-print="receipt" data-title="{{ _lang('Loan Payment Receipt') }}"><i class="fas fa-print mr-2"></i>{{ _lang('Print') }}</a>
-						<a class="dropdown-item print print-2" href="#" data-print="pos-receipt" data-title="{{ _lang('Loan Payment Receipt') }}"><i class="fas fa-print mr-2"></i>{{ _lang('POS Print') }}</a>
+						<a class="dropdown-item print-2" href="{{ route('loan_payments.receipt', [$loanpayment->id, 'next' => url()->current()]) }}" data-title="{{ _lang('Loan Payment Receipt') }}"><i class="fas fa-print mr-2"></i>{{ _lang('POS Print (58mm)') }}</a>
 					</div>
 				</div>		
 			</div>
