@@ -16,26 +16,28 @@ class AddPaidColumnsToLoanRepaymentsTable extends Migration
 {
     public function up()
     {
+        // hasColumn guards make a re-run safe if a failed deploy left some
+        // of the columns behind.
         Schema::table('loan_repayments', function (Blueprint $table) {
-            $table->decimal('penalty_paid', 10, 2)->default(0)->after('balance');
-            $table->decimal('interest_paid', 10, 2)->default(0)->after('penalty_paid');
-            $table->decimal('principal_paid', 10, 2)->default(0)->after('interest_paid');
+            if (! Schema::hasColumn('loan_repayments', 'penalty_paid')) {
+                $table->decimal('penalty_paid', 10, 2)->default(0);
+            }
+            if (! Schema::hasColumn('loan_repayments', 'interest_paid')) {
+                $table->decimal('interest_paid', 10, 2)->default(0);
+            }
+            if (! Schema::hasColumn('loan_repayments', 'principal_paid')) {
+                $table->decimal('principal_paid', 10, 2)->default(0);
+            }
         });
 
         // Every installment closed so far was closed by a single payment that
-        // cleared its interest and principal in full.
+        // cleared its interest and principal in full. Plain correlated
+        // subquery so this runs on both MySQL and PostgreSQL.
         DB::table('loan_repayments')->where('status', 1)->update([
             'interest_paid'  => DB::raw('interest'),
             'principal_paid' => DB::raw('principal_amount'),
+            'penalty_paid'   => DB::raw('(SELECT COALESCE(SUM(loan_payments.late_penalties), 0) FROM loan_payments WHERE loan_payments.repayment_id = loan_repayments.id)'),
         ]);
-
-        DB::statement('
-            UPDATE loan_repayments r
-            JOIN (SELECT repayment_id, SUM(late_penalties) AS penalty FROM loan_payments GROUP BY repayment_id) p
-                ON p.repayment_id = r.id
-            SET r.penalty_paid = p.penalty
-            WHERE r.status = 1
-        ');
     }
 
     public function down()
