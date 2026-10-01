@@ -97,12 +97,17 @@ class CreditScoreService
                 }
 
                 if ((int) $schedule->status === 1) {
+                    // cleared_at is when the installment was fully paid (a
+                    // payment can clear several, oldest first); older rows
+                    // fall back to the payment recorded against them.
                     $payment = $paymentsByRepayment->get($schedule->id);
-                    if (! $payment) {
+                    if ($schedule->cleared_at) {
+                        $paidAt = Carbon::parse($schedule->cleared_at)->startOfDay();
+                    } else if ($payment) {
+                        $paidAt = Carbon::parse($payment->getRawOriginal('paid_at'))->startOfDay();
+                    } else {
                         continue;
                     }
-
-                    $paidAt = Carbon::parse($payment->getRawOriginal('paid_at'))->startOfDay();
                     if ($paidAt->gt($asOf)) {
                         continue; // paid after the evaluation date - as of that date it wasn't paid yet
                     }

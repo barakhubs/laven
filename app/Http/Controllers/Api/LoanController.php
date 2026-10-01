@@ -86,6 +86,8 @@ class LoanController extends ApiController
                 'interest_paid'    => (float) $r->interest_paid,
                 'principal_paid'   => (float) $r->principal_paid,
                 'penalty_paid'     => (float) $r->penalty_paid,
+                'penalty_waived'   => (float) $r->penalty_waived,
+                'cleared_at'       => $r->cleared_at,
                 'status'           => $r->status ?? 0,
             ]);
 
@@ -101,9 +103,10 @@ class LoanController extends ApiController
      * Body:
      *   account_id   — savings account ID to debit (or "cash")
      *   amount       — principal amount being paid (optional, defaults to next due amount);
-     *                  late penalty and interest still owed are added on top
-     *   total_amount — cash received (optional, overrides amount). Applied penalty →
-     *                  interest → principal; less than penalty + interest is a part payment
+     *                  the next installment's late penalty and interest are added on top
+     *   total_amount — cash received (optional, overrides amount). Clears the oldest
+     *                  installment first (penalty → interest → principal), any balance
+     *                  goes to the next; may be any amount up to what the loan owes
      */
     public function pay(Request $request, $id)
     {
@@ -158,32 +161,24 @@ class LoanController extends ApiController
         DB::beginTransaction();
 
         try {
-            // Lock the loan and its next unpaid installment so two concurrent
-            // payments can't both read the same total_paid.
-            $loan = Loan::where('id', $loan->id)->lockForUpdate()->first();
-
-            $repayment = LoanRepayment::where('loan_id', $loan->id)
-                ->where('status', 0)
-                ->orderBy('id', 'asc')
-                ->lockForUpdate()
-                ->first();
-
-            if (!$repayment) {
-                DB::rollBack();
-                return $this->error('No outstanding repayments found for this loan.', 'NO_REPAYMENT', [], 422);
-            }
-
+            // Lock the loan so two concurrent payments can't both read the
+            // same total_paid; apply() locks the installments.
+            $loan  = Loan::where('id', $loan->id)->lockForUpdate()->first();
             $today = now()->toDateString();
-            $due   = LoanRepaymentService::due($repayment, $today);
 
-            // total_amount is the cash received (may be a part payment);
-            // amount is the principal portion, with penalty + interest due
-            // added on top.
+            // total_amount is the cash received (any amount up to what the
+            // loan owes). amount is the older parameter: that much principal
+            // on top of the next installment's penalty + interest.
             if ($request->filled('total_amount')) {
                 $totalAmount = round((float) $request->total_amount, 2);
             } else {
-                $principalAmount = $request->has('amount') ? (float) $request->amount : $due['principal'];
-                $totalAmount     = round($principalAmount + $due['penalty'] + $due['interest'], 2);
+                $next = LoanRepaymentService::arrears($loan, $today)['installments'][0] ?? null;
+                if (!$next) {
+                    DB::rollBack();
+                    return $this->error('No outstanding repayments found for this loan.', 'NO_REPAYMENT', [], 422);
+                }
+                $principalAmount = $request->has('amount') ? (float) $request->amount : $next['principal'];
+                $totalAmount     = round($principalAmount + $next['penalty'] + $next['interest'], 2);
             }
 
             if ($totalAmount <= 0) {
@@ -224,10 +219,15 @@ class LoanController extends ApiController
                 $debit->save();
             }
 
-            $loanPayment = LoanRepaymentService::apply($loan, $repayment, $totalAmount, $today, null, [
-                'remarks'        => $request->remarks ?? 'Paid via mobile app',
-                'transaction_id' => $debit?->id,
-            ]);
+            try {
+                $loanPayment = LoanRepaymentService::apply($loan, $totalAmount, $today, null, [
+                    'remarks'        => $request->remarks ?? 'Paid via mobile app',
+                    'transaction_id' => $debit?->id,
+                ]);
+            } catch (\InvalidArgumentException $e) {
+                DB::rollBack();
+                return $this->error($e->getMessage(), 'VALIDATION_ERROR', [], 422);
+            }
 
             DB::commit();
 

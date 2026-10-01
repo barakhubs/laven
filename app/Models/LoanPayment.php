@@ -25,6 +25,13 @@ class LoanPayment extends Model {
         return $this->belongsTo('App\Models\Member', 'member_id')->withDefault();
     }
 
+    /**
+     * What this payment put on each installment (oldest first).
+     */
+    public function allocations() {
+        return $this->hasMany('App\Models\LoanPaymentAllocation', 'loan_payment_id')->orderBy('loan_repayment_id');
+    }
+
     public function transaction() {
         return $this->belongsTo('App\Models\Transaction', 'transaction_id')->withDefault();
     }

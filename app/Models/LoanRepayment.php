@@ -60,8 +60,8 @@ class LoanRepayment extends Model {
 
     /**
      * Late penalty still owed on this installment as of $asOf: the daily
-     * rate (stored in `penalty`) times days overdue, less whatever earlier
-     * partial payments on this installment already covered.
+     * rate (stored in `penalty`) times days overdue, less what earlier
+     * payments on this installment covered and what staff waived.
      */
     public function penaltyDue($asOf): float
     {
@@ -69,7 +69,7 @@ class LoanRepayment extends Model {
         $asOf    = \Carbon\Carbon::parse($asOf)->startOfDay();
         $days    = $asOf->gt($dueDate) ? (int) $dueDate->diffInDays($asOf) : 0;
 
-        return max(0, round($days * (float) $this->penalty - (float) $this->penalty_paid, 2));
+        return max(0, round($days * (float) $this->penalty - (float) $this->penalty_paid - (float) $this->penalty_waived, 2));
     }
 
     public function getInterestDueAttribute(): float

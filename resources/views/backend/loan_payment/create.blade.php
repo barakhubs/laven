@@ -31,54 +31,27 @@
 							</div>
 						</div>
 
-						<div class="col-lg-6">
-							<div class="form-group">
-								<label class="control-label">{{ _lang('Due Repayment Date') }}</label>						
-								<select class="form-control" name="due_amount_of" id="due_amount_of" required>
-								</select>
-							</div>
-						</div>
-
-						<div class="col-lg-6">
-							<div class="form-group">
-								<label class="control-label">{{ _lang('Late Penalties').' ( '._lang('It will apply if payment date is over') }} )</label>						
-								<div class="input-group">
-									<input type="text" class="form-control float-field" name="late_penalties" id="late_penalties" value="{{ old('late_penalties',0) }}">
-									<div class="input-group-append">
-										<span class="input-group-text currency"></span>
-									</div>
-								</div>
-							</div>
-						</div>
-
-						<div class="col-lg-6">
-							<div class="form-group">
-								<label class="control-label">{{ _lang('Principal Amount') }}</label>						
-								<div class="input-group">
-									<input type="text" class="form-control float-field" name="principal_amount" id="principal_amount" value="{{ old('principal_amount') }}" required>
-									<div class="input-group-append">
-										<span class="input-group-text currency"></span>
-									</div>
-								</div>
-							</div>
-						</div>
-
-						<div class="col-lg-6">
-							<div class="form-group">
-								<label class="control-label">{{ _lang('Interest') }}</label>						
-								<div class="input-group">
-									<input type="text" class="form-control float-field" name="interest" id="interest" value="{{ old('interest') }}" readonly="true" required>
-									<div class="input-group-append">
-										<span class="input-group-text currency"></span>
-									</div>
-								</div>
-							</div>
-						</div>
-
 						<div class="col-lg-12">
+							<div id="arrears"></div>
+						</div>
+
+						<div class="col-lg-6">
 							<div class="form-group">
-								<label class="control-label">{{ _lang('Debit Account') }}</label>						
-								<select class="form-control auto-select select2" data-selected="{{ old('loan_id', 'cash') }}" id="account_id" name="account_id" required>
+								<label class="control-label">{{ _lang('Late Penalties to Charge') }}</label>
+								<div class="input-group">
+									<input type="text" class="form-control float-field" name="late_penalties" id="late_penalties" value="{{ old('late_penalties') }}">
+									<div class="input-group-append">
+										<span class="input-group-text currency"></span>
+									</div>
+								</div>
+								<small class="form-text text-muted">{{ _lang('All penalty owed as of the payment date. Lower it to waive the difference; the waiver is recorded with this payment.') }}</small>
+							</div>
+						</div>
+
+						<div class="col-lg-6">
+							<div class="form-group">
+								<label class="control-label">{{ _lang('Debit Account') }}</label>
+								<select class="form-control auto-select select2" data-selected="{{ old('account_id', 'cash') }}" id="account_id" name="account_id" required>
 									<option value="cash">{{ _lang('Cash Amount') }}</option>
 								</select>
 							</div>
@@ -86,16 +59,19 @@
 
 						<div class="col-lg-12">
 							<div class="form-group">
-								<label class="control-label">{{ _lang('Amount Received') }}</label>						
+								<label class="control-label">{{ _lang('Amount Received') }}</label>
 								<div class="input-group">
 									<input type="text" class="form-control float-field" name="total_amount" id="total_amount" value="{{ old('total_amount') }}" required>
 									<div class="input-group-append">
 										<span class="input-group-text currency"></span>
 									</div>
 								</div>
-								<small class="form-text text-muted">{{ _lang('Applied to late penalties first, then interest, then principal. If it does not cover the penalties and interest, the installment stays open with the balance still owed.') }}</small>
-								<small class="form-text text-info" id="allocation_preview"></small>
+								<small class="form-text text-muted">{{ _lang('Record each payment exactly as received. It clears the oldest installment first (penalty, then interest, then principal) and any balance moves on to the next one.') }}</small>
 							</div>
+						</div>
+
+						<div class="col-lg-12">
+							<div id="allocation_preview"></div>
 						</div>
 
 						<div class="col-lg-12">
@@ -120,106 +96,147 @@
 
 @section('js-script')
 <script>
-	$(function() {
+$(function() {
 
 	"use strict";
 
-	$(document).on('change','#loan_id',function(){
+	var lookupUrl = "{{ url('admin/loan_payments/get_repayment_by_loan_id') }}/";
+	var keepOldInput = {{ old('loan_id') ? 'true' : 'false' }};
+	var previewTimer = null;
 
-		var user_id = $(this).find(':selected').data('user-id');
-		var currency = $(this).find(':selected').data('currency');
-		var loan_id = $(this).val();
+	function money(value) {
+		return parseFloat(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+	}
 
-		if( loan_id != '' ){
-			$.ajax({
-				url: "{{ url('admin/loan_payments/get_repayment_by_loan_id') }}/" + loan_id,
-				beforeSend: function(){
-					$("#preloader").css("display","block"); 
-				},success: function(data){
-					$("#preloader").css("display","none");
-					var json = JSON.parse(data);
-					$("#due_amount_of").find('option').remove();
-					$("#due_amount_of").append("<option value=''>{{ _lang('Select One') }}</option>");
-
-					jQuery.each(json['repayments'], function( i, val ) {
-						$("#due_amount_of").append("<option value='" + val.id + "' data-penalty='" + val.penalty + "' data-principle-amount='" + Math.max(0, val.principal_amount - val.principal_paid) + "' data-penalty-paid='" + val.penalty_paid + "' data-repayment-date='"+ val.raw_repayment_date +"' data-interest='" + Math.max(0, val.interest - val.interest_paid) + "'>" + val.repayment_date + "</option>");
-					});
-
-					$("#account_id").find('option').remove();
-					$("#account_id").append("<option value='cash'>{{ _lang('Cash Amount') }}</option>");
-					jQuery.each(json['accounts'], function( i, account ) {
-						$("#account_id").append(`<option value="${account.id}">${account.account_number} (${account.savings_type.name} - ${account.savings_type.currency.name})</option>`);
-					});
-
-				}
-			});
-
-			$(".currency").html(currency);
-		}
-	});
-
-	$(document).on('change','#due_amount_of',function(){
-		if($("#paid_at").val() == ''){
-			alert("Please Select Payment date first");
-			$(this).val('');
+	function renderArrears(json) {
+		if (! json.installments.length) {
+			$("#arrears").html('<div class="alert alert-success">{{ _lang('This loan has nothing left to pay.') }}</div>');
 			return;
 		}
 
-		var repayment_date = $(this).find(':selected').data('repayment-date');
-		var penalty = parseFloat($(this).find(':selected').data('penalty'));
-		var principal_amount = $(this).find(':selected').data('principle-amount');
-		var interest = $(this).find(':selected').data('interest');
+		var rows = '';
+		$.each(json.installments, function(i, inst) {
+			rows += '<tr class="' + (inst.overdue ? 'text-danger' : '') + '">'
+				+ '<td>' + inst.repayment_date + '</td>'
+				+ '<td class="text-right">' + (inst.overdue ? inst.days_late : '-') + '</td>'
+				+ '<td class="text-right">' + money(inst.penalty) + '</td>'
+				+ '<td class="text-right">' + money(inst.interest) + '</td>'
+				+ '<td class="text-right">' + money(inst.principal) + '</td>'
+				+ '<td class="text-right font-weight-bold">' + money(inst.total) + '</td></tr>';
+		});
 
-		var penalty_paid = parseFloat($(this).find(':selected').data('penalty-paid')) || 0;
-		var dueDays = moment($("#paid_at").val()).diff( moment(repayment_date), 'days');
-
-		$("#principal_amount").val(principal_amount);
-		$("#interest").val(interest);
-		$("#late_penalties").val(dueDays > 0 ? Math.max(0, (penalty * dueDays - penalty_paid)).toFixed(2) : 0);
-
-		update_total();
-	});
-
-	function amount_of(selector){
-		var value = parseFloat($(selector).val());
-		return isNaN(value) ? 0 : value;
+		$("#arrears").html(
+			'<label class="control-label">{{ _lang('Open Installments as of Payment Date') }}</label>'
+			+ '<div class="table-responsive"><table class="table table-sm table-bordered mb-2">'
+			+ '<thead><tr><th>{{ _lang('Due Date') }}</th><th class="text-right">{{ _lang('Days Late') }}</th><th class="text-right">{{ _lang('Penalty') }}</th>'
+			+ '<th class="text-right">{{ _lang('Interest') }}</th><th class="text-right">{{ _lang('Principal') }}</th><th class="text-right">{{ _lang('Owed') }}</th></tr></thead>'
+			+ '<tbody>' + rows + '</tbody>'
+			+ '<tfoot><tr class="text-danger font-weight-bold"><td colspan="2">' + json.overdue.count + ' {{ _lang('overdue') }}</td>'
+			+ '<td class="text-right">' + money(json.overdue.penalty) + '</td><td class="text-right">' + money(json.overdue.interest) + '</td>'
+			+ '<td class="text-right">' + money(json.overdue.principal) + '</td><td class="text-right">' + money(json.overdue.total) + '</td></tr>'
+			+ '<tr class="font-weight-bold"><td colspan="2">{{ _lang('Whole loan') }}</td>'
+			+ '<td class="text-right">' + money(json.owed.penalty) + '</td><td class="text-right">' + money(json.owed.interest) + '</td>'
+			+ '<td class="text-right">' + money(json.owed.principal) + '</td><td class="text-right">' + money(json.owed.total) + '</td></tr></tfoot>'
+			+ '</table></div>'
+		);
 	}
 
-	// Principal (or penalty) edited: Amount Received follows.
-	function update_total(){
-		$("#total_amount").val((amount_of('#principal_amount') + amount_of('#interest') + amount_of('#late_penalties')).toFixed(2));
-		show_allocation();
-	}
-
-	// Mirrors LoanRepaymentService::apply — penalty, then interest, then principal.
-	function show_allocation(){
-		var remaining = amount_of('#total_amount');
-		var penalty   = Math.min(remaining, amount_of('#late_penalties')); remaining -= penalty;
-		var interest  = Math.min(remaining, amount_of('#interest')); remaining -= interest;
-
-		var text = "{{ _lang('Penalty') }}: " + penalty.toFixed(2) + " | {{ _lang('Interest') }}: " + interest.toFixed(2) + " | {{ _lang('Principal') }}: " + remaining.toFixed(2);
-		if (amount_of('#total_amount') + 0.005 < amount_of('#late_penalties') + amount_of('#interest')) {
-			text += " — {{ _lang('partial payment, installment stays open') }}";
+	function renderPlan(plan) {
+		if (! plan) {
+			$("#allocation_preview").html('');
+			return;
 		}
-		$("#allocation_preview").text(text);
+
+		var rows = '';
+		$.each(plan.lines, function(i, line) {
+			rows += '<tr><td>' + line.repayment_date + '</td>'
+				+ '<td class="text-right">' + (line.penalty_waived > 0 ? money(line.penalty_waived) : '-') + '</td>'
+				+ '<td class="text-right">' + money(line.penalty) + '</td>'
+				+ '<td class="text-right">' + money(line.interest) + '</td>'
+				+ '<td class="text-right">' + money(line.principal) + '</td>'
+				+ '<td>' + (line.closes ? '<span class="badge badge-success">{{ _lang('Cleared') }}</span>' : '<span class="badge badge-warning">{{ _lang('Still owes') }}</span>') + '</td></tr>';
+		});
+
+		var warning = plan.unallocated > 0
+			? '<div class="alert alert-danger mb-2">' + money(plan.unallocated) + ' {{ _lang('more than the loan still owes. Reduce the amount.') }}</div>'
+			: '';
+
+		$("#allocation_preview").html(
+			warning
+			+ '<label class="control-label">{{ _lang('This Payment Will Cover') }}</label>'
+			+ '<div class="table-responsive"><table class="table table-sm table-bordered">'
+			+ '<thead><tr><th>{{ _lang('Due Date') }}</th><th class="text-right">{{ _lang('Penalty Waived') }}</th><th class="text-right">{{ _lang('Penalty') }}</th>'
+			+ '<th class="text-right">{{ _lang('Interest') }}</th><th class="text-right">{{ _lang('Principal') }}</th><th></th></tr></thead>'
+			+ '<tbody>' + rows + '</tbody></table></div>'
+		);
 	}
 
-	$(document).on('keyup','#late_penalties, #principal_amount', update_total);
+	// resetFields: a different loan or date was picked, so refill the penalty
+	// (and the amount, if empty) from what is owed; otherwise just preview.
+	function refresh(resetFields, reloadAccounts) {
+		var loan_id = $("#loan_id").val();
+		if (loan_id == '') {
+			$("#arrears, #allocation_preview").html('');
+			return;
+		}
 
-	// Amount Received edited: principal is whatever is left after penalty and interest.
-	$(document).on('keyup','#total_amount',function(){
-		$("#principal_amount").val(Math.max(0, amount_of('#total_amount') - amount_of('#late_penalties') - amount_of('#interest')).toFixed(2));
-		show_allocation();
+		$.ajax({
+			url: lookupUrl + loan_id,
+			data: {
+				paid_at: $("#paid_at").val(),
+				amount: resetFields ? '' : $("#total_amount").val(),
+				late_penalties: resetFields ? '' : $("#late_penalties").val()
+			},
+			success: function(json) {
+				if (reloadAccounts) {
+					var selected = $("#account_id").val();
+					$("#account_id").find('option').not('[value="cash"]').remove();
+					$.each(json.accounts, function(i, account) {
+						$("#account_id").append(`<option value="${account.id}">${account.account_number} (${account.savings_type.name} - ${account.savings_type.currency.name})</option>`);
+					});
+					$("#account_id").val(selected).trigger('change.select2');
+				}
+
+				renderArrears(json);
+
+				if (resetFields) {
+					$("#late_penalties").val(json.owed.penalty.toFixed(2));
+					if ($("#total_amount").val() == '' && json.installments.length) {
+						var suggested = json.overdue.count > 0 ? json.overdue.total : json.installments[0].total;
+						$("#total_amount").val(parseFloat(suggested).toFixed(2));
+					}
+					refresh(false, false);
+				} else {
+					renderPlan(json.plan);
+				}
+			}
+		});
+	}
+
+	function refreshSoon() {
+		clearTimeout(previewTimer);
+		previewTimer = setTimeout(function() { refresh(false, false); }, 300);
+	}
+
+	$(document).on('change', '#loan_id', function() {
+		$(".currency").html($(this).find(':selected').data('currency') || '');
+		$("#total_amount").val('');
+		refresh(true, true);
 	});
 
-	// Opened with ?loan_id= (e.g. from a loan's details page): scripts.js
-	// preselects the loan and fires 'change' before the handler above is
-	// bound, so the due repayment dates never load. Fire it again now.
+	$(document).on('change', '#paid_at', function() {
+		refresh(true, false);
+	});
+
+	$(document).on('keyup change', '#total_amount, #late_penalties', refreshSoon);
+
+	// Opened with ?loan_id= (e.g. from a loan's details page) or after a
+	// failed submit: scripts.js preselects the loan and fires 'change'
+	// before the handlers above are bound, so load it now.
 	if ($("#loan_id").val() != '') {
-		$("#loan_id").trigger('change');
+		$(".currency").html($("#loan_id").find(':selected').data('currency') || '');
+		refresh(! keepOldInput, true);
 	}
 });
 </script>
 @endsection
-
-

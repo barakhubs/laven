@@ -70,6 +70,7 @@ class DashboardController extends ApiController
                 'next_repayment'    => ($loan->next_payment && $loan->next_payment->exists) ? [
                     'date'             => $loan->next_payment->repayment_date,
                     'amount'           => (float) $loan->next_payment->amount_to_pay,
+                    'amount_due'       => (float) \App\Services\LoanRepaymentService::due($loan->next_payment, now())['total'],
                     'principal'        => (float) $loan->next_payment->principal_amount,
                     'interest'         => (float) $loan->next_payment->interest,
                 ] : null,

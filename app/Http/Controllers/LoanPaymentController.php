@@ -3,7 +3,6 @@ namespace App\Http\Controllers;
 
 use App\Models\Loan;
 use App\Models\LoanPayment;
-use App\Models\LoanRepayment;
 use App\Models\SavingsAccount;
 use App\Models\Transaction;
 use App\Notifications\LoanPaymentReceived;
@@ -200,9 +199,7 @@ class LoanPaymentController extends Controller
             'loan_id'          => 'required',
             'paid_at'          => 'required',
             'late_penalties'   => 'nullable|numeric|min:0',
-            'principal_amount' => 'nullable|numeric|min:0',
             'total_amount'     => 'required|numeric|gt:0',
-            'due_amount_of'    => 'required',
         ]);
 
         if ($validator->fails()) {
@@ -229,19 +226,8 @@ class LoanPaymentController extends Controller
             return back()->with('error', _lang('Invalid loan selected for this domain'));
         }
 
-        $repayment = LoanRepayment::where('loan_id', $request->loan_id)
-            ->where('status', 0)
-            ->orderBy('id', 'asc')
-            ->lockForUpdate()
-            ->first();
-
-        if (! $repayment || $repayment->id != $request->due_amount_of) {
-            DB::rollBack();
-            return back()->with('error', _lang('Invalid Operation !'));
-        }
-
-        // The amount actually received is the source of truth; it's applied
-        // penalty first, then interest, then principal.
+        // The amount actually received is the source of truth; it's spread
+        // over the open installments oldest first (see LoanRepaymentService).
         $amount = round((float) $request->total_amount, 2);
         if ($request->account_id != 'cash') {
 
@@ -281,12 +267,19 @@ class LoanPaymentController extends Controller
             $debit->save();
         }
 
-        $penaltyCharge = $request->filled('late_penalties') ? (float) $request->late_penalties : 0;
+        // Penalty to charge; lowering it below what has accrued waives the
+        // difference (recorded on the payment).
+        $penaltyCharge = $request->filled('late_penalties') ? (float) $request->late_penalties : null;
 
-        $loanpayment = LoanRepaymentService::apply($loan, $repayment, $amount, $request->paid_at, $penaltyCharge, [
-            'remarks'        => $request->remarks,
-            'transaction_id' => $request->account_id != 'cash' ? $debit->id : null,
-        ]);
+        try {
+            $loanpayment = LoanRepaymentService::apply($loan, $amount, $request->paid_at, $penaltyCharge, [
+                'remarks'        => $request->remarks,
+                'transaction_id' => $request->account_id != 'cash' ? $debit->id : null,
+            ]);
+        } catch (\InvalidArgumentException $e) {
+            DB::rollBack();
+            return back()->with('error', $e->getMessage())->withInput();
+        }
 
         DB::commit();
 
@@ -315,23 +308,54 @@ class LoanPaymentController extends Controller
         }
     }
 
-    public function get_repayment_by_loan_id($loan_id)
+    /**
+     * Data for the Add Repayment form: the borrower's savings accounts, every
+     * open installment with what it owes as of paid_at, and — when an amount
+     * is given — where that amount would go.
+     */
+    public function get_repayment_by_loan_id(Request $request, $loan_id)
     {
-        $repayments = LoanRepayment::where('loan_id', $loan_id)
-            ->forCurrentLoanDomain()
-            ->where('status', 0)
-            ->orderBy('id', 'asc')
-            ->limit(1)
-            ->get();
-
-        $accounts = [];
-        if ($repayments->count() > 0) {
-            $accounts = SavingsAccount::with('savings_type.currency')
-                ->where('member_id', $repayments[0]->loan->borrower_id)
-                ->get();
+        $loan = Loan::find($loan_id);
+        if (! $loan) {
+            return response()->json(['installments' => [], 'accounts' => []]);
         }
 
-        echo json_encode(['repayments' => $repayments, 'accounts' => $accounts]);
+        $asOf    = $request->filled('paid_at') ? $request->paid_at : date('Y-m-d');
+        $arrears = LoanRepaymentService::arrears($loan, $asOf);
+
+        $installments = array_map(fn ($due) => [
+            'id'             => $due['repayment']->id,
+            'repayment_date' => $due['repayment']->repayment_date,
+            'days_late'      => $due['days_late'],
+            'overdue'        => $due['overdue'],
+            'penalty'        => $due['penalty'],
+            'interest'       => $due['interest'],
+            'principal'      => $due['principal'],
+            'total'          => $due['total'],
+        ], $arrears['installments']);
+
+        $plan = null;
+        if ($request->filled('amount') && (float) $request->amount > 0) {
+            $penaltyCharge = $request->filled('late_penalties') ? (float) $request->late_penalties : null;
+            $result        = LoanRepaymentService::plan($arrears['installments'], (float) $request->amount, $penaltyCharge);
+            $plan          = [
+                'lines'       => array_map(fn ($line) => collect($line)->except('repayment')->all(), $result['lines']),
+                'unallocated' => $result['unallocated'],
+                'waived'      => $result['waived'],
+            ];
+        }
+
+        $accounts = SavingsAccount::with('savings_type.currency')
+            ->where('member_id', $loan->borrower_id)
+            ->get();
+
+        return response()->json([
+            'installments' => $installments,
+            'overdue'      => $arrears['overdue'],
+            'owed'         => $arrears['owed'],
+            'plan'         => $plan,
+            'accounts'     => $accounts,
+        ]);
     }
 
     /**

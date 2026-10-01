@@ -928,7 +928,9 @@ class ReportController extends Controller
             $scheduledInterest = (float) LoanRepayment::whereHas('loan', fn (Builder $q) => $q->where('currency_id', $baseCurrencyId))
                 ->forCurrentLoanDomain()
                 ->whereBetween('repayment_date', [$scheduleStart->toDateString(), $end->toDateString()])
-                ->selectRaw('COALESCE(SUM(interest),0) + COALESCE(SUM(penalty),0) as amt')
+                // Interest already collected (installments paid early, fully
+                // or in part) is in $actualInterest; only count what's left.
+                ->selectRaw('COALESCE(SUM(GREATEST(interest - interest_paid, 0)),0) + COALESCE(SUM(penalty),0) as amt')
                 ->value('amt');
 
             $lastScheduledDate = LoanRepayment::whereHas('loan', fn (Builder $q) => $q->where('currency_id', $baseCurrencyId))

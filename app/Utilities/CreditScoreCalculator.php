@@ -55,10 +55,15 @@ class CreditScoreCalculator {
             if ($repayment->status == 1) {
                 // Paid schedule
                 $totalSchedules++;
+                // cleared_at is when the installment was fully paid (a payment
+                // can clear several, oldest first); older rows fall back to
+                // the payment recorded against them.
                 $payment = $payments->get($repayment->id);
+                $paidAt  = $repayment->cleared_at
+                    ? Carbon::parse($repayment->cleared_at)
+                    : ($payment ? Carbon::parse($payment->getRawOriginal('paid_at')) : null);
 
-                if ($payment) {
-                    $paidAt = Carbon::parse($payment->paid_at);
+                if ($paidAt) {
                     $daysLate = $dueDate->diffInDays($paidAt, false); // positive if paid after due date
 
                     if ($daysLate <= 0) {

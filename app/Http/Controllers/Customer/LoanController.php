@@ -347,11 +347,15 @@ class LoanController extends Controller
                 ->where('member_id', $loan->borrower_id)
                 ->get();
 
-            $due            = LoanRepaymentService::due($loan->next_payment, \Carbon\Carbon::today());
-            $late_penalties = $due['penalty'];
-            $totalAmount    = $due['total'];
+            $arrears = LoanRepaymentService::arrears($loan, \Carbon\Carbon::today());
 
-            return view('backend.customer_portal.loan.payment', compact('loan', 'accounts', 'alert_col', 'late_penalties', 'totalAmount', 'due'));
+            // Suggest clearing everything overdue, or the next installment if
+            // nothing is overdue yet.
+            $totalAmount = $arrears['overdue']['count'] > 0
+                ? $arrears['overdue']['total']
+                : ($arrears['installments'][0]['total'] ?? 0);
+
+            return view('backend.customer_portal.loan.payment', compact('loan', 'accounts', 'alert_col', 'arrears', 'totalAmount'));
         } else if (request()->isMethod('post')) {
             $validator = Validator::make($request->all(), [
                 'total_amount'     => 'required_without:principal_amount|nullable|numeric|gt:0',
@@ -369,37 +373,32 @@ class LoanController extends Controller
 
             DB::beginTransaction();
 
-            // lockForUpdate() on both rows so a second concurrent payment on
-            // this same loan (e.g. a double-submitted form) blocks here
-            // instead of both requests reading the same stale total_paid
-            // and one silently overwriting the other's update.
+            // lockForUpdate() so a second concurrent payment on this same
+            // loan (e.g. a double-submitted form) blocks here instead of both
+            // requests reading the same stale total_paid and one silently
+            // overwriting the other's update. apply() locks the installments.
             $loan = Loan::where('id', $loan_id)->where('borrower_id', auth()->user()->member->id)->lockForUpdate()->first();
 
-            $repayment = $loan ? LoanRepayment::where('loan_id', $loan_id)
-                ->where('status', 0)
-                ->orderBy('id', 'asc')
-                ->lockForUpdate()
-                ->first() : null;
-
-            if (! $repayment) {
+            if (! $loan) {
                 DB::rollBack();
                 return back()->with('error', _lang('Invalid Operation !'));
             }
 
             $today = \Carbon\Carbon::today();
-            $due   = LoanRepaymentService::due($repayment, $today);
 
-            $amount = $request->filled('total_amount')
-                ? round((float) $request->total_amount, 2)
-                : round((float) $request->principal_amount + $due['penalty'] + $due['interest'], 2);
+            // total_amount is what the customer chose to pay (any amount up to
+            // what the loan owes). principal_amount is the older form field:
+            // that much principal on top of the next installment's charges.
+            if ($request->filled('total_amount')) {
+                $amount = round((float) $request->total_amount, 2);
+            } else {
+                $next   = LoanRepaymentService::arrears($loan, $today)['installments'][0] ?? null;
+                $amount = $next ? round((float) $request->principal_amount + $next['penalty'] + $next['interest'], 2) : 0;
+            }
 
-            // A payment smaller than the penalty + interest is taken as a part
-            // payment. Once it reaches principal, it must clear the whole
-            // installment (customers can't push principal onto later months).
-            $charges = $due['penalty'] + $due['interest'];
-            if ($amount + LoanRepaymentService::EPSILON >= $charges && $amount + LoanRepaymentService::EPSILON < $due['total']) {
+            if ($amount <= 0) {
                 DB::rollBack();
-                return back()->with('error', _lang('You need to pay minimum') . ' ' . $due['total'] . ' ' . $loan->currency->name . ' ' . _lang('or less than') . ' ' . $charges . ' ' . $loan->currency->name)->withInput();
+                return back()->with('error', _lang('Invalid Operation !'))->withInput();
             }
 
             //Check Available Balance
@@ -426,10 +425,15 @@ class LoanController extends Controller
 
             $debit->save();
 
-            $loanpayment = LoanRepaymentService::apply($loan, $repayment, $amount, $today->toDateString(), null, [
-                'remarks'        => $request->remarks,
-                'transaction_id' => $debit->id,
-            ]);
+            try {
+                $loanpayment = LoanRepaymentService::apply($loan, $amount, $today->toDateString(), null, [
+                    'remarks'        => $request->remarks,
+                    'transaction_id' => $debit->id,
+                ]);
+            } catch (\InvalidArgumentException $e) {
+                DB::rollBack();
+                return back()->with('error', $e->getMessage())->withInput();
+            }
 
             DB::commit();
 
