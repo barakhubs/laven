@@ -335,10 +335,20 @@ class LoanPaymentController extends Controller
         // Keep the "payment made" message for the page we go back to.
         session()->reflash();
 
-        $owed    = LoanRepaymentService::arrears($loan, $loanpayment->getRawOriginal('paid_at'))['owed'];
-        $reserve = LoanReserveService::status($loan, $loanpayment->getRawOriginal('paid_at'));
+        $paidAt   = $loanpayment->getRawOriginal('paid_at');
+        $arrears  = LoanRepaymentService::arrears($loan, $paidAt);
+        $owed     = $arrears['owed'];
+        $reserve  = LoanReserveService::status($loan, $paidAt);
+        $coverage = LoanReserveService::coverage($loan, $arrears['installments']);
 
-        return view('backend.loan_payment.receipt', compact('loanpayment', 'loan', 'next', 'owed', 'reserve'));
+        // What the client has to bring next: anything still overdue, and the
+        // next installment not yet due (both net of what the 30% reserve covers).
+        $clientPays     = fn ($due) => max(0, round($due['total'] - ($coverage[$due['repayment']->id] ?? 0), 2));
+        $overdueNow     = round(array_sum(array_map($clientPays, array_filter($arrears['installments'], fn ($due) => $due['overdue']))), 2);
+        $upcoming       = collect($arrears['installments'])->first(fn ($due) => ! $due['overdue']);
+        $nextInstalment = $upcoming ? ['date' => $upcoming['repayment']->repayment_date, 'amount' => $clientPays($upcoming)] : null;
+
+        return view('backend.loan_payment.receipt', compact('loanpayment', 'loan', 'next', 'owed', 'reserve', 'overdueNow', 'nextInstalment'));
     }
 
     /**

@@ -91,6 +91,19 @@
         @endif
     </table>
 
+    @if($overdueNow > 0 || $nextInstalment)
+    <div class="rule"></div>
+    <table>
+        @if($overdueNow > 0)
+        <tr><td><strong>{{ _lang('Overdue now') }}</strong></td><td class="r"><strong>{{ decimalPlace($overdueNow, $cur) }}</strong></td></tr>
+        @endif
+        @if($nextInstalment)
+        <tr><td><strong>{{ _lang('Next installment') }}</strong></td><td class="r"><strong>{{ $nextInstalment['date'] }}</strong></td></tr>
+        <tr><td>{{ _lang('Amount to pay') }}</td><td class="r">{{ $nextInstalment['amount'] > 0 ? decimalPlace($nextInstalment['amount'], $cur) : _lang('Covered by 30% savings') }}</td></tr>
+        @endif
+    </table>
+    @endif
+
     @if($loanpayment->remarks)
     <div class="rule"></div>
     <div class="small">{{ $loanpayment->remarks }}</div>
