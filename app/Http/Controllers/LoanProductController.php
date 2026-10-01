@@ -90,6 +90,7 @@ class LoanProductController extends Controller {
         $loanproduct->loan_processing_fee       = $request->loan_processing_fee;
         $loanproduct->loan_processing_fee_type  = $request->loan_processing_fee_type;
         $loanproduct->is_domain_restricted      = $request->boolean('is_domain_restricted');
+        $loanproduct->requires_savings_reserve  = $request->boolean('requires_savings_reserve');
 
         DB::transaction(function () use ($loanproduct) {
             // Only one loan product can be "the" emergency-domain product at
@@ -194,6 +195,7 @@ class LoanProductController extends Controller {
         $loanproduct->loan_processing_fee       = $request->loan_processing_fee;
         $loanproduct->loan_processing_fee_type  = $request->loan_processing_fee_type;
         $loanproduct->is_domain_restricted      = $request->boolean('is_domain_restricted');
+        $loanproduct->requires_savings_reserve  = $request->boolean('requires_savings_reserve');
 
         DB::transaction(function () use ($loanproduct) {
             if ($loanproduct->is_domain_restricted) {

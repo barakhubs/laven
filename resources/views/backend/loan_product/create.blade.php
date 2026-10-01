@@ -126,6 +126,16 @@
 						<div class="col-md-12">
 							<div class="form-group">
 								<div class="custom-control custom-checkbox">
+									<input type="checkbox" class="custom-control-input" id="requires_savings_reserve" name="requires_savings_reserve" value="1" {{ old('requires_savings_reserve', 1) ? 'checked' : '' }}>
+									<label class="custom-control-label" for="requires_savings_reserve">{{ _lang('Requires 30% savings reserve') }}</label>
+								</div>
+								<small class="form-text text-muted">{{ _lang('On approval 30% of the applied amount goes into the borrower\'s savings, locked to pay the final installment(s). Untick for products that pay out the full amount (e.g. YKN).') }}</small>
+							</div>
+						</div>
+
+						<div class="col-md-12">
+							<div class="form-group">
+								<div class="custom-control custom-checkbox">
 									<input type="checkbox" class="custom-control-input" id="is_domain_restricted" name="is_domain_restricted" value="1" {{ old('is_domain_restricted') ? 'checked' : '' }}>
 									<label class="custom-control-label" for="is_domain_restricted">{{ _lang('This is the Emergency Loan product') }}</label>
 								</div>

@@ -27,18 +27,20 @@ class LoanSavingsReserveReport extends Command
             return $this->showAccount($accountId);
         }
 
+        // Products without the 30% reserve (e.g. YKN) aren't expected to hold one.
         $loans = Loan::withoutGlobalScopes()
             ->where('status', 1)
-            ->with('borrower')
+            ->with(['borrower', 'loan_product' => fn ($q) => $q->withoutGlobalScopes()])
             ->orderBy('id')
             ->get()
+            ->filter(fn ($loan) => \App\Services\LoanReserveService::required($loan))
             ->groupBy('debit_account_id');
 
         $rows = [];
         foreach ($loans as $accountId => $accountLoans) {
             $account  = $accountId ? SavingsAccount::withoutGlobalScopes()->with('savings_type')->find($accountId) : null;
             $memberId = $accountLoans->first()->borrower_id;
-            $target   = round($accountLoans->sum(fn ($loan) => $loan->applied_amount * 0.3), 2);
+            $target   = round($accountLoans->sum(fn ($loan) => \App\Services\LoanReserveService::target($loan)), 2);
 
             $balance = $account ? $this->balance($account->id, $account->member_id) : 0;
             $credited = $account ? (float) DB::table('transactions')

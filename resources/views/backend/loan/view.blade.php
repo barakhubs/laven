@@ -137,6 +137,9 @@
                      <tr>
                         <td>{{ _lang("30% Reserve") }}</td>
                         <td>
+                           @if(! $reserve['required'])
+                           {{ _lang('Not required for this loan product') }}
+                           @else
                            {{ decimalPlace($reserve['target'], currency($loan->currency->name)) }}
                            @if($reserve['used'] > 0)
                            <br><small class="text-muted">{{ _lang('Used') }}: {{ decimalPlace($reserve['used'], currency($loan->currency->name)) }}</small>
@@ -157,6 +160,7 @@
                               <small class="text-muted d-block">{{ _lang('Available once the client has paid everything except what the reserve covers.') }}</small>
                               @endif
                            </form>
+                           @endif
                            @endif
                            @endif
                         </td>

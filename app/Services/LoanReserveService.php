@@ -22,9 +22,17 @@ class LoanReserveService
     const RATE   = 0.3;
     const METHOD = 'Loan Reserve';
 
+    /**
+     * Products can opt out (e.g. YKN loans pay out the full amount).
+     */
+    public static function required(Loan $loan): bool
+    {
+        return (bool) ($loan->loan_product->requires_savings_reserve ?? true);
+    }
+
     public static function target(Loan $loan): float
     {
-        return round($loan->applied_amount * self::RATE, 2);
+        return self::required($loan) ? round($loan->applied_amount * self::RATE, 2) : 0;
     }
 
     public static function used(Loan $loan): float
@@ -96,6 +104,7 @@ class LoanReserveService
         $usable    = min($remaining, $available);
 
         return [
+            'required'        => self::required($loan),
             'target'          => self::target($loan),
             'used'            => self::used($loan),
             'remaining'       => $remaining,

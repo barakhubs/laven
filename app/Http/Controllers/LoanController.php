@@ -505,19 +505,22 @@ class LoanController extends Controller {
             $transaction->save();
         }
 
-        $savingsCredit                     = new Transaction();
-        $savingsCredit->trans_date         = now();
-        $savingsCredit->member_id          = $loan->borrower_id;
-        $savingsCredit->savings_account_id = $loan->debit_account_id;
-        $savingsCredit->amount             = $savingsAmount;
-        $savingsCredit->dr_cr              = 'cr';
-        $savingsCredit->type               = 'loan_savings';
-        $savingsCredit->method             = 'Manual';
-        $savingsCredit->status             = 2;
-        $savingsCredit->description        = '30% loan savings deposit';
-        $savingsCredit->created_user_id    = auth()->id();
-        $savingsCredit->loan_id            = $loan->id;
-        $savingsCredit->save();
+        // Products without the reserve (e.g. YKN) pay out the full amount.
+        if ($savingsAmount > 0) {
+            $savingsCredit                     = new Transaction();
+            $savingsCredit->trans_date         = now();
+            $savingsCredit->member_id          = $loan->borrower_id;
+            $savingsCredit->savings_account_id = $loan->debit_account_id;
+            $savingsCredit->amount             = $savingsAmount;
+            $savingsCredit->dr_cr              = 'cr';
+            $savingsCredit->type               = 'loan_savings';
+            $savingsCredit->method             = 'Manual';
+            $savingsCredit->status             = 2;
+            $savingsCredit->description        = '30% loan savings deposit';
+            $savingsCredit->created_user_id    = auth()->id();
+            $savingsCredit->loan_id            = $loan->id;
+            $savingsCredit->save();
+        }
 
         DB::commit();
 

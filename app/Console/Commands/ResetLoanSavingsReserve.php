@@ -11,7 +11,8 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * Sets the savings account linked to each active loan to exactly that loan's
- * 30% reserve (summed when several active loans share an account), because
+ * 30% reserve (summed when several active loans share an account; loans on
+ * products without the reserve, e.g. YKN, are left alone), because
  * the balances were entered by hand and contain mistakes.
  *
  * It never edits or deletes existing transactions: each account gets ONE
@@ -30,12 +31,15 @@ class ResetLoanSavingsReserve extends Command
     {
         $apply = (bool) $this->option('apply');
 
-        $groups = Loan::withoutGlobalScopes()
+        $active = Loan::withoutGlobalScopes()
             ->where('status', 1)
-            ->with('borrower')
+            ->with(['borrower', 'loan_product' => fn ($q) => $q->withoutGlobalScopes()])
             ->orderBy('id')
-            ->get()
-            ->groupBy('debit_account_id');
+            ->get();
+
+        // Products without the 30% reserve (e.g. YKN) are left alone.
+        $exempt = $active->reject(fn ($loan) => LoanReserveService::required($loan));
+        $groups = $active->filter(fn ($loan) => LoanReserveService::required($loan))->groupBy('debit_account_id');
 
         $rows    = [];
         $skipped = [];
@@ -69,6 +73,10 @@ class ResetLoanSavingsReserve extends Command
         }
 
         $this->table(['Account', 'Member No', 'Member', 'Active loan(s)', 'Balance now', 'Set to (30%)', 'Correction'], $rows);
+
+        if ($exempt->isNotEmpty()) {
+            $this->line($exempt->count() . ' active loan(s) on products without the 30% reserve left untouched: ' . $exempt->pluck('loan_id')->implode(', '));
+        }
 
         if ($skipped) {
             $this->warn('Skipped — fix these by hand:');
