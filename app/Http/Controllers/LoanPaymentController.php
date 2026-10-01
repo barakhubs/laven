@@ -149,7 +149,7 @@ class LoanPaymentController extends Controller
                 . '<div class="dropdown-menu">'
                 . '<a class="dropdown-item" href="' . route('loan_payments.show', $loanpayment['id']) . '" data-title="' . _lang('Update Account') . '"><i class="ti-eye"></i>  ' . _lang('View') . '</a>'
                 . '<a class="dropdown-item" href="' . route('loan_payments.show', $loanpayment['id']) . '?print=general" target="_blank"><i class="fas fa-print"></i>  ' . _lang('Regular Print') . '</a>'
-                . '<a class="dropdown-item" href="' . route('loan_payments.show', $loanpayment['id']) . '?print=pos" target="_blank"><i class="fas fa-print"></i>  ' . _lang('POS Receipt') . '</a>'
+                . '<a class="dropdown-item" href="' . route('loan_payments.receipt', [$loanpayment['id'], 'next' => route('loan_payments.index')]) . '"><i class="fas fa-print"></i>  ' . _lang('POS Receipt (58mm)') . '</a>'
                 . '<a class="dropdown-item" href="' . route('loans.show', $loanpayment['loan_id']) . '" data-title="' . _lang('Account Details') . '"><i class="ti-file"></i> ' . _lang('Loan Details') . '</a>'
                 . (auth()->user()->isSuperAdmin()
                     ? '<form action="' . route('loan_payments.destroy', $loanpayment['id']) . '" method="post">'
@@ -304,6 +304,12 @@ class LoanPaymentController extends Controller
     public function show(Request $request, $id)
     {
         $loanpayment = LoanPayment::forCurrentLoanDomain()->findOrFail($id);
+
+        // Old POS links (?print=pos) go to the 58mm thermal receipt.
+        if ($request->query('print') === 'pos') {
+            return redirect()->route('loan_payments.receipt', [$loanpayment->id, 'next' => route('loan_payments.show', $loanpayment->id)]);
+        }
+
         if (! $request->ajax()) {
             return view('backend.loan_payment.view', compact('loanpayment', 'id'));
         } else {
