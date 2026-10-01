@@ -20,8 +20,9 @@ use App\Utilities\LoanCalculator as Calculator;
  * client can pay a month's installment in several small amounts. Nothing is
  * rescheduled: whatever is unpaid stays on its installment, overdue.
  *
- * Penalty accrues per installment at its daily rate (`penalty`) from its
- * due date until it's cleared, on the full installment.
+ * Penalty accrues per installment from its due date until it's cleared:
+ * each day, its daily rate (`penalty`) scaled by the share of the
+ * installment still unpaid that day (LoanRepayment::penaltyAccrued).
  *
  * What each payment put on each installment is kept in
  * loan_payment_allocations so it can be reversed exactly.

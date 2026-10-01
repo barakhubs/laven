@@ -344,11 +344,20 @@ class LoanPaymentController extends Controller
         // What the client has to bring next: anything still overdue, and the
         // next installment not yet due (both net of what the 30% reserve covers).
         $clientPays     = fn ($due) => max(0, round($due['total'] - ($coverage[$due['repayment']->id] ?? 0), 2));
-        $overdueNow     = round(array_sum(array_map($clientPays, array_filter($arrears['installments'], fn ($due) => $due['overdue']))), 2);
         $upcoming       = collect($arrears['installments'])->first(fn ($due) => ! $due['overdue']);
         $nextInstalment = $upcoming ? ['date' => $upcoming['repayment']->repayment_date, 'amount' => $clientPays($upcoming)] : null;
 
-        return view('backend.loan_payment.receipt', compact('loanpayment', 'loan', 'next', 'owed', 'reserve', 'overdueNow', 'nextInstalment'));
+        // What each installment this payment touched still owes (0 once
+        // cleared), and anything overdue on installments it didn't reach.
+        $stillOwes = [];
+        foreach ($arrears['installments'] as $due) {
+            $stillOwes[$due['repayment']->id] = $clientPays($due);
+        }
+        $touched      = $loanpayment->allocations->pluck('loan_repayment_id')->all();
+        $otherOverdue = round(array_sum(array_map($clientPays, array_filter($arrears['installments'],
+            fn ($due) => $due['overdue'] && ! in_array($due['repayment']->id, $touched)))), 2);
+
+        return view('backend.loan_payment.receipt', compact('loanpayment', 'loan', 'next', 'owed', 'reserve', 'stillOwes', 'otherOverdue', 'nextInstalment'));
     }
 
     /**

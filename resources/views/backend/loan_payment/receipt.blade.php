@@ -26,9 +26,11 @@
         .company { font-size: 17px; font-weight: bold; }
         .title { font-size: 13px; font-weight: bold; margin-top: 1.5mm; }
         .rule { border-top: 1px dashed #000; margin: 1.5mm 0; }
-        table { width: 100%; border-collapse: collapse; }
+        table { width: 100%; border-collapse: collapse; font-size: 11px; }
         td { padding: 0.3mm 0; vertical-align: top; }
-        td.r { text-align: right; white-space: nowrap; }
+        /* Labels stay on one line; only a long value (e.g. a client name) wraps. */
+        td:first-child { white-space: nowrap; padding-right: 1.5mm; }
+        td.r { text-align: right; }
         .big td { font-size: 18px; font-weight: bold; }
         .small { font-size: 11px; }
         .screen-only { text-align: center; margin-top: 4mm; }
@@ -72,14 +74,16 @@
     {{-- Which scheduled installment(s) this money went to, and whether each is now fully paid. --}}
     <div class="rule"></div>
     <div class="small"><strong>{{ _lang('Applied to installment due') }}</strong></div>
-    <table class="small">
+    <table>
         @foreach($loanpayment->allocations as $allocation)
+        @php $left = $stillOwes[$allocation->loan_repayment_id] ?? 0; @endphp
         <tr>
-            <td>{{ $allocation->repayment->exists ? $allocation->repayment->repayment_date : '-' }}</td>
+            <td><strong>{{ $allocation->repayment->exists ? $allocation->repayment->repayment_date : '-' }}</strong></td>
             <td class="r">{{ decimalPlace($allocation->penalty + $allocation->interest + $allocation->principal, $cur) }}</td>
         </tr>
         <tr>
-            <td colspan="2" class="r">{{ $allocation->repayment->status == 1 ? _lang('Fully paid') : _lang('Still part owed') }}</td>
+            <td>{{ $left > 0 ? _lang('Still owes') : _lang('Fully paid') }}</td>
+            <td class="r">{{ $left > 0 ? decimalPlace($left, $cur) : '' }}</td>
         </tr>
         @endforeach
     </table>
@@ -87,22 +91,22 @@
 
     <div class="rule"></div>
     <table>
-        <tr><td><strong>{{ _lang('Balance owed') }}</strong></td><td class="r"><strong>{{ decimalPlace($owed['total'], $cur) }}</strong></td></tr>
+        <tr><td><strong>{{ _lang('Balance') }}</strong></td><td class="r"><strong>{{ decimalPlace($owed['total'], $cur) }}</strong></td></tr>
         @if($reserve['required'] && $reserve['remaining'] > 0)
-        <tr class="small"><td>{{ _lang('Paid from 30% savings at the end') }}</td><td class="r">{{ decimalPlace(min($reserve['remaining'], $owed['total']), $cur) }}</td></tr>
-        <tr class="small"><td>{{ _lang('Client still to pay') }}</td><td class="r">{{ decimalPlace($reserve['client_must_pay'], $cur) }}</td></tr>
+        <tr><td>{{ _lang('30% savings') }}</td><td class="r">{{ decimalPlace(min($reserve['remaining'], $owed['total']), $cur) }}</td></tr>
+        <tr><td>{{ _lang('Client to pay') }}</td><td class="r">{{ decimalPlace($reserve['client_must_pay'], $cur) }}</td></tr>
         @endif
     </table>
 
-    @if($overdueNow > 0 || $nextInstalment)
+    @if($otherOverdue > 0 || $nextInstalment)
     <div class="rule"></div>
     <table>
-        @if($overdueNow > 0)
-        <tr><td><strong>{{ _lang('Overdue now') }}</strong></td><td class="r"><strong>{{ decimalPlace($overdueNow, $cur) }}</strong></td></tr>
+        @if($otherOverdue > 0)
+        <tr><td><strong>{{ _lang('Other overdue') }}</strong></td><td class="r"><strong>{{ decimalPlace($otherOverdue, $cur) }}</strong></td></tr>
         @endif
         @if($nextInstalment)
-        <tr><td><strong>{{ _lang('Next installment') }}</strong></td><td class="r"><strong>{{ $nextInstalment['date'] }}</strong></td></tr>
-        <tr><td>{{ _lang('Amount to pay') }}</td><td class="r">{{ $nextInstalment['amount'] > 0 ? decimalPlace($nextInstalment['amount'], $cur) : _lang('Covered by 30% savings') }}</td></tr>
+        <tr><td><strong>{{ _lang('Next due') }}</strong></td><td class="r"><strong>{{ $nextInstalment['date'] }}</strong></td></tr>
+        <tr><td>{{ _lang('Amount') }}</td><td class="r">{{ $nextInstalment['amount'] > 0 ? decimalPlace($nextInstalment['amount'], $cur) : _lang('Covered by 30% savings') }}</td></tr>
         @endif
     </table>
     @endif

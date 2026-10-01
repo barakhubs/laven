@@ -59,18 +59,85 @@ class LoanRepayment extends Model {
     }
 
     /**
-     * Late penalty still owed on this installment as of $asOf: the daily
-     * rate (stored in `penalty`) times days overdue, less what earlier
-     * payments on this installment covered and what staff waived.
+     * Late penalty still owed on this installment as of $asOf: what has
+     * accrued (see penaltyAccrued) less what payments covered and what staff
+     * waived.
      */
     public function penaltyDue($asOf): float
     {
+        return max(0, round($this->penaltyAccrued($asOf) - (float) $this->penalty_paid - (float) $this->penalty_waived, 2));
+    }
+
+    /**
+     * Penalty accrued from the due date up to $asOf. Each overdue day costs
+     * the daily rate (stored in `penalty`, set for the full installment)
+     * scaled by the share of the installment's principal + interest still
+     * unpaid that day — so part payments reduce the penalty from the day
+     * after they're made. A payment counts from the day after its date.
+     */
+    public function penaltyAccrued($asOf): float
+    {
         $dueDate = \Carbon\Carbon::parse($this->getRawOriginal('repayment_date'))->startOfDay();
         $asOf    = \Carbon\Carbon::parse($asOf)->startOfDay();
-        $days    = $asOf->gt($dueDate) ? (int) $dueDate->diffInDays($asOf) : 0;
+        $base    = (float) $this->interest + (float) $this->principal_amount;
 
-        return max(0, round($days * (float) $this->penalty - (float) $this->penalty_paid - (float) $this->penalty_waived, 2));
+        if (! $asOf->gt($dueDate) || $base <= 0) {
+            return 0;
+        }
+
+        $rate    = (float) $this->penalty;
+        $unpaid  = $base;
+        $from    = $dueDate;
+        $accrued = 0.0;
+        $history = $this->paymentHistory();
+
+        foreach ($history as $paidAt => $amount) {
+            $paidAt = \Carbon\Carbon::parse($paidAt)->startOfDay();
+            if ($paidAt->gte($asOf)) {
+                break;
+            }
+            if ($paidAt->gt($from)) {
+                $accrued += $rate * ($unpaid / $base) * (int) $from->diffInDays($paidAt);
+                $from     = $paidAt;
+            }
+            $unpaid = max(0, $unpaid - $amount);
+        }
+
+        // With every payment up to $asOf counted, use what the installment
+        // actually still owes (covers schedules adjusted after a payment).
+        $lastPayment = array_key_last($history);
+        if ($lastPayment === null || \Carbon\Carbon::parse($lastPayment)->lt($asOf)) {
+            $unpaid = min($base, $this->interest_due + $this->principal_due);
+        }
+
+        $accrued += $rate * ($unpaid / $base) * (int) $from->diffInDays($asOf);
+
+        return round($accrued, 2);
     }
+
+    /**
+     * Principal + interest paid to this installment, by payment date (oldest
+     * first), from the payment allocations. Cached on the instance.
+     */
+    public function paymentHistory(): array
+    {
+        if ($this->paymentHistoryCache === null) {
+            $this->paymentHistoryCache = \Illuminate\Support\Facades\DB::table('loan_payment_allocations')
+                ->join('loan_payments', 'loan_payments.id', '=', 'loan_payment_allocations.loan_payment_id')
+                ->where('loan_payment_allocations.loan_repayment_id', $this->id)
+                ->groupBy('loan_payments.paid_at')
+                ->orderBy('loan_payments.paid_at')
+                ->selectRaw('loan_payments.paid_at as paid_at, SUM(loan_payment_allocations.interest + loan_payment_allocations.principal) as amount')
+                ->pluck('amount', 'paid_at')
+                ->map(fn ($amount) => (float) $amount)
+                ->all();
+        }
+
+        return $this->paymentHistoryCache;
+    }
+
+    /** @var array|null */
+    protected $paymentHistoryCache = null;
 
     public function getInterestDueAttribute(): float
     {
