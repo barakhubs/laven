@@ -138,7 +138,7 @@ class ReportController extends Controller
                 ->with(['borrower', 'loan_product'])
                 ->withSum(['repayments as remaining_balance_sum' => function ($query) {
                     $query->where('status', 0);
-                }], 'amount_to_pay')
+                }], DB::raw(LoanRepayment::amountDueSql()))
                 ->when($status, function ($query, $status) {
                     return $query->where('status', $status);
                 }, function ($query, $status) {
@@ -175,7 +175,7 @@ class ReportController extends Controller
         $data = [];
         $date = date('Y-m-d');
 
-        $data['report_data'] = LoanRepayment::selectRaw('loan_repayments.*, SUM(amount_to_pay) as total_due')
+        $data['report_data'] = LoanRepayment::selectRaw('loan_repayments.*, SUM(' . LoanRepayment::amountDueSql() . ') as total_due')
             ->with('loan')
             ->forCurrentLoanDomain()
             ->whereRaw("repayment_date < '$date'")
@@ -737,15 +737,15 @@ class ReportController extends Controller
         })
             ->forCurrentLoanDomain()
             ->where('status', 0)
-            ->selectRaw('COALESCE(SUM(principal_amount),0) as principal, COALESCE(SUM(interest),0) as interest, COALESCE(SUM(amount_to_pay),0) as total')
+            ->selectRaw('COALESCE(SUM(GREATEST(principal_amount - principal_paid, 0)),0) as principal, COALESCE(SUM(GREATEST(interest - interest_paid, 0)),0) as interest, COALESCE(SUM(' . LoanRepayment::amountDueSql() . '),0) as total')
             ->first();
 
+        // Includes part payments taken on installments that are still open.
         $paidTotals = LoanRepayment::whereHas('loan', function (Builder $q) use ($baseCurrencyId) {
             $q->where('currency_id', $baseCurrencyId);
         })
             ->forCurrentLoanDomain()
-            ->where('status', 1)
-            ->selectRaw('COALESCE(SUM(principal_amount),0) as principal, COALESCE(SUM(interest),0) as interest')
+            ->selectRaw('COALESCE(SUM(principal_paid),0) as principal, COALESCE(SUM(interest_paid),0) as interest')
             ->first();
 
         $data['outstanding_principal']  = (float) $unpaidTotals->principal;
@@ -765,7 +765,7 @@ class ReportController extends Controller
             ->forCurrentLoanDomain()
             ->where('status', 0)
             ->where('repayment_date', '<', $today)
-            ->sum('amount_to_pay');
+            ->sum(DB::raw(LoanRepayment::amountDueSql()));
 
         $data['not_due_amount'] = $data['outstanding_portfolio'] - $data['overdue_amount'];
 

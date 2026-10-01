@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 
 class Loan extends Model {
 
@@ -149,7 +150,7 @@ class Loan extends Model {
      * applied_amount-total_paid and the schedule sum that used to exist here).
      */
     public function getRemainingBalanceAttribute() {
-        return (float) $this->repayments()->where('status', 0)->sum('amount_to_pay');
+        return (float) $this->repayments()->where('status', 0)->sum(DB::raw(LoanRepayment::amountDueSql()));
     }
 
     /**

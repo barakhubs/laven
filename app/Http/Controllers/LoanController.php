@@ -735,9 +735,12 @@ class LoanController extends Controller {
                 $oldest  = $borrowerRepayments->sortBy(fn ($repayment) => $repayment->getRawOriginal('repayment_date'))->first();
                 $grouped = clone $oldest;
 
-                $grouped->amount_to_pay     = $borrowerRepayments->sum('amount_to_pay');
-                $grouped->principal_amount  = $borrowerRepayments->sum('principal_amount');
-                $grouped->interest          = $borrowerRepayments->sum('interest');
+                // Totals are what's still owed, net of any part payments.
+                $grouped->amount_to_pay     = $borrowerRepayments->sum('amount_due');
+                $grouped->principal_amount  = $borrowerRepayments->sum('principal_due');
+                $grouped->interest          = $borrowerRepayments->sum('interest_due');
+                $grouped->interest_paid     = 0;
+                $grouped->principal_paid    = 0;
                 $grouped->penalty           = $borrowerRepayments->sum('penalty');
                 $grouped->missed_count      = $borrowerRepayments->count();
 

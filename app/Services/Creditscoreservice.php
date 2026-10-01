@@ -85,7 +85,9 @@ class CreditScoreService
                 $activeLoans++;
             }
 
-            $paymentsByRepayment = $loan->payments->keyBy('repayment_id');
+            // An installment can take several part payments; keyBy keeps the
+            // last one, which is the payment that closed it.
+            $paymentsByRepayment = $loan->payments->sortBy('id')->keyBy('repayment_id');
 
             foreach ($loan->repayments as $schedule) {
                 $dueDate = Carbon::parse($schedule->getRawOriginal('repayment_date'))->startOfDay();

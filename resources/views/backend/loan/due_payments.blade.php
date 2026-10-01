@@ -189,13 +189,13 @@
                             @endif
 
                             <td class="align-middle text-right text-nowrap font-weight-semibold">
-                                {{ decimalPlace($repayment->amount_to_pay, currency($loan->currency->name)) }}
+                                {{ decimalPlace($repayment->amount_due, currency($loan->currency->name)) }}
                             </td>
                             <td class="align-middle text-right text-nowrap">
-                                {{ decimalPlace($repayment->principal_amount, currency($loan->currency->name)) }}
+                                {{ decimalPlace($repayment->principal_due, currency($loan->currency->name)) }}
                             </td>
                             <td class="align-middle text-right text-nowrap">
-                                {{ decimalPlace($repayment->interest, currency($loan->currency->name)) }}
+                                {{ decimalPlace($repayment->interest_due, currency($loan->currency->name)) }}
                             </td>
                             <td class="align-middle text-right text-nowrap">
                                 {{ decimalPlace($repayment->penalty, currency($loan->currency->name)) }}
@@ -236,13 +236,13 @@
                             <tr class="font-weight-bold">
                                 <td colspan="{{ $filter === 'overdue' ? 10 : 9 }}" class="text-right">{{ _lang('Totals') }}</td>
                                 <td class="text-right text-nowrap">
-                                    {{ decimalPlace($repayments->sum('amount_to_pay'), currency()) }}
+                                    {{ decimalPlace($repayments->sum('amount_due'), currency()) }}
                                 </td>
                                 <td class="text-right text-nowrap">
-                                    {{ decimalPlace($repayments->sum('principal_amount'), currency()) }}
+                                    {{ decimalPlace($repayments->sum('principal_due'), currency()) }}
                                 </td>
                                 <td class="text-right text-nowrap">
-                                    {{ decimalPlace($repayments->sum('interest'), currency()) }}
+                                    {{ decimalPlace($repayments->sum('interest_due'), currency()) }}
                                 </td>
                                 <td class="text-right text-nowrap">
                                     {{ decimalPlace($repayments->sum('penalty'), currency()) }}

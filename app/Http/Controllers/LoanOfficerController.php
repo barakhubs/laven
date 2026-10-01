@@ -206,7 +206,7 @@ class LoanOfficerController extends Controller
         // recovered". This mirrors the exact definition OverdueLoanNotification
         // already uses elsewhere in the app: loan_repayments rows with
         // status = 0 (unpaid) and repayment_date < today, summed on
-        // amount_to_pay (the installment's principal + interest portion).
+        // what is still owed (amount_to_pay less any part payments taken).
         // This is a current, as-of-today snapshot, so it intentionally
         // ignores the date1/date2 filter — an "overdue" figure for a past
         // date range wouldn't mean much.
@@ -215,7 +215,7 @@ class LoanOfficerController extends Controller
             ->whereNotNull('members.loan_officer_id')
             ->where('loan_repayments.status', 0)
             ->whereDate('loan_repayments.repayment_date', '<', now())
-            ->select('members.loan_officer_id', DB::raw('sum(loan_repayments.amount_to_pay) as total'))
+            ->select('members.loan_officer_id', DB::raw('sum(' . LoanRepayment::amountDueSql() . ') as total'))
             ->groupBy('members.loan_officer_id')
             ->pluck('total', 'loan_officer_id');
 
@@ -247,20 +247,18 @@ class LoanOfficerController extends Controller
         //     and isn't comparable across officers on different interest rates.
         //   - recovered/disbursed also penalises an officer whose loans are
         //     simply too new to have any installments due yet.
-        // Both sides of this ratio come from the same column
-        // (loan_repayments.amount_to_pay = principal + interest per
-        // installment), so the rate is a true 0-100% collection-efficiency
-        // figure and undue (not-yet-matured) installments are excluded
-        // from both sides entirely.
+        // Both sides of this ratio are principal + interest per installment
+        // (collected so far vs. still owed, so a part-paid installment is
+        // split between them), so the rate is a true 0-100% collection-
+        // efficiency figure.
         $recoveredDueQuery = LoanRepayment::join('loans', 'loans.id', '=', 'loan_repayments.loan_id')
             ->join('members', 'members.id', '=', 'loans.borrower_id')
-            ->whereNotNull('members.loan_officer_id')
-            ->where('loan_repayments.status', 1);
+            ->whereNotNull('members.loan_officer_id');
         if ($date1 && $date2) {
             $recoveredDueQuery->whereBetween('loan_repayments.repayment_date', [$date1, $date2]);
         }
         $recoveredDue = $recoveredDueQuery
-            ->select('members.loan_officer_id', DB::raw('sum(loan_repayments.amount_to_pay) as total'))
+            ->select('members.loan_officer_id', DB::raw('sum(loan_repayments.interest_paid + loan_repayments.principal_paid) as total'))
             ->groupBy('members.loan_officer_id')
             ->pluck('total', 'loan_officer_id');
 
@@ -378,7 +376,7 @@ class LoanOfficerController extends Controller
             ->whereIn('loans.borrower_id', $memberIds)
             ->where('loan_repayments.status', 0)
             ->whereDate('loan_repayments.repayment_date', '<', now())
-            ->select('loans.borrower_id as member_id', DB::raw('sum(loan_repayments.amount_to_pay) as total'))
+            ->select('loans.borrower_id as member_id', DB::raw('sum(' . LoanRepayment::amountDueSql() . ') as total'))
             ->groupBy('loans.borrower_id')
             ->pluck('total', 'member_id');
 
@@ -387,13 +385,12 @@ class LoanOfficerController extends Controller
         // (see the detailed comment in index() for why this replaces
         // recovered/disbursed).
         $recoveredDueQuery = LoanRepayment::join('loans', 'loans.id', '=', 'loan_repayments.loan_id')
-            ->whereIn('loans.borrower_id', $memberIds)
-            ->where('loan_repayments.status', 1);
+            ->whereIn('loans.borrower_id', $memberIds);
         if ($date1 && $date2) {
             $recoveredDueQuery->whereBetween('loan_repayments.repayment_date', [$date1, $date2]);
         }
         $recoveredDueByMember = $recoveredDueQuery
-            ->select('loans.borrower_id as member_id', DB::raw('sum(loan_repayments.amount_to_pay) as total'))
+            ->select('loans.borrower_id as member_id', DB::raw('sum(loan_repayments.interest_paid + loan_repayments.principal_paid) as total'))
             ->groupBy('loans.borrower_id')
             ->pluck('total', 'member_id');
 
@@ -490,7 +487,7 @@ class LoanOfficerController extends Controller
             ->select(
                 'members.id',
                 DB::raw("concat(members.first_name, ' ', members.last_name) as name"),
-                DB::raw('sum(loan_repayments.amount_to_pay) as due'),
+                DB::raw('sum(' . LoanRepayment::amountDueSql() . ') as due'),
                 DB::raw('count(*) as installments')
             )
             ->groupBy('members.id', 'members.first_name', 'members.last_name')

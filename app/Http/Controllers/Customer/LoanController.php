@@ -10,6 +10,7 @@ use App\Models\LoanRepayment;
 use App\Models\SavingsAccount;
 use App\Models\Transaction;
 use App\Notifications\LoanPaymentReceived;
+use App\Services\LoanRepaymentService;
 use App\Utilities\LoanCalculator as Calculator;
 use DateTime;
 use Exception;
@@ -346,23 +347,15 @@ class LoanController extends Controller
                 ->where('member_id', $loan->borrower_id)
                 ->get();
 
-            // Calculate overdue days
-            $today          = \Carbon\Carbon::today();
-            $repayment_date = \Carbon\Carbon::parse($loan->next_payment->getRawOriginal('repayment_date'));
-            $overdue_days   = $today->gt($repayment_date) ? $repayment_date->diffInDays($today) : 0;
+            $due            = LoanRepaymentService::due($loan->next_payment, \Carbon\Carbon::today());
+            $late_penalties = $due['penalty'];
+            $totalAmount    = $due['total'];
 
-            $penalty_per_day = $loan->next_payment->penalty;
-            $late_penalties  = $overdue_days * $penalty_per_day;
-            // Ensure minimum penalty is 0 (in case of no overdue days)
-            $late_penalties = max($late_penalties, 0);
-
-            //$late_penalties = date('Y-m-d') > $loan->next_payment->getRawOriginal('repayment_date') ? $loan->next_payment->penalty : 0;
-            $totalAmount = $loan->next_payment->principal_amount + $loan->next_payment->interest + $late_penalties;
-
-            return view('backend.customer_portal.loan.payment', compact('loan', 'accounts', 'alert_col', 'late_penalties', 'totalAmount'));
+            return view('backend.customer_portal.loan.payment', compact('loan', 'accounts', 'alert_col', 'late_penalties', 'totalAmount', 'due'));
         } else if (request()->isMethod('post')) {
             $validator = Validator::make($request->all(), [
-                'principal_amount' => 'required|numeric',
+                'total_amount'     => 'required_without:principal_amount|nullable|numeric|gt:0',
+                'principal_amount' => 'nullable|numeric|min:0',
                 'account_id'       => 'required',
             ]);
 
@@ -382,30 +375,32 @@ class LoanController extends Controller
             // and one silently overwriting the other's update.
             $loan = Loan::where('id', $loan_id)->where('borrower_id', auth()->user()->member->id)->lockForUpdate()->first();
 
-            $repayment = LoanRepayment::where('loan_id', $loan_id)
+            $repayment = $loan ? LoanRepayment::where('loan_id', $loan_id)
                 ->where('status', 0)
                 ->orderBy('id', 'asc')
                 ->lockForUpdate()
-                ->first() ?? new LoanRepayment();
+                ->first() : null;
 
-            $existing_amount = $repayment->principal_amount;
-
-            if ($request->principal_amount < $repayment->principal_amount) {
+            if (! $repayment) {
                 DB::rollBack();
-                return back()->with('error', _lang('You need to pay minimum') . ' ' . $repayment->principal_amount . ' ' . $loan->currency->name)->withInput();
+                return back()->with('error', _lang('Invalid Operation !'));
             }
 
-            //Create Transaction
-            $today          = \Carbon\Carbon::today();
-            $repayment_date = \Carbon\Carbon::parse($loan->next_payment->getRawOriginal('repayment_date'));
-            $overdue_days   = $today->gt($repayment_date) ? $repayment_date->diffInDays($today) : 0;
+            $today = \Carbon\Carbon::today();
+            $due   = LoanRepaymentService::due($repayment, $today);
 
-            $penalty_per_day = $loan->next_payment->penalty;
-            $penalty         = $overdue_days * $penalty_per_day;
-            $penalty         = max($penalty, 0);
+            $amount = $request->filled('total_amount')
+                ? round((float) $request->total_amount, 2)
+                : round((float) $request->principal_amount + $due['penalty'] + $due['interest'], 2);
 
-            //$penalty = date('Y-m-d') > $repayment->getRawOriginal('repayment_date') ? $repayment->penalty : 0;
-            $amount = $request->principal_amount + $penalty + $repayment->interest;
+            // A payment smaller than the penalty + interest is taken as a part
+            // payment. Once it reaches principal, it must clear the whole
+            // installment (customers can't push principal onto later months).
+            $charges = $due['penalty'] + $due['interest'];
+            if ($amount + LoanRepaymentService::EPSILON >= $charges && $amount + LoanRepaymentService::EPSILON < $due['total']) {
+                DB::rollBack();
+                return back()->with('error', _lang('You need to pay minimum') . ' ' . $due['total'] . ' ' . $loan->currency->name . ' ' . _lang('or less than') . ' ' . $charges . ' ' . $loan->currency->name)->withInput();
+            }
 
             //Check Available Balance
             if (get_account_balance($request->account_id, $loan->borrower_id) < $amount) {
@@ -431,85 +426,10 @@ class LoanController extends Controller
 
             $debit->save();
 
-            $loanpayment                   = new LoanPayment();
-            $loanpayment->loan_id          = $loan->id;
-            $loanpayment->paid_at          = date('Y-m-d');
-            $loanpayment->late_penalties   = $penalty;
-            $loanpayment->interest         = $repayment->interest;
-            $loanpayment->repayment_amount = $request->principal_amount + $repayment->interest;
-            $loanpayment->total_amount     = $loanpayment->repayment_amount + $repayment->penalty;
-            $loanpayment->remarks          = $request->remarks;
-            $loanpayment->transaction_id   = $debit->id;
-            $loanpayment->repayment_id     = $repayment->id;
-            $loanpayment->member_id        = $loan->borrower_id;
-
-            $loanpayment->save();
-
-            //Update Loan Balance
-            $loan->total_paid = $loan->total_paid + $request->principal_amount;
-            if ($loan->total_paid >= $loan->applied_amount) {
-                $loan->status = 2;
-            }
-            $loan->save();
-
-            //Update Repayment Status
-            $repayment->principal_amount = $request->principal_amount;
-            $repayment->amount_to_pay    = $request->principal_amount + $repayment->interest;
-            //$repayment->balance          = $loan->total_payable - ($loan->total_paid + $loan->payments->sum('interest'));
-            $repayment->balance = $loan->applied_amount - $loan->total_paid;
-            $repayment->status  = 1;
-            $repayment->save();
-
-            //Delete All Upcomming Repayment schedule if payment is done
-            if ($loan->total_paid >= $loan->applied_amount) {
-                LoanRepayment::where('loan_id', $loan_id)->where('status', 0)->delete();
-            } else {
-                //Update Upcomming Repayment Schedule
-                if ($repayment->principal_amount != $existing_amount) {
-                    $upCommingRepayments = LoanRepayment::where('loan_id', $loan_id)->where('status', 0)->get();
-
-                    if ($upCommingRepayments->isEmpty()) {
-                        DB::rollBack();
-                        return back()->with('error', _lang('You must pay the full repayment amount as this is your final scheduled payment.'));
-                    }
-
-                    // Create Loan Repayments
-                    $interest_type = $loan->loan_product->interest_type;
-                    $calculator    = new Calculator(
-                        $loan->applied_amount - $loan->total_paid,
-                        $upCommingRepayments[0]->repayment_date,
-                        $loan->loan_product->interest_rate,
-                        $upCommingRepayments->count(),
-                        $loan->loan_product->term_period,
-                        $loan->late_payment_penalties,
-                        $loan->applied_amount
-                    );
-
-                    if ($interest_type == 'flat_rate') {
-                        $repayments = $calculator->get_flat_rate();
-                    } else if ($interest_type == 'fixed_rate') {
-                        $repayments = $calculator->get_fixed_rate();
-                    } else if ($interest_type == 'mortgage') {
-                        $repayments = $calculator->get_mortgage();
-                    } else if ($interest_type == 'one_time') {
-                        $repayments = $calculator->get_one_time();
-                    } else if ($interest_type == 'reducing_amount') {
-                        $repayments = $calculator->get_reducing_amount();
-                    }
-
-                    $index = 0;
-                    foreach ($repayments as $newRepayment) {
-                        $upCommingRepayment                   = $upCommingRepayments[$index];
-                        $upCommingRepayment->amount_to_pay    = $newRepayment['amount_to_pay'];
-                        $upCommingRepayment->penalty          = $newRepayment['penalty'];
-                        $upCommingRepayment->principal_amount = $newRepayment['principal_amount'];
-                        $upCommingRepayment->interest         = $newRepayment['interest'];
-                        $upCommingRepayment->balance          = $newRepayment['balance'];
-                        $upCommingRepayment->save();
-                        $index++;
-                    }
-                }
-            }
+            $loanpayment = LoanRepaymentService::apply($loan, $repayment, $amount, $today->toDateString(), null, [
+                'remarks'        => $request->remarks,
+                'transaction_id' => $debit->id,
+            ]);
 
             DB::commit();
 

@@ -7,7 +7,7 @@ use App\Models\LoanRepayment;
 use App\Models\SavingsAccount;
 use App\Models\Transaction;
 use App\Notifications\LoanPaymentReceived;
-use App\Utilities\LoanCalculator as Calculator;
+use App\Services\LoanRepaymentService;
 use DataTables;
 use DB;
 use Exception;
@@ -199,9 +199,9 @@ class LoanPaymentController extends Controller
         $validator = Validator::make($request->all(), [
             'loan_id'          => 'required',
             'paid_at'          => 'required',
-            'late_penalties'   => 'nullable|numeric',
-            'principal_amount' => 'required|numeric',
-            'interest'         => 'required|numeric',
+            'late_penalties'   => 'nullable|numeric|min:0',
+            'principal_amount' => 'nullable|numeric|min:0',
+            'total_amount'     => 'required|numeric|gt:0',
             'due_amount_of'    => 'required',
         ]);
 
@@ -235,14 +235,14 @@ class LoanPaymentController extends Controller
             ->lockForUpdate()
             ->first();
 
-        if ($repayment->id != $request->due_amount_of) {
+        if (! $repayment || $repayment->id != $request->due_amount_of) {
             DB::rollBack();
             return back()->with('error', _lang('Invalid Operation !'));
         }
 
-        $existing_amount = $repayment->principal_amount;
-
-        $amount = $request->principal_amount + $request->late_penalties + $repayment->interest;
+        // The amount actually received is the source of truth; it's applied
+        // penalty first, then interest, then principal.
+        $amount = round((float) $request->total_amount, 2);
         if ($request->account_id != 'cash') {
 
             $account = SavingsAccount::where('id', $request->account_id)
@@ -281,90 +281,12 @@ class LoanPaymentController extends Controller
             $debit->save();
         }
 
-        $loanpayment                   = new LoanPayment();
-        $loanpayment->loan_id          = $request->loan_id;
-        $loanpayment->paid_at          = $request->paid_at;
-        $loanpayment->late_penalties   = $request->late_penalties ?? 0; //it's optionals
-        $loanpayment->interest         = $repayment->interest;
-        $loanpayment->repayment_amount = $request->principal_amount + $repayment->interest;
-        $loanpayment->total_amount     = $loanpayment->repayment_amount + $request->late_penalties;
-        $loanpayment->remarks          = $request->remarks;
-        $loanpayment->repayment_id     = $repayment->id;
-        $loanpayment->member_id        = $loan->borrower_id;
-        $loanpayment->transaction_id   = $request->account_id != 'cash' ? $debit->id : null;
+        $penaltyCharge = $request->filled('late_penalties') ? (float) $request->late_penalties : 0;
 
-        $loanpayment->save();
-
-        //Update Loan Balance
-        $loan->total_paid = $loan->total_paid + $request->principal_amount;
-        if ($loan->total_paid >= $loan->applied_amount) {
-            $loan->status = 2;
-        }
-        $loan->save();
-
-        //Update Repayment Status
-        $repayment->principal_amount = $request->principal_amount;
-        $repayment->amount_to_pay    = $request->principal_amount + $repayment->interest;
-        //$repayment->balance          = $loan->total_payable - ($loan->total_paid + $loan->payments->sum('interest'));
-        $repayment->balance = $loan->applied_amount - $loan->total_paid;
-        $repayment->status  = 1;
-        $repayment->save();
-
-        //Delete All Upcomming Repayment schedule if payment is done
-        if ($loan->total_paid >= $loan->applied_amount) {
-            LoanRepayment::where('loan_id', $request->loan_id)->where('status', 0)->delete();
-        } else {
-            //Update Upcomming Repayment Schedule
-            if ($request->principal_amount != $existing_amount) {
-                $upCommingRepayments = LoanRepayment::where('loan_id', $request->loan_id)
-                    ->where('status', 0)
-                    ->orderBy('id', 'asc')
-                    ->get();
-
-                if ($upCommingRepayments->isEmpty()) {
-                    DB::rollBack();
-                    return back()->with('error', _lang('You must pay the full repayment amount as this is your final scheduled payment.'));
-                }
-
-                // Create Loan Repayments
-                $interest_type = $loan->loan_product->interest_type;
-                $calculator    = new Calculator(
-                    $loan->applied_amount - $loan->total_paid,
-                    $upCommingRepayments[0]->repayment_date,
-                    $loan->loan_product->interest_rate,
-                    $upCommingRepayments->count(),
-                    $loan->loan_product->term_period,
-                    $loan->late_payment_penalties,
-                    $loan->applied_amount
-                );
-
-                if ($interest_type == 'flat_rate') {
-                    $repayments = $calculator->get_flat_rate();
-                } else if ($interest_type == 'fixed_rate') {
-                    $repayments = $calculator->get_fixed_rate();
-                } else if ($interest_type == 'mortgage') {
-                    $repayments = $calculator->get_mortgage();
-                } else if ($interest_type == 'one_time') {
-                    $repayments = $calculator->get_one_time();
-                } else if ($interest_type == 'reducing_amount') {
-                    $repayments = $calculator->get_reducing_amount();
-                } else if ($interest_type == 'interest_only') {
-                    $repayments = $calculator->get_interest_only();
-                }
-
-                $index = 0;
-                foreach ($repayments as $newRepayment) {
-                    $upCommingRepayment                   = $upCommingRepayments[$index];
-                    $upCommingRepayment->amount_to_pay    = $newRepayment['amount_to_pay'];
-                    $upCommingRepayment->penalty          = $newRepayment['penalty'];
-                    $upCommingRepayment->principal_amount = $newRepayment['principal_amount'];
-                    $upCommingRepayment->interest         = $newRepayment['interest'];
-                    $upCommingRepayment->balance          = $newRepayment['balance'];
-                    $upCommingRepayment->save();
-                    $index++;
-                }
-            }
-        }
+        $loanpayment = LoanRepaymentService::apply($loan, $repayment, $amount, $request->paid_at, $penaltyCharge, [
+            'remarks'        => $request->remarks,
+            'transaction_id' => $request->account_id != 'cash' ? $debit->id : null,
+        ]);
 
         DB::commit();
 
@@ -426,75 +348,15 @@ class LoanPaymentController extends Controller
         DB::beginTransaction();
 
         $loanpayment = LoanPayment::forCurrentLoanDomain()->findOrFail($id);
-
+        $loan        = Loan::lockForUpdate()->findOrFail($loanpayment->loan_id);
         $transaction = Transaction::find($loanpayment->transaction_id);
+
+        LoanRepaymentService::reverse($loan, $loanpayment);
+
+        // The payment row is gone by now, so the Transaction deleting hook
+        // finds nothing to reverse and the loan isn't adjusted twice.
         if ($transaction) {
             $transaction->delete();
-        }
-
-        //Update Balance
-        $repayment         = LoanRepayment::findOrFail($loanpayment->repayment_id);
-        $repayment->status = 0;
-        $repayment->save();
-
-        $loan             = Loan::lockForUpdate()->findOrFail($loanpayment->loan_id);
-        $loan->total_paid = $loan->total_paid - $repayment->principal_amount;
-        if ($loan->total_paid < $loan->applied_amount) {
-            $loan->status = 1;
-        }
-        $loan->save();
-
-        $loanpayment->delete();
-
-        // Reversing this payment changes total_paid, so every still-unpaid
-        // installment (now including the one just reverted) is redistributed
-        // over the loan's real remaining principal. Skipping this step is
-        // what leaves the schedule showing stale figures from before the
-        // delete: total_paid goes back down, but the visible schedule keeps
-        // principal/balance numbers computed for a remaining amount that no
-        // longer exists.
-        $upCommingRepayments = LoanRepayment::where('loan_id', $loan->id)
-            ->where('status', 0)
-            ->orderBy('id', 'asc')
-            ->get();
-
-        if ($upCommingRepayments->isNotEmpty()) {
-            $interest_type = $loan->loan_product->interest_type;
-            $calculator    = new Calculator(
-                $loan->applied_amount - $loan->total_paid,
-                $upCommingRepayments[0]->repayment_date,
-                $loan->loan_product->interest_rate,
-                $upCommingRepayments->count(),
-                $loan->loan_product->term_period,
-                $loan->late_payment_penalties,
-                $loan->applied_amount
-            );
-
-            if ($interest_type == 'flat_rate') {
-                $repayments = $calculator->get_flat_rate();
-            } else if ($interest_type == 'fixed_rate') {
-                $repayments = $calculator->get_fixed_rate();
-            } else if ($interest_type == 'mortgage') {
-                $repayments = $calculator->get_mortgage();
-            } else if ($interest_type == 'one_time') {
-                $repayments = $calculator->get_one_time();
-            } else if ($interest_type == 'reducing_amount') {
-                $repayments = $calculator->get_reducing_amount();
-            } else if ($interest_type == 'interest_only') {
-                $repayments = $calculator->get_interest_only();
-            }
-
-            $index = 0;
-            foreach ($repayments as $newRepayment) {
-                $upCommingRepayment                   = $upCommingRepayments[$index];
-                $upCommingRepayment->amount_to_pay    = $newRepayment['amount_to_pay'];
-                $upCommingRepayment->penalty          = $newRepayment['penalty'];
-                $upCommingRepayment->principal_amount = $newRepayment['principal_amount'];
-                $upCommingRepayment->interest         = $newRepayment['interest'];
-                $upCommingRepayment->balance          = $newRepayment['balance'];
-                $upCommingRepayment->save();
-                $index++;
-            }
         }
 
         DB::commit();

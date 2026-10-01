@@ -4,8 +4,8 @@ namespace App\Console\Commands;
 
 use App\Models\Loan;
 use App\Models\LoanRepayment;
+use App\Services\LoanRepaymentService;
 use App\Utilities\CreditScoreCalculator;
-use App\Utilities\LoanCalculator as Calculator;
 use DB;
 use Illuminate\Console\Command;
 
@@ -121,7 +121,9 @@ class ReconcileLoanSchedules extends Command
         $paid   = $repayments->where('status', 1);
         $unpaid = $repayments->where('status', 0)->values();
 
-        $trueTotalPaid = round((float) $paid->sum('principal_amount'), 2);
+        // Principal part-paid on a still-open installment (a final
+        // installment paid short) counts too.
+        $trueTotalPaid = round((float) $paid->sum('principal_amount') + (float) $unpaid->sum('principal_paid'), 2);
         $oldTotalPaid  = round((float) $loan->total_paid, 2);
 
         $anyChange = abs($trueTotalPaid - $oldTotalPaid) > 0.01;
@@ -142,34 +144,22 @@ class ReconcileLoanSchedules extends Command
 
         // The true remaining principal, redistributed across unpaid rows.
         if ($unpaid->isNotEmpty()) {
-            $remaining     = round($loan->applied_amount - $trueTotalPaid, 2);
-            $interest_type = $loan->loan_product->interest_type;
-
-            $calculator = new Calculator(
-                $remaining,
-                $unpaid[0]->repayment_date,
-                $loan->loan_product->interest_rate,
-                $unpaid->count(),
-                $loan->loan_product->term_period,
-                $loan->late_payment_penalties,
-                $loan->applied_amount
-            );
-
-            $newRows = match ($interest_type) {
-                'flat_rate'       => $calculator->get_flat_rate(),
-                'fixed_rate'      => $calculator->get_fixed_rate(),
-                'mortgage'        => $calculator->get_mortgage(),
-                'one_time'        => $calculator->get_one_time(),
-                'reducing_amount' => $calculator->get_reducing_amount(),
-                'interest_only'   => $calculator->get_interest_only(),
-                default           => $calculator->get_flat_rate(),
-            };
+            // scheduleFor() spreads applied - total_paid, so give it the
+            // corrected figure without saving it yet.
+            $scheduleLoan             = clone $loan;
+            $scheduleLoan->total_paid = $trueTotalPaid;
+            $newRows                  = LoanRepaymentService::scheduleFor($scheduleLoan, $unpaid);
 
             foreach ($newRows as $index => $newRow) {
                 if (! isset($unpaid[$index])) {
                     break;
                 }
                 $row = $unpaid[$index];
+
+                // Keep any principal already part-paid on this row on top of
+                // its share, as LoanRepaymentService::reschedule does.
+                $newRow['principal_amount'] += (float) $row->principal_paid;
+                $newRow['amount_to_pay']    += (float) $row->principal_paid;
 
                 $rowChanged =
                     abs(round((float) $row->principal_amount, 2) - round((float) $newRow['principal_amount'], 2)) > 0.01

@@ -30,7 +30,7 @@
                         <td>{{ $repayment->repayment_date }}</td>
                         <td>{{ $repayment->loan->borrower->name }}</td>
                         <td class="text-right">
-                            {{ decimalPlace($repayment['amount_to_pay'], currency($repayment->loan->currency->name)) }}
+                            {{ decimalPlace($repayment->amount_due, currency($repayment->loan->currency->name)) }}
                         </td>
                         <td class="text-right">
                             {{ decimalPlace($repayment['principal_amount'], currency($repayment->loan->currency->name)) }}

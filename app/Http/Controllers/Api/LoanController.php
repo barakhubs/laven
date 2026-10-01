@@ -8,7 +8,7 @@ use App\Models\LoanRepayment;
 use App\Models\SavingsAccount;
 use App\Models\Transaction;
 use App\Notifications\LoanPaymentReceived;
-use App\Utilities\LoanCalculator as Calculator;
+use App\Services\LoanRepaymentService;
 use DB;
 use Exception;
 use Illuminate\Http\Request;
@@ -83,6 +83,9 @@ class LoanController extends ApiController
                 'interest_amount'  => (float) $r->interest,
                 'total_amount'     => (float) $r->amount_to_pay,
                 'paid_amount'      => (float) ($r->penalty ?? 0),
+                'interest_paid'    => (float) $r->interest_paid,
+                'principal_paid'   => (float) $r->principal_paid,
+                'penalty_paid'     => (float) $r->penalty_paid,
                 'status'           => $r->status ?? 0,
             ]);
 
@@ -96,8 +99,11 @@ class LoanController extends ApiController
      * POST /v1/loans/{id}/pay
      *
      * Body:
-     *   account_id  — savings account ID to debit (or "cash")
-     *   amount      — principal amount being paid (optional, defaults to next due amount)
+     *   account_id   — savings account ID to debit (or "cash")
+     *   amount       — principal amount being paid (optional, defaults to next due amount);
+     *                  late penalty and interest still owed are added on top
+     *   total_amount — cash received (optional, overrides amount). Applied penalty →
+     *                  interest → principal; less than penalty + interest is a part payment
      */
     public function pay(Request $request, $id)
     {
@@ -137,22 +143,6 @@ class LoanController extends ApiController
             return $this->error('Only active loans can be repaid.', 'LOAN_NOT_ACTIVE', [], 422);
         }
 
-        // Get the next unpaid repayment
-        $repayment = LoanRepayment::where('loan_id', $loan->id)
-            ->where('status', 0)
-            ->orderBy('id', 'asc')
-            ->first();
-
-        if (!$repayment) {
-            return $this->error('No outstanding repayments found for this loan.', 'NO_REPAYMENT', [], 422);
-        }
-
-        $principalAmount = $request->has('amount')
-            ? (float) $request->amount
-            : (float) $repayment->principal_amount;
-
-        $totalAmount = $principalAmount + (float) $repayment->interest;
-
         // Validate savings account if not cash
         $account = null;
         if ($request->account_id !== 'cash') {
@@ -163,21 +153,57 @@ class LoanController extends ApiController
             if (!$account) {
                 return $this->error('Savings account not found.', 'ACCOUNT_NOT_FOUND', [], 404);
             }
-
-            $balance = get_account_balance($account->id, $member->id);
-            if ($balance < $totalAmount) {
-                return $this->error(
-                    'Insufficient balance. Available: ' . number_format($balance, 2) . ' ' . ($account->savings_type->currency->name ?? ''),
-                    'INSUFFICIENT_BALANCE',
-                    [],
-                    422
-                );
-            }
         }
 
         DB::beginTransaction();
 
         try {
+            // Lock the loan and its next unpaid installment so two concurrent
+            // payments can't both read the same total_paid.
+            $loan = Loan::where('id', $loan->id)->lockForUpdate()->first();
+
+            $repayment = LoanRepayment::where('loan_id', $loan->id)
+                ->where('status', 0)
+                ->orderBy('id', 'asc')
+                ->lockForUpdate()
+                ->first();
+
+            if (!$repayment) {
+                DB::rollBack();
+                return $this->error('No outstanding repayments found for this loan.', 'NO_REPAYMENT', [], 422);
+            }
+
+            $today = now()->toDateString();
+            $due   = LoanRepaymentService::due($repayment, $today);
+
+            // total_amount is the cash received (may be a part payment);
+            // amount is the principal portion, with penalty + interest due
+            // added on top.
+            if ($request->filled('total_amount')) {
+                $totalAmount = round((float) $request->total_amount, 2);
+            } else {
+                $principalAmount = $request->has('amount') ? (float) $request->amount : $due['principal'];
+                $totalAmount     = round($principalAmount + $due['penalty'] + $due['interest'], 2);
+            }
+
+            if ($totalAmount <= 0) {
+                DB::rollBack();
+                return $this->error('Payment amount must be greater than zero.', 'VALIDATION_ERROR', [], 422);
+            }
+
+            if ($account) {
+                $balance = get_account_balance($account->id, $member->id);
+                if ($balance < $totalAmount) {
+                    DB::rollBack();
+                    return $this->error(
+                        'Insufficient balance. Available: ' . number_format($balance, 2) . ' ' . ($account->savings_type->currency->name ?? ''),
+                        'INSUFFICIENT_BALANCE',
+                        [],
+                        422
+                    );
+                }
+            }
+
             // Debit the savings account
             $debit = null;
             if ($account) {
@@ -198,79 +224,14 @@ class LoanController extends ApiController
                 $debit->save();
             }
 
-            // Record loan payment
-            $loanPayment                   = new LoanPayment();
-            $loanPayment->loan_id          = $loan->id;
-            $loanPayment->paid_at          = now()->toDateString();
-            $loanPayment->late_penalties   = 0;
-            $loanPayment->interest         = $repayment->interest;
-            $loanPayment->repayment_amount = $principalAmount + $repayment->interest;
-            $loanPayment->total_amount     = $loanPayment->repayment_amount;
-            $loanPayment->remarks          = $request->remarks ?? 'Paid via mobile app';
-            $loanPayment->repayment_id     = $repayment->id;
-            $loanPayment->member_id        = $member->id;
-            $loanPayment->transaction_id   = $debit?->id;
-            $loanPayment->save();
-
-            // Update loan total paid
-            $existingPrincipal   = $repayment->principal_amount;
-            $loan->total_paid    = $loan->total_paid + $principalAmount;
-            if ($loan->total_paid >= $loan->applied_amount) {
-                $loan->status = 2; // Closed
-            }
-            $loan->save();
-
-            // Mark repayment as paid
-            $repayment->principal_amount = $principalAmount;
-            $repayment->amount_to_pay    = $principalAmount + $repayment->interest;
-            $repayment->balance          = $loan->applied_amount - $loan->total_paid;
-            $repayment->status           = 1;
-            $repayment->save();
-
-            // If loan fully paid, delete remaining schedule
-            if ($loan->total_paid >= $loan->applied_amount) {
-                LoanRepayment::where('loan_id', $loan->id)->where('status', 0)->delete();
-            } elseif ($principalAmount != $existingPrincipal) {
-                // Recalculate upcoming schedule if partial amount paid
-                $upcomingRepayments = LoanRepayment::where('loan_id', $loan->id)
-                    ->where('status', 0)
-                    ->orderBy('id', 'asc')
-                    ->get();
-
-                if ($upcomingRepayments->isNotEmpty()) {
-                    $calculator = new Calculator(
-                        $loan->applied_amount - $loan->total_paid,
-                        $upcomingRepayments[0]->repayment_date,
-                        $loan->loan_product->interest_rate,
-                        $upcomingRepayments->count(),
-                        $loan->loan_product->term_period,
-                        $loan->late_payment_penalties,
-                        $loan->applied_amount
-                    );
-
-                    $interestType = $loan->loan_product->interest_type;
-                    $repayments   = match ($interestType) {
-                        'flat_rate'       => $calculator->get_flat_rate(),
-                        'fixed_rate'      => $calculator->get_fixed_rate(),
-                        'mortgage'        => $calculator->get_mortgage(),
-                        'one_time'        => $calculator->get_one_time(),
-                        'reducing_amount' => $calculator->get_reducing_amount(),
-                        default           => $calculator->get_flat_rate(),
-                    };
-
-                    foreach ($upcomingRepayments as $index => $upcoming) {
-                        if (!isset($repayments[$index])) break;
-                        $upcoming->amount_to_pay    = $repayments[$index]['amount_to_pay'];
-                        $upcoming->penalty          = $repayments[$index]['penalty'];
-                        $upcoming->principal_amount = $repayments[$index]['principal_amount'];
-                        $upcoming->interest         = $repayments[$index]['interest'];
-                        $upcoming->balance          = $repayments[$index]['balance'];
-                        $upcoming->save();
-                    }
-                }
-            }
+            $loanPayment = LoanRepaymentService::apply($loan, $repayment, $totalAmount, $today, null, [
+                'remarks'        => $request->remarks ?? 'Paid via mobile app',
+                'transaction_id' => $debit?->id,
+            ]);
 
             DB::commit();
+
+            \App\Utilities\CreditScoreCalculator::recalculate($loan);
 
             // Send notification silently
             try {
@@ -281,13 +242,13 @@ class LoanController extends ApiController
                 'payment' => [
                     'id'               => $loanPayment->id,
                     'amount_paid'      => (float) $loanPayment->total_amount,
-                    'principal'        => (float) $principalAmount,
-                    'interest'         => (float) $repayment->interest,
+                    'penalty'          => (float) $loanPayment->late_penalties,
+                    'principal'        => (float) ($loanPayment->repayment_amount - $loanPayment->interest),
+                    'interest'         => (float) $loanPayment->interest,
                     'loan_status'      => $loan->status == 2 ? 'Closed' : 'Active',
                     'remaining_balance'=> (float) $loan->remaining_balance,
                 ],
             ], 'Loan payment recorded successfully.');
-
         } catch (Exception $e) {
             DB::rollBack();
             return $this->error('Payment failed. Please try again.', 'PAYMENT_FAILED', [], 500);
@@ -311,6 +272,7 @@ class LoanController extends ApiController
             'next_repayment'    => ($loan->next_payment && $loan->next_payment->exists) ? [
                 'date'      => $loan->next_payment->repayment_date,
                 'amount'    => (float) $loan->next_payment->amount_to_pay,
+                'amount_due'=> (float) LoanRepaymentService::due($loan->next_payment, now())['total'],
                 'principal' => (float) $loan->next_payment->principal_amount,
                 'interest'  => (float) $loan->next_payment->interest,
             ] : null,

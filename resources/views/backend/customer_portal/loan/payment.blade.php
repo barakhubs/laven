@@ -41,7 +41,7 @@
                             <div class="form-group">
                                 <label class="control-label">{{ _lang('Interest') }}</label>
                                 <div class="input-group">
-                                    <input type="text" class="form-control float-field" name="interest" id="interest" value="{{ $loan->next_payment->interest }}" readonly="true" required>
+                                    <input type="text" class="form-control float-field" name="interest" id="interest" value="{{ $due['interest'] }}" readonly="true" required>
                                     <div class="input-group-append">
                                         <span class="input-group-text currency">{{ $loan->currency->name }}</span>
                                     </div>
@@ -53,7 +53,7 @@
                             <div class="form-group">
                                 <label class="control-label">{{ _lang('Principal Amount') }}</label>
                                 <div class="input-group">
-                                    <input type="text" class="form-control float-field" name="principal_amount" id="principal_amount" value="{{ $loan->next_payment->principal_amount }}" required>
+                                    <input type="text" class="form-control float-field" name="principal_amount" id="principal_amount" value="{{ $due['principal'] }}" readonly="true">
                                     <div class="input-group-append">
                                         <span class="input-group-text currency">{{ $loan->currency->name }}</span>
                                     </div>
@@ -75,13 +75,14 @@
 
                         <div class="col-md-12">
                             <div class="form-group">
-                                <label class="control-label">{{ _lang('Total Amount') }}</label>
+                                <label class="control-label">{{ _lang('Amount to Pay') }}</label>
                                 <div class="input-group">
-                                    <input type="text" class="form-control float-field" name="total_amount" id="total_amount" value="{{ $totalAmount }}" readonly="true" required>
+                                    <input type="text" class="form-control float-field" name="total_amount" id="total_amount" value="{{ old('total_amount', $totalAmount) }}" required>
                                     <div class="input-group-append">
                                         <span class="input-group-text currency">{{ $loan->currency->name }}</span>
                                     </div>
                                 </div>
+                                <small class="form-text text-muted">{{ _lang('Pay the full installment, or a part payment of less than the late penalties plus interest. Part payments go to late penalties first, then interest.') }}</small>
                             </div>
                         </div>
 
@@ -115,29 +116,4 @@
         </div>
     </div>
 </div>
-@endsection
-
-
-@section('js-script')
-<script>
-$(function() {
-	"use strict";
-
-	$(document).on('keyup','#principal_amount',function(){
-		var penalty = $('#late_penalties').val();
-		var principal_amount = $('#principal_amount').val();
-		var interest = $('#interest').val();
-
-		if(principal_amount == ''){
-			principal_amount = 0;
-		}
-
-		if(penalty == ''){
-			$("#total_amount").val(parseFloat(principal_amount) + parseFloat(interest));
-		}else{
-			$("#total_amount").val(parseFloat(principal_amount) + parseFloat(interest) + parseFloat(penalty));
-		}
-	});
-});
-</script>
 @endsection

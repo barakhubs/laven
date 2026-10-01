@@ -58,5 +58,48 @@ class LoanRepayment extends Model {
         );
     }
 
+    /**
+     * Late penalty still owed on this installment as of $asOf: the daily
+     * rate (stored in `penalty`) times days overdue, less whatever earlier
+     * partial payments on this installment already covered.
+     */
+    public function penaltyDue($asOf): float
+    {
+        $dueDate = \Carbon\Carbon::parse($this->getRawOriginal('repayment_date'))->startOfDay();
+        $asOf    = \Carbon\Carbon::parse($asOf)->startOfDay();
+        $days    = $asOf->gt($dueDate) ? (int) $dueDate->diffInDays($asOf) : 0;
+
+        return max(0, round($days * (float) $this->penalty - (float) $this->penalty_paid, 2));
+    }
+
+    public function getInterestDueAttribute(): float
+    {
+        return max(0, round((float) $this->interest - (float) $this->interest_paid, 2));
+    }
+
+    public function getPrincipalDueAttribute(): float
+    {
+        return max(0, round((float) $this->principal_amount - (float) $this->principal_paid, 2));
+    }
+
+    /**
+     * Principal + interest still owed (penalty excluded); 0 once closed.
+     */
+    public function getAmountDueAttribute(): float
+    {
+        return max(0, round((float) $this->amount_to_pay - (float) $this->interest_paid - (float) $this->principal_paid, 2));
+    }
+
+    /**
+     * SQL for what an installment still owes (excluding penalty). For a
+     * closed installment this is 0; for an open one it's amount_to_pay less
+     * any partial payments already taken. Use it in place of a bare
+     * SUM(amount_to_pay) over unpaid rows.
+     */
+    public static function amountDueSql(string $table = 'loan_repayments'): string
+    {
+        return "GREATEST({$table}.amount_to_pay - {$table}.interest_paid - {$table}.principal_paid, 0)";
+    }
+
 }
 

@@ -44,8 +44,10 @@ class CreditScoreCalculator {
             ->where('loan_id', $loan->id)
             ->get();
 
-        // Preload payments for this loan keyed by repayment_id
-        $payments = LoanPayment::where('loan_id', $loan->id)->get()->keyBy('repayment_id');
+        // Preload payments for this loan keyed by repayment_id. An installment
+        // can take several part payments; ordering by id makes keyBy keep the
+        // last one, which is the payment that closed it.
+        $payments = LoanPayment::where('loan_id', $loan->id)->orderBy('id')->get()->keyBy('repayment_id');
 
         foreach ($repayments as $repayment) {
             $dueDate = Carbon::parse($repayment->raw_repayment_date);

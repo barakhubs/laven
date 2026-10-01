@@ -382,6 +382,9 @@
                            <td>{{ $repayment->repayment_date }}</td>
                            <td class="text-right">
                               {{ decimalPlace($repayment['amount_to_pay'], currency($loan->currency->name)) }}
+                              @if($repayment['status'] == 0 && ($repayment->interest_paid + $repayment->principal_paid + $repayment->penalty_paid) > 0)
+                              <br><small class="text-info">{{ _lang('Part paid') }}: {{ decimalPlace($repayment->interest_paid + $repayment->principal_paid + $repayment->penalty_paid, currency($loan->currency->name)) }}</small>
+                              @endif
                            </td>
                            <td class="text-right">
                               {{ decimalPlace($repayment['principal_amount'], currency($loan->currency->name)) }}

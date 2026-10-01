@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
+use App\Services\LoanRepaymentService;
 use App\Traits\Member;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 
 class Transaction extends Model
 {
@@ -108,18 +110,17 @@ class Transaction extends Model
     protected static function booted(): void
     {
         static::deleting(function (Transaction $transaction) {
-            if ($transaction->loan_id != null && $transaction->type = 'Loan_Repayment') {
-                $loanPayment = LoanPayment::where('transaction_id', $transaction->id)->first();
-                if ($loanPayment) {
-                    $repayment = LoanRepayment::find($loanPayment->repayment_id);
-
-                    $repayment->status = 0;
-                    $repayment->save();
-
-                    $loan             = Loan::find($loanPayment->loan_id);
-                    $loan->total_paid = $loan->total_paid - $repayment->principal_amount;
-                    $loan->save();
-                }
+            if ($transaction->loan_id != null && $transaction->type == 'Loan_Repayment') {
+                // LoanPaymentController::destroy reverses and deletes the
+                // payment before deleting its transaction, so this only fires
+                // when a repayment transaction is deleted from elsewhere.
+                DB::transaction(function () use ($transaction) {
+                    $loanPayment = LoanPayment::withoutGlobalScopes()->where('transaction_id', $transaction->id)->first();
+                    if ($loanPayment) {
+                        $loan = Loan::withoutGlobalScopes()->lockForUpdate()->find($loanPayment->loan_id);
+                        LoanRepaymentService::reverse($loan, $loanPayment);
+                    }
+                });
             }
         });
     }

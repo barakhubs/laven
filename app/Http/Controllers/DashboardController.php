@@ -9,6 +9,7 @@ use App\Models\Expense;
 use App\Models\Transaction;
 use App\Models\LoanRepayment;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
@@ -45,7 +46,7 @@ class DashboardController extends Controller
                 ->orderBy('trans_date', 'desc')
                 ->get();
 
-            $data['due_repayments'] = LoanRepayment::selectRaw('loan_id, MAX(repayment_date) as repayment_date, COUNT(id) as total_due_repayment, SUM(amount_to_pay) as total_due')
+            $data['due_repayments'] = LoanRepayment::selectRaw('loan_id, MAX(repayment_date) as repayment_date, COUNT(id) as total_due_repayment, SUM(' . LoanRepayment::amountDueSql() . ') as total_due')
                 ->with('loan')
                 ->forCurrentLoanDomain()
                 ->whereRaw("repayment_date < '$date'")
@@ -81,36 +82,34 @@ class DashboardController extends Controller
             $data['overall_recovered'] = LoanRepayment::whereHas('loan', function (Builder $q) use ($baseCurrencyId) {
                 $q->where('currency_id', $baseCurrencyId);
             })
-                ->where('status', 1)
-                ->sum('amount_to_pay');
+                ->sum(DB::raw('interest_paid + principal_paid'));
 
             $data['monthly_recovered'] = LoanRepayment::whereHas('loan', function (Builder $q) use ($baseCurrencyId) {
                 $q->where('currency_id', $baseCurrencyId);
             })
-                ->where('status', 1)
                 ->whereBetween('repayment_date', [$monthStart, $monthEnd])
-                ->sum('amount_to_pay');
+                ->sum(DB::raw('interest_paid + principal_paid'));
 
             $data['total_overdue'] = LoanRepayment::whereHas('loan', function (Builder $q) use ($baseCurrencyId) {
                 $q->where('currency_id', $baseCurrencyId);
             })
                 ->where('status', 0)
                 ->where('repayment_date', '<', $date)
-                ->sum('amount_to_pay');
+                ->sum(DB::raw(LoanRepayment::amountDueSql()));
 
             $data['monthly_overdue'] = LoanRepayment::whereHas('loan', function (Builder $q) use ($baseCurrencyId) {
                 $q->where('currency_id', $baseCurrencyId);
             })
                 ->where('status', 0)
                 ->whereBetween('repayment_date', [$monthStart, $date])
-                ->sum('amount_to_pay');
+                ->sum(DB::raw(LoanRepayment::amountDueSql()));
 
             $data['total_not_due'] = LoanRepayment::whereHas('loan', function (Builder $q) use ($baseCurrencyId) {
                 $q->where('currency_id', $baseCurrencyId);
             })
                 ->where('status', 0)
                 ->where('repayment_date', '>=', $date)
-                ->sum('amount_to_pay');
+                ->sum(DB::raw(LoanRepayment::amountDueSql()));
 
             $overallDueSoFar = $data['overall_recovered'] + $data['total_overdue'];
             $data['overall_recovery_rate'] = $overallDueSoFar > 0
@@ -228,9 +227,9 @@ class DashboardController extends Controller
             })
                 ->whereBetween('repayment_date', [$start->toDateString(), $end->toDateString()])
                 ->selectRaw(
-                    "COALESCE(SUM(CASE WHEN status = 1 THEN amount_to_pay ELSE 0 END), 0) as recovered,
-                     COALESCE(SUM(CASE WHEN status = 0 AND repayment_date < ? THEN amount_to_pay ELSE 0 END), 0) as missed,
-                     COALESCE(SUM(CASE WHEN status = 0 AND repayment_date >= ? THEN amount_to_pay ELSE 0 END), 0) as pending",
+                    "COALESCE(SUM(interest_paid + principal_paid), 0) as recovered,
+                     COALESCE(SUM(CASE WHEN status = 0 AND repayment_date < ? THEN " . LoanRepayment::amountDueSql() . " ELSE 0 END), 0) as missed,
+                     COALESCE(SUM(CASE WHEN status = 0 AND repayment_date >= ? THEN " . LoanRepayment::amountDueSql() . " ELSE 0 END), 0) as pending",
                     [$today, $today]
                 )
                 ->first();
