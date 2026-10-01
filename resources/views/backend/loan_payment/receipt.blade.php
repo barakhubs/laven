@@ -18,27 +18,29 @@
         @page { margin: 0; }
         * { box-sizing: border-box; }
         html, body { margin: 0; padding: 0; background: #fff; color: #000; }
-        /* The head prints 48mm; keep 3mm clear each side so nothing on the
-           right gets cut off if the page lands a little off-centre. */
-        body { width: 48mm; margin: 0 auto; padding: 2mm 3mm 6mm; font-family: Arial, Helvetica, sans-serif; font-size: 11px; line-height: 1.3; }
+        /* The head prints 48mm; keep 1.5mm clear each side so nothing on
+           the right gets cut off if the page lands a little off-centre.
+           Print at Scale: Default (100%) — a reduced scale shrinks it all. */
+        body { width: 48mm; margin: 0 auto; padding: 2mm 1.5mm 6mm; font-family: Arial, Helvetica, sans-serif; font-size: 12px; line-height: 1.3; }
         .center { text-align: center; }
-        .company { font-size: 14px; font-weight: bold; }
-        .title { font-size: 12px; font-weight: bold; margin-top: 1mm; }
+        .company { font-size: 17px; font-weight: bold; }
+        .title { font-size: 13px; font-weight: bold; margin-top: 1.5mm; }
         .rule { border-top: 1px dashed #000; margin: 1.5mm 0; }
         table { width: 100%; border-collapse: collapse; }
         td { padding: 0.3mm 0; vertical-align: top; }
         td.r { text-align: right; white-space: nowrap; }
-        .big td { font-size: 14px; font-weight: bold; }
-        .small { font-size: 10px; }
+        .big td { font-size: 18px; font-weight: bold; }
+        .small { font-size: 11px; }
         .screen-only { text-align: center; margin-top: 4mm; }
         @media print { .screen-only { display: none; } }
     </style>
 </head>
 <body>
     <div class="center">
-        <div class="company">{{ get_option('company_name') }}</div>
-        @if(get_option('address'))<div class="small">{{ get_option('address') }}</div>@endif
-        @if(get_option('phone'))<div class="small">{{ get_option('phone') }}</div>@endif
+        <div class="company">Laven Solutions</div>
+        <div class="small">Arua, Uganda</div>
+        <div class="small">Tel: 0774912351 / 0703190460</div>
+        <div class="small">lavensolutions.co.ug</div>
         <div class="title">{{ _lang('LOAN PAYMENT RECEIPT') }}</div>
     </div>
 
@@ -54,7 +56,8 @@
 
     <div class="rule"></div>
     <table>
-        <tr class="big"><td>{{ _lang('AMOUNT') }}</td><td class="r">{{ decimalPlace($loanpayment->total_amount, $cur) }}</td></tr>
+        <tr><td colspan="2"><strong>{{ _lang('AMOUNT PAID') }}</strong></td></tr>
+        <tr class="big"><td colspan="2" class="r">{{ decimalPlace($loanpayment->total_amount, $cur) }}</td></tr>
         @if($loanpayment->late_penalties > 0)
         <tr><td>{{ _lang('Penalty') }}</td><td class="r">{{ decimalPlace($loanpayment->late_penalties, $cur) }}</td></tr>
         @endif
