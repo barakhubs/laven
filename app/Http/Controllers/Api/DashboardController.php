@@ -40,7 +40,7 @@ class DashboardController extends ApiController
         // Recent 5 transactions
         $recentTransactions = Transaction::with('account')
             ->where('member_id', $memberId)
-            ->orderBy('id', 'desc')
+            ->orderBy('trans_date', 'desc')->orderBy('id', 'desc')
             ->limit(5)
             ->get()
             ->map(fn($tx) => [

@@ -31,7 +31,7 @@ class TransactionController extends ApiController
 
         $query = Transaction::with('account.savings_type.currency')
             ->where('member_id', $memberId)
-            ->orderBy('id', 'desc');
+            ->orderBy('trans_date', 'desc')->orderBy('id', 'desc');
 
         if ($request->filled('type')) {
             $query->where('type', $request->get('type'));

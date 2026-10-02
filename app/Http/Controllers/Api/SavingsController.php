@@ -84,7 +84,7 @@ class SavingsController extends ApiController
 
         $transactions = Transaction::where('savings_account_id', $id)
             ->where('member_id', $memberId)
-            ->orderBy('id', 'desc')
+            ->orderBy('trans_date', 'desc')->orderBy('id', 'desc')
             ->paginate($perPage);
 
         $mapped = collect($transactions->items())->map(fn($tx) => [
