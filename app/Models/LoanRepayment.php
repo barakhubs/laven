@@ -116,6 +116,20 @@ class LoanRepayment extends Model {
     }
 
     /**
+     * What one more overdue day adds right now: the daily rate on the share
+     * of principal + interest still unpaid (0 once the installment is paid).
+     */
+    public function getCurrentDailyPenaltyAttribute(): float
+    {
+        $base = (float) $this->interest + (float) $this->principal_amount;
+        if ($this->status == 1 || $base <= 0) {
+            return 0;
+        }
+
+        return round((float) $this->penalty * min($base, $this->interest_due + $this->principal_due) / $base, 2);
+    }
+
+    /**
      * Principal + interest paid to this installment, by payment date (oldest
      * first), from the payment allocations. Cached on the instance.
      */
