@@ -212,7 +212,8 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach($loan->repayments as $repayment)
+                            {{-- Sorted here: without an ORDER BY, PostgreSQL returns rows in storage order (updated rows move). --}}
+                            @foreach($loan->repayments->sortBy(fn ($r) => [$r->getRawOriginal('repayment_date'), $r->id]) as $repayment)
                             <tr>
                                 <td>{{ $repayment->repayment_date }}</td>
                                 <td class="text-right">
@@ -303,7 +304,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach($loan->payments as $payment)
+                            @foreach($loan->payments->sortBy(fn ($p) => [$p->getRawOriginal('paid_at'), $p->id]) as $payment)
                             <tr>
                                 <td>{{ $payment->paid_at }}</td>
                                 <td class="text-right">

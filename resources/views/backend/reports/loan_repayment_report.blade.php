@@ -69,7 +69,7 @@
 					</thead>
 					<tbody>
 					@if(isset($report_data))
-						@foreach($report_data->payments as $loanPayment)
+						@foreach($report_data->payments->sortBy(fn ($p) => [$p->getRawOriginal('paid_at'), $p->id]) as $loanPayment)
 							<tr>
 								<td>{{ $loanPayment->paid_at }}</td>
 								<td>{{ decimalPlace($loanPayment->repayment_amount - $loanPayment->interest , currency($report_data->currency->name)) }}</td>

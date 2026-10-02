@@ -778,6 +778,8 @@ class LoanController extends Controller {
         $loanRepayments = LoanRepayment::with('loan')
             ->whereBetween('repayment_date', [$startDate, $endDate])
             ->where('status', 0)
+            ->orderBy('repayment_date')
+            ->orderBy('id')
             ->get();
 
         return view('backend.loan.upcoming_loan_repayments', compact('loanRepayments', 'startDate', 'endDate'));
