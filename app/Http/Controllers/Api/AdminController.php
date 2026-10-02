@@ -76,14 +76,15 @@ class AdminController extends ApiController
     {
         $d = ReportController::financialSummaryData($request);
 
-        $out = ['currency' => $this->currency()];
+        $out = [];
         foreach ($d as $key => $value) {
             if (is_scalar($value) || $value === null || is_array($value)) {
                 $out[$key] = $value;
             }
         }
         $out['branch_performance'] = $d['branch_performance'] ? collect($d['branch_performance'])->values() : null;
-        unset($out['currency_symbol']);
+        // The report's 'currency' is a display symbol; the app wants the code.
+        $out['currency'] = $this->currency();
 
         return $this->success($out, 'Financial summary loaded.');
     }
