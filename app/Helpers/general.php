@@ -1053,6 +1053,11 @@ if (! function_exists('get_account_details')) {
             ->orderBy('id', 'desc')
             ->get();
 
+        // 30% loan reserve locked on each account (see LoanReserveService).
+        foreach ($accounts as $account) {
+            $account->reserve_amount = \App\Services\LoanReserveService::lockedOnAccount($account->id, $account->member_id);
+        }
+
         return $accounts;
     }
 }

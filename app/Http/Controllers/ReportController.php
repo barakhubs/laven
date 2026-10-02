@@ -56,60 +56,8 @@ class ReportController extends Controller
                 return back()->with('error', _lang('Account not found'));
             }
 
-            // PostgreSQL-compatible query using window functions for running balance
-            $data['report_data'] = DB::select("
-                WITH opening_balance AS (
-                    SELECT COALESCE(
-                        (SELECT SUM(amount) FROM transactions WHERE dr_cr = 'cr' AND member_id = ? AND savings_account_id = ? AND status = 2 AND created_at < ?), 0
-                    ) - COALESCE(
-                        (SELECT SUM(amount) FROM transactions WHERE dr_cr = 'dr' AND member_id = ? AND savings_account_id = ? AND status = 2 AND created_at < ?), 0
-                    ) AS balance
-                ),
-                all_transactions AS (
-                    SELECT
-                        ?::date as trans_date,
-                        'Opening Balance' as description,
-                        0::numeric as debit,
-                        0::numeric as credit,
-                        (SELECT balance FROM opening_balance) as running_total
-                    UNION ALL
-                    SELECT
-                        date(trans_date) as trans_date,
-                        description,
-                        CASE WHEN dr_cr = 'dr' THEN amount ELSE 0 END as debit,
-                        CASE WHEN dr_cr = 'cr' THEN amount ELSE 0 END as credit,
-                        0 as running_total
-                    FROM transactions
-                    JOIN savings_accounts ON savings_account_id = savings_accounts.id
-                    WHERE savings_accounts.id = ?
-                        AND transactions.member_id = ?
-                        AND transactions.status = 2
-                        AND date(trans_date) >= ?
-                        AND date(trans_date) <= ?
-                    ORDER BY trans_date
-                )
-                SELECT
-                    trans_date,
-                    description,
-                    debit,
-                    credit,
-                    SUM(credit - debit) OVER (ORDER BY trans_date, description ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) +
-                    (SELECT balance FROM opening_balance) as balance
-                FROM all_transactions
-                ORDER BY trans_date, description
-            ", [
-                $account->member_id,
-                $account->id,
-                $date1,
-                $account->member_id,
-                $account->id,
-                $date1,
-                $date1,
-                $account->id,
-                $account->member_id,
-                $date1,
-                $date2
-            ]);
+            // Opening balance, then each transaction with a running balance.
+            $data['report_data'] = \App\Services\AccountStatementService::rows($account, $date1, $date2);
 
             $data['date1']          = $request->date1;
             $data['date2']          = $request->date2;
@@ -175,7 +123,8 @@ class ReportController extends Controller
         $data = [];
         $date = date('Y-m-d');
 
-        $data['report_data'] = LoanRepayment::selectRaw('loan_repayments.*, SUM(' . LoanRepayment::amountDueSql() . ') as total_due')
+        // Only loan_id + the total: PostgreSQL refuses ungrouped columns (loan_repayments.*).
+        $data['report_data'] = LoanRepayment::selectRaw('loan_repayments.loan_id, SUM(' . LoanRepayment::amountDueSql() . ') as total_due')
             ->with('loan')
             ->forCurrentLoanDomain()
             ->whereRaw("repayment_date < '$date'")
@@ -400,7 +349,12 @@ class ReportController extends Controller
             $data['total_withdraw'][$row->currency_name] = $row;
         }
 
-        $total_cash_disbursement = DB::select("SELECT currency.name as currency_name, COALESCE(SUM(applied_amount),0) as total_cash_disbursement FROM loans
+        // Cash actually paid out: the applied amount less the 30% that went
+        // into the borrower's savings at approval (loan_savings credit).
+        $total_cash_disbursement = DB::select("SELECT currency.name as currency_name,
+		COALESCE(SUM(loans.applied_amount - COALESCE((SELECT SUM(t.amount) FROM transactions t
+			WHERE t.loan_id = loans.id AND t.type = 'loan_savings' AND t.dr_cr = 'cr' AND t.status = 2), 0)), 0) as total_cash_disbursement
+		FROM loans
 		JOIN currency ON currency.id = loans.currency_id
 		WHERE loans.disburse_method = 'cash' AND (loans.status = 1 OR loans.status = 2) GROUP BY currency_name");
 

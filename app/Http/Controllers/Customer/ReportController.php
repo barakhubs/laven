@@ -50,60 +50,8 @@ class ReportController extends Controller
 				return back()->with('error', _lang('Account not found'));
 			}
 
-			// PostgreSQL-compatible query using window functions for running balance
-			$data['report_data'] = DB::select("
-                WITH opening_balance AS (
-                    SELECT COALESCE(
-                        (SELECT SUM(amount) FROM transactions WHERE dr_cr = 'cr' AND member_id = ? AND savings_account_id = ? AND status = 2 AND created_at < ?), 0
-                    ) - COALESCE(
-                        (SELECT SUM(amount) FROM transactions WHERE dr_cr = 'dr' AND member_id = ? AND savings_account_id = ? AND status = 2 AND created_at < ?), 0
-                    ) AS balance
-                ),
-                all_transactions AS (
-                    SELECT
-                        ?::date as trans_date,
-                        'Opening Balance' as description,
-                        0::numeric as debit,
-                        0::numeric as credit,
-                        (SELECT balance FROM opening_balance) as running_total
-                    UNION ALL
-                    SELECT
-                        date(trans_date) as trans_date,
-                        description,
-                        CASE WHEN dr_cr = 'dr' THEN amount ELSE 0 END as debit,
-                        CASE WHEN dr_cr = 'cr' THEN amount ELSE 0 END as credit,
-                        0 as running_total
-                    FROM transactions
-                    JOIN savings_accounts ON savings_account_id = savings_accounts.id
-                    WHERE savings_accounts.id = ?
-                        AND transactions.member_id = ?
-                        AND transactions.status = 2
-                        AND date(trans_date) >= ?
-                        AND date(trans_date) <= ?
-                    ORDER BY trans_date
-                )
-                SELECT
-                    trans_date,
-                    description,
-                    debit,
-                    credit,
-                    SUM(credit - debit) OVER (ORDER BY trans_date, description ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) +
-                    (SELECT balance FROM opening_balance) as balance
-                FROM all_transactions
-                ORDER BY trans_date, description
-            ", [
-				$account->member_id,
-				$account->id,
-				$date1,
-				$account->member_id,
-				$account->id,
-				$date1,
-				$date1,
-				$account->id,
-				$account->member_id,
-				$date1,
-				$date2
-			]);
+			// Opening balance, then each transaction with a running balance.
+			$data['report_data'] = \App\Services\AccountStatementService::rows($account, $date1, $date2);
 
 			$data['date1'] = $request->date1;
 			$data['date2'] = $request->date2;

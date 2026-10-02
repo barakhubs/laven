@@ -24,7 +24,8 @@
 						<th>{{ _lang('Account Number') }}</th>
 						<th class="text-right">{{ _lang('Balance') }}</th>
 						<th class="text-right">{{ _lang('Loan Guarantee') }}</th>
-						<th class="text-right">{{ _lang('Current Balance') }}</th>
+						<th class="text-right">{{ _lang('30% Reserve') }}</th>
+						<th class="text-right">{{ _lang('Available Balance') }}</th>
 					</thead>
 					<tbody>
 						@foreach($accounts as $account)
@@ -32,7 +33,8 @@
 								<td>{{ $account->account_number }} - {{ $account->savings_type->name }} ({{ $account->savings_type->currency->name }})</td>
 								<td class="text-right">{{ decimalPlace($account->balance, currency($account->savings_type->currency->name)) }}</td>						
 								<td class="text-right">{{ decimalPlace($account->blocked_amount, currency($account->savings_type->currency->name)) }}</td>						
-								<td class="text-right">{{ decimalPlace($account->balance - $account->blocked_amount, currency($account->savings_type->currency->name)) }}</td>						
+								<td class="text-right">{{ decimalPlace($account->reserve_amount, currency($account->savings_type->currency->name)) }}</td>
+								<td class="text-right">{{ decimalPlace($account->balance - $account->blocked_amount - $account->reserve_amount, currency($account->savings_type->currency->name)) }}</td>						
 							</tr>
 						@endforeach
 				    </tbody>
