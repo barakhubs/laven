@@ -413,7 +413,11 @@
                            <td>{{ $repayment->repayment_date }}</td>
                            <td class="text-right">
                               {{ decimalPlace($repayment['amount_to_pay'], currency($loan->currency->name)) }}
-                              @if($repayment['status'] == 0 && ($repayment->interest_paid + $repayment->principal_paid) > 0)
+                              @if($repayment['status'] == 0 && ($repayment->interest_paid + $repayment->principal_paid + $repayment->penalty_paid) > 0)
+                              <br><small class="text-success">{{ _lang('Paid so far') }}: {{ decimalPlace($repayment->interest_paid + $repayment->principal_paid, currency($loan->currency->name)) }}</small>
+                              @if($repayment->penalty_paid > 0)
+                              <br><small class="text-muted">{{ _lang('+ penalty paid') }}: {{ decimalPlace($repayment->penalty_paid, currency($loan->currency->name)) }}</small>
+                              @endif
                               <br><small class="text-info">{{ _lang('Remaining') }}: {{ decimalPlace($repayment->amount_due, currency($loan->currency->name)) }}</small>
                               @endif
                            </td>
@@ -448,6 +452,10 @@
                            <td class="text-right">
                               @if($repayment['status'] == 0)
                               <strong>{{ decimalPlace(max(0, $owedNow - $fromReserve), currency($loan->currency->name)) }}</strong>
+                              @php $penaltyInIt = $repayment->penaltyDue(date('Y-m-d')); @endphp
+                              @if($penaltyInIt > 0 && $owedNow - $fromReserve > 0)
+                              <br><small class="text-muted">{{ _lang('incl. penalty') }} {{ decimalPlace($penaltyInIt, currency($loan->currency->name)) }}</small>
+                              @endif
                               @else
                               -
                               @endif
