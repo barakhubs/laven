@@ -458,6 +458,8 @@
                            <td class="text-center">
                               @if($repayment['status'] == 0 && date('Y-m-d') > $repayment->getRawOriginal('repayment_date'))
                               {!! xss_clean(show_status(_lang('Due'),'danger')) !!}
+                              @php $daysLate = (int) \Carbon\Carbon::parse($repayment->getRawOriginal('repayment_date'))->diffInDays(\Carbon\Carbon::today()); @endphp
+                              <br><small class="text-danger text-nowrap">({{ $daysLate }} {{ $daysLate == 1 ? _lang('day late') : _lang('days late') }})</small>
                               @elseif($repayment['status'] == 0 && date('Y-m-d') <= $repayment->getRawOriginal('repayment_date'))
                               {!! xss_clean(show_status(_lang('Unpaid'),'warning')) !!}
                               @else
