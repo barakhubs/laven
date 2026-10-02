@@ -31,4 +31,9 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    // Firebase Cloud Messaging service account key (JSON) for mobile push notifications.
+    'fcm' => [
+        'credentials' => env('FCM_CREDENTIALS', storage_path('app/firebase-service-account.json')),
+    ],
+
 ];

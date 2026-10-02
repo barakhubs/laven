@@ -53,6 +53,10 @@ class RejectDepositRequest extends Notification {
         if ($this->template != null && $this->template->notification_status == 1) {
             array_push($channels, 'database');
         }
+        // Push to the client's phones whenever there's a message to show.
+        if ($this->template != null && filled($this->template->notification_body)) {
+            array_push($channels, \App\Channels\Push::class);
+        }
         return $channels;
     }
 

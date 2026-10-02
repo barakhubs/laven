@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\AppVersionController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\DeviceController;
 use App\Http\Controllers\Api\MemberProfileController;
 use App\Http\Controllers\Api\LoanController;
 use App\Http\Controllers\Api\TransactionController;
@@ -39,6 +40,10 @@ Route::prefix('v1')->middleware('app.version')->group(function () {
 
         // Staff-only: list/search clients
         Route::get('staff/clients', [AuthController::class, 'clients'])->name('api.staff.clients');
+
+        // Push notifications: the app registers its FCM token after sign-in and removes it on sign-out.
+        Route::post('devices',        [DeviceController::class, 'store'])->name('api.devices.store');
+        Route::post('devices/remove', [DeviceController::class, 'destroy'])->name('api.devices.destroy');
 
         // Admin mode: admins and superadmins (recording repayments is superadmin-only inside).
         Route::prefix('admin')->middleware('api.admin')->name('api.admin.')->group(function () {

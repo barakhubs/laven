@@ -29,6 +29,8 @@ class User extends Authenticatable {
         static::updated(function (User $user) {
             if ($user->wasChanged('password')) {
                 $user->tokens()->delete();
+                // Signed out everywhere, so stop pushing this user's notices to those phones.
+                \App\Models\DeviceToken::where('user_id', $user->id)->delete();
             }
         });
     }
