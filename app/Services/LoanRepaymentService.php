@@ -261,6 +261,93 @@ class LoanRepaymentService
     }
 
     /**
+     * New due dates if the next unpaid installment moves to $firstDate and
+     * the rest follow at the loan product's term period (e.g. "+1 month").
+     * Paid installments are never moved. Each line also gives the penalty
+     * owed as of $asOf before and after the move. Saves nothing.
+     */
+    public static function repaymentDayPlan(Loan $loan, $firstDate, $asOf): array
+    {
+        $first  = \Carbon\Carbon::parse($firstDate)->startOfDay();
+        // Product spacing, e.g. "+1 month" or "+7 day"; anything unreadable counts as monthly.
+        $period = trim((string) $loan->loan_product->term_period);
+        if ($period === '' || strtotime($period) === false) {
+            $period = '+1 month';
+        }
+        $lines  = [];
+
+        $open = LoanRepayment::where('loan_id', $loan->id)->where('status', 0)->orderBy('id', 'asc')->get();
+        foreach ($open->values() as $i => $repayment) {
+            $new   = self::stepDate($first, $period, $i)->toDateString();
+            $moved = clone $repayment;
+            $moved->setRawAttributes(array_merge($repayment->getAttributes(), ['repayment_date' => $new]), true);
+
+            $lines[] = [
+                'repayment'     => $repayment,
+                'id'            => $repayment->id,
+                'old'           => $repayment->getRawOriginal('repayment_date'),
+                'new'           => $new,
+                'penalty_now'   => $repayment->penaltyDue($asOf),
+                'penalty_after' => $moved->penaltyDue($asOf),
+            ];
+        }
+
+        return $lines;
+    }
+
+    /**
+     * Move the loan's unpaid installments as repaymentDayPlan() describes.
+     * Throws InvalidArgumentException (message fit for the user) if the
+     * new first date isn't after the last paid installment's due date.
+     * Run inside a DB transaction with the loan locked.
+     */
+    public static function changeRepaymentDay(Loan $loan, $firstDate): array
+    {
+        $lastPaid = LoanRepayment::where('loan_id', $loan->id)->where('status', 1)->max('repayment_date');
+        if ($lastPaid && \Carbon\Carbon::parse($firstDate)->lte(\Carbon\Carbon::parse($lastPaid))) {
+            throw new \InvalidArgumentException(_lang('The new date must be after the last paid installment') . ' (' . $lastPaid . ').');
+        }
+
+        $lines = self::repaymentDayPlan($loan, $firstDate, date('Y-m-d'));
+        if (empty($lines)) {
+            throw new \InvalidArgumentException(_lang('This loan has no unpaid installments to move.'));
+        }
+
+        foreach ($lines as $line) {
+            LoanRepayment::withoutGlobalScopes()->where('id', $line['id'])->lockForUpdate()->update([
+                'repayment_date'         => $line['new'],
+                // Remind again for the new dates.
+                'upcomming_notification' => null,
+                'overdue_notification'   => null,
+                'updated_at'             => now(),
+            ]);
+        }
+
+        return $lines;
+    }
+
+    /**
+     * $first stepped forward $i term periods. Monthly periods are counted
+     * from $first (no drift, and the 31st becomes the month's last day).
+     */
+    private static function stepDate(\Carbon\Carbon $first, string $period, int $i): \Carbon\Carbon
+    {
+        if ($i == 0) {
+            return $first->copy();
+        }
+        if (preg_match('/^\+?\s*(\d+)\s*months?$/i', $period, $m)) {
+            return $first->copy()->addMonthsNoOverflow($i * (int) $m[1]);
+        }
+
+        $date = $first->copy();
+        for ($k = 0; $k < $i; $k++) {
+            $date = $date->modify($period);
+        }
+
+        return $date;
+    }
+
+    /**
      * Fresh principal/interest/penalty/balance figures for $openRepayments,
      * spreading the loan's unpaid principal (applied - total_paid) over them.
      * Only loans:reconcile-schedules uses this now; payments never reschedule.

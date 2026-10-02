@@ -364,6 +364,64 @@ class LoanController extends Controller {
     }
 
     /**
+     * Move the loan's unpaid installments to a new repayment day: pick the
+     * next installment's new due date, the rest follow at the product's term
+     * period. GET shows the form (and a preview once a date is chosen); POST
+     * applies it.
+     */
+    public function change_repayment_day(Request $request, $id) {
+        if (! auth()->user()->isSuperAdmin()) {
+            abort(403, 'Only Super Admins can change repayment dates.');
+        }
+
+        $loan = Loan::findOrFail($id);
+        if ($loan->status != 1) {
+            return redirect()->route('loans.show', $loan->id)->with('error', _lang('Only active loans can have their repayment day changed.'));
+        }
+
+        if ($request->isMethod('get')) {
+            $firstDate = $request->query('first_date');
+            $plan      = [];
+            $error     = null;
+            if ($firstDate) {
+                $lastPaid = LoanRepayment::where('loan_id', $loan->id)->where('status', 1)->max('repayment_date');
+                if ($lastPaid && \Carbon\Carbon::parse($firstDate)->lte(\Carbon\Carbon::parse($lastPaid))) {
+                    $error = _lang('The new date must be after the last paid installment') . ' (' . $lastPaid . ').';
+                } else {
+                    $plan = \App\Services\LoanRepaymentService::repaymentDayPlan($loan, $firstDate, date('Y-m-d'));
+                }
+            }
+            $nextDue   = $loan->next_payment->exists ? $loan->next_payment->getRawOriginal('repayment_date') : null;
+            $alert_col = 'col-lg-8 offset-lg-2';
+
+            return view('backend.loan.change_repayment_day', compact('loan', 'firstDate', 'plan', 'error', 'nextDue', 'alert_col'));
+        }
+
+        $request->validate(['first_date' => 'required|date']);
+
+        DB::beginTransaction();
+        $loan = Loan::lockForUpdate()->findOrFail($id);
+
+        try {
+            $lines = \App\Services\LoanRepaymentService::changeRepaymentDay($loan, $request->first_date);
+        } catch (\InvalidArgumentException $e) {
+            DB::rollBack();
+            return back()->with('error', $e->getMessage());
+        }
+
+        \App\Models\AuditLog::log('updated', 'Loan', $loan->id, $loan->loan_id . ' (' . $loan->borrower->name . ')',
+            collect($lines)->mapWithKeys(fn ($l) => ['installment ' . $l['id'] => $l['old']])->all(),
+            collect($lines)->mapWithKeys(fn ($l) => ['installment ' . $l['id'] => $l['new']])->all(),
+            'Changed repayment day: next installment now due ' . $lines[0]['new']);
+
+        DB::commit();
+
+        \App\Utilities\CreditScoreCalculator::recalculate($loan);
+
+        return redirect()->route('loans.show', $loan->id)->with('success', _lang('Repayment dates updated. Next installment due') . ' ' . $lines[0]['new']);
+    }
+
+    /**
      * Use the loan's 30% reserve to clear its remaining installments. Only
      * allowed once the client has paid everything except what it covers.
      */

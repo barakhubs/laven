@@ -6,8 +6,12 @@
          <div class="card-header d-sm-flex align-items-center justify-content-between">
             <div class="panel-title">{{ _lang('View Loan Details') }}</div>
             @if($loan->status == 1 && auth()->user()->isSuperAdmin())
-            <a class="btn btn-primary btn-xs" href="{{ route('loan_payments.create', ['loan_id' => $loan->id]) }}">
-               <i class="fas fa-hand-holding-usd mr-1"></i>{{ _lang('Add Repayment') }}</a>
+            <div>
+               <a class="btn btn-outline-secondary btn-xs mr-1" href="{{ route('loans.change_repayment_day', $loan->id) }}">
+                  <i class="far fa-calendar-alt mr-1"></i>{{ _lang('Change Repayment Day') }}</a>
+               <a class="btn btn-primary btn-xs" href="{{ route('loan_payments.create', ['loan_id' => $loan->id]) }}">
+                  <i class="fas fa-hand-holding-usd mr-1"></i>{{ _lang('Add Repayment') }}</a>
+            </div>
             @endif
             @if($loan->status == 0)
             @php
