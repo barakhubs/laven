@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\AppVersionController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\MemberProfileController;
@@ -13,7 +14,11 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\SmsController;
 use App\Http\Controllers\PhoneOtpController;
 
-Route::prefix('v1')->group(function () {
+Route::prefix('v1')->middleware('app.version')->group(function () {
+
+    // Version check for the mobile apps: public, and exempt from the version gate so an old
+    // app can still read which version to install.
+    Route::get('app-version', [AppVersionController::class, 'show'])->withoutMiddleware('app.version')->name('api.app-version');
 
     Route::prefix('auth')->name('api.auth.')->group(function () {
         Route::post('login',           [AuthController::class, 'login'])->name('login');
