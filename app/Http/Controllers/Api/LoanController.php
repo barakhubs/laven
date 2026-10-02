@@ -98,6 +98,60 @@ class LoanController extends ApiController
     }
 
     /**
+     * GET /v1/loans/{id}/how-to-pay
+     *
+     * Mobile money payment instructions — same amount and reference as the
+     * portal's "How to Pay" page (overdue total incl. penalty, else the next
+     * installment, net of the reserve).
+     */
+    public function howToPay(Request $request, $id)
+    {
+        $member = $request->attributes->get('effectiveMember');
+
+        $loan = Loan::with('currency')
+            ->where('id', $id)
+            ->where('borrower_id', $member->id)
+            ->where('status', 1)
+            ->first();
+
+        if (!$loan) {
+            return $this->error('Loan not found.', 'NOT_FOUND', [], 404);
+        }
+
+        $today    = date('Y-m-d');
+        $arrears  = LoanRepaymentService::arrears($loan, $today);
+        $coverage = \App\Services\LoanReserveService::coverage($loan, $arrears['installments']);
+        $pays     = fn ($due) => max(0, round($due['total'] - ($coverage[$due['repayment']->id] ?? 0), 2));
+
+        // Overdue installments first; otherwise the next one due.
+        $overdue = array_values(array_filter($arrears['installments'], fn ($due) => $due['overdue'] && $pays($due) > 0));
+        $next    = collect($arrears['installments'])->first(fn ($due) => ! $due['overdue'] && $pays($due) > 0);
+
+        $amount      = $overdue ? round(array_sum(array_map($pays, $overdue)), 2) : ($next ? $pays($next) : 0);
+        $amountLabel = $overdue ? 'Overdue amount (including penalty)' : ($next ? 'Next installment due ' . $next['repayment']->repayment_date : '');
+
+        $savingsAvailable = $loan->debit_account_id ? max(0, get_account_balance($loan->debit_account_id, $loan->borrower_id)) : 0;
+
+        return $this->success([
+            'loan_id'           => $loan->loan_id,
+            'amount'            => (float) $amount,
+            'amount_label'      => $amountLabel,
+            'currency'          => $loan->currency->name ?? get_option('currency'),
+            'reference'         => strtoupper(trim($member->first_name . ' ' . $member->last_name)),
+            'savings_available' => (float) $savingsAvailable,
+            'confirm_hours'     => (int) get_option('pay_confirm_hours', 24),
+            'mtn'    => [
+                'number' => get_option('mtn_pay_number', '0794040006'),
+                'name'   => get_option('mtn_pay_name', 'Adrole Samuel'),
+            ],
+            'airtel' => [
+                'number' => get_option('airtel_pay_number', '0747565123'),
+                'name'   => get_option('airtel_pay_name', 'Adrole Samuel'),
+            ],
+        ], 'Payment instructions loaded.');
+    }
+
+    /**
      * POST /v1/loans/{id}/pay
      *
      * Body:
@@ -261,6 +315,7 @@ class LoanController extends ApiController
 
         return [
             'id'                => $loan->id,
+            'loan_id'           => $loan->loan_id,
             'product_name'      => $loan->loan_product->name ?? 'N/A',
             'applied_amount'    => (float) $loan->applied_amount,
             'total_paid'        => (float) $loan->total_paid,

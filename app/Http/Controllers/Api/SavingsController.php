@@ -70,7 +70,8 @@ class SavingsController extends ApiController
         $memberId = $member->id;
 
         // Verify account belongs to member
-        $account = SavingsAccount::where('id', $id)
+        $account = SavingsAccount::with('savings_type.currency')
+            ->where('id', $id)
             ->where('member_id', $memberId)
             ->first();
 
@@ -98,6 +99,7 @@ class SavingsController extends ApiController
         return $this->success([
             'account_no'   => $account->account_number,
             'balance'      => (float) get_account_balance($id, $memberId),
+            'currency'     => $account->savings_type->currency->name ?? get_option('currency'),
             'transactions' => $mapped,
             'pagination'   => [
                 'current_page' => $transactions->currentPage(),

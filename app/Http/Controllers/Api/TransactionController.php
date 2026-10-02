@@ -29,7 +29,7 @@ class TransactionController extends ApiController
         $memberId = $member->id;
         $perPage  = min((int) $request->get('per_page', 20), 50);
 
-        $query = Transaction::with('account')
+        $query = Transaction::with('account.savings_type.currency')
             ->where('member_id', $memberId)
             ->orderBy('id', 'desc');
 
@@ -52,6 +52,7 @@ class TransactionController extends ApiController
             'description' => $tx->description,
             'status'      => $tx->status,
             'account_no'  => $tx->account->account_number ?? null,
+            'currency'    => $tx->account->savings_type->currency->name ?? get_option('currency'),
         ]);
 
         return $this->success([

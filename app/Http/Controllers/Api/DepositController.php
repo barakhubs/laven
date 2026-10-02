@@ -107,6 +107,17 @@ class DepositController extends ApiController
             );
         }
 
+        // Every field the method asks for is required, as on the web deposit form.
+        $missing = [];
+        foreach ((array) ($depositMethod->requirements ?? []) as $field) {
+            if (blank($request->input('requirements.' . $field))) {
+                $missing['requirements.' . $field] = [$field . ' is required.'];
+            }
+        }
+        if ($missing) {
+            return $this->error('Validation failed.', 'VALIDATION_ERROR', $missing, 422);
+        }
+
         $account = SavingsAccount::where('id', $request->credit_account)
             ->where('member_id', $member->id)
             ->first();
@@ -176,7 +187,7 @@ class DepositController extends ApiController
 
         $perPage = min((int) $request->get('per_page', 20), 50);
 
-        $deposits = DepositRequest::with(['method', 'account'])
+        $deposits = DepositRequest::with(['method', 'account.savings_type.currency'])
             ->where('member_id', $member->id)
             ->orderBy('id', 'desc')
             ->paginate($perPage);
@@ -189,6 +200,7 @@ class DepositController extends ApiController
             'charge'     => (float) ($d->charge ?? 0),
             'method'     => $d->method->name ?? 'N/A',
             'account_no' => $d->account->account_number ?? 'N/A',
+            'currency'   => $d->account->savings_type->currency->name ?? get_option('currency'),
             'status'     => $statusMap[$d->status] ?? 'Pending',
             'created_at' => $d->created_at,
         ]);

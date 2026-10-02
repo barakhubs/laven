@@ -52,6 +52,7 @@ Route::prefix('v1')->group(function () {
 
             Route::get('loans',           [LoanController::class, 'index'])->name('api.loans.index');
             Route::post('loans/{id}/pay', [LoanController::class, 'pay'])->name('api.loans.pay');
+            Route::get('loans/{id}/how-to-pay', [LoanController::class, 'howToPay'])->name('api.loans.how_to_pay');
             Route::get('loans/{id}',      [LoanController::class, 'show'])->name('api.loans.show');
             Route::get('transactions',    [TransactionController::class, 'index'])->name('api.transactions.index');
             Route::get('savings',                     [SavingsController::class, 'index'])->name('api.savings.index');

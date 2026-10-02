@@ -398,6 +398,10 @@ class AuthController extends ApiController
             'photo'     => $user->profile_picture
                 ? asset('uploads/profile/' . $user->profile_picture)
                 : null,
+            // Dates in other responses use these site-wide PHP formats (General Settings),
+            // so apps need them to parse e.g. "02/10/2026 03:15 PM" unambiguously.
+            'date_format' => get_date_format(),
+            'time_format' => get_time_format(),
         ];
     }
 
