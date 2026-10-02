@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\MemberProfileController;
 use App\Http\Controllers\Api\LoanController;
 use App\Http\Controllers\Api\TransactionController;
 use App\Http\Controllers\Api\SavingsController;
@@ -45,6 +46,7 @@ Route::prefix('v1')->group(function () {
         // All data routes require client context resolution
         Route::middleware('staff.client.context')->group(function () {
             Route::get('dashboard', [DashboardController::class, 'index'])->name('api.dashboard');
+            Route::get('profile',   [MemberProfileController::class, 'show'])->name('api.profile.show');
 
             Route::get('notifications',                    [NotificationController::class, 'index'])->name('api.notifications.index');
             Route::post('notifications/{id}/read',         [NotificationController::class, 'markRead'])->name('api.notifications.read');

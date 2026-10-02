@@ -395,9 +395,7 @@ class AuthController extends ApiController
             'is_staff'  => $isStaff,
             'member_id' => $member->id ?? null,
             'member_no' => $member->member_no ?? null,
-            'photo'     => $user->profile_picture
-                ? asset('uploads/profile/' . $user->profile_picture)
-                : null,
+            'photo'     => $member ? $this->memberPhotoUrl($member, $user) : $this->photoUrl($user->profile_picture),
             // Dates in other responses use these site-wide PHP formats (General Settings),
             // so apps need them to parse e.g. "02/10/2026 03:15 PM" unambiguously.
             'date_format' => get_date_format(),
@@ -413,9 +411,7 @@ class AuthController extends ApiController
             'email'     => $member->email,
             'member_no' => $member->member_no,
             'mobile'    => $member->mobile,
-            'photo'     => $member->photo
-                ? asset('uploads/member/' . $member->photo)
-                : null,
+            'photo'     => $this->memberPhotoUrl($member),
         ];
     }
 }

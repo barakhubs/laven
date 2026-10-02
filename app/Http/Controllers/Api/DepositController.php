@@ -60,7 +60,7 @@ class DepositController extends ApiController
                 'id'           => $acc->id,
                 'account_no'   => $acc->account_number,
                 'product_name' => $acc->savings_type->name ?? 'N/A',
-                'balance'      => (float) get_account_balance($acc->id, $member->id),
+                ...$this->accountBalances($acc, $member->id),
                 'currency'     => $acc->savings_type->currency->name ?? get_option('currency'),
             ]);
 

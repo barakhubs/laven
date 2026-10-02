@@ -23,6 +23,16 @@ class User extends Authenticatable {
         'otp_expires_at'        => 'datetime',
     ];
 
+    protected static function booted() {
+        // Mobile sessions last until sign-out or a password change, wherever the
+        // password was changed (app, web profile, reset link or an admin).
+        static::updated(function (User $user) {
+            if ($user->wasChanged('password')) {
+                $user->tokens()->delete();
+            }
+        });
+    }
+
     public function getCreatedAtAttribute($value) {
         $date_format = get_date_format();
         $time_format = get_time_format();

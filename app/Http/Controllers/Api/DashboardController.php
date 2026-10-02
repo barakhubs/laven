@@ -29,7 +29,7 @@ class DashboardController extends ApiController
             ->map(fn($acc) => [
                 'id'           => $acc->id,
                 'product_name' => $acc->savings_type->name ?? 'N/A',
-                'balance'      => (float) get_account_balance($acc->id, $memberId),
+                ...$this->accountBalances($acc, $memberId),
                 'account_no'   => $acc->account_number,
                 'currency'     => $acc->savings_type->currency->name ?? get_option('currency'),
             ]);
@@ -91,11 +91,10 @@ class DashboardController extends ApiController
                 'id'        => $member->id,
                 'name'      => $member->name,
                 'member_no' => $member->member_no,
-                'photo'     => $request->user()->profile_picture
-                    ? asset('uploads/profile/' . $request->user()->profile_picture)
-                    : null,
+                'photo'     => $this->memberPhotoUrl($member, $member->user),
             ],
             'total_balance'       => $totalBalance,
+            'total_ledger_balance' => round($savingsAccounts->sum('ledger_balance'), 2),
             'savings_accounts'    => $savingsAccounts,
             'recent_transactions' => $recentTransactions,
             'active_loans'        => $activeLoans,

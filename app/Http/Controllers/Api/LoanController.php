@@ -91,8 +91,36 @@ class LoanController extends ApiController
                 'status'           => $r->status ?? 0,
             ]);
 
+        $product = $loan->loan_product;
+        $periods = [
+            '+1 day' => 'Daily', '+3 day' => 'Every 3 days', '+5 day' => 'Every 5 days', '+7 day' => 'Weekly',
+            '+10 day' => 'Every 10 days', '+15 day' => 'Every 15 days', '+21 day' => 'Every 21 days',
+            '+1 month' => 'Monthly', '+2 month' => 'Every 2 months', '+3 month' => 'Quarterly', '+4 month' => 'Every 4 months',
+            '+6 month' => 'Every 6 months', '+9 month' => 'Every 9 months', '+1 year' => 'Yearly',
+            '+2 year' => 'Every 2 years', '+3 year' => 'Every 3 years', '+5 year' => 'Every 5 years',
+        ];
+        $interestTypes = [
+            'flat_rate' => 'Flat rate', 'fixed_rate' => 'Fixed rate', 'mortgage' => 'Mortgage amortization',
+            'reducing_amount' => 'Reducing amount', 'one_time' => 'One-time payment', 'interest_only' => 'Interest only',
+        ];
+        $payments = $loan->payments()->get();
+
         return $this->success([
             'loan'     => $this->formatLoan($loan),
+            'details'  => [
+                'release_date'        => $loan->getRawOriginal('release_date'),
+                'first_payment_date'  => $loan->getRawOriginal('first_payment_date'),
+                'total_payable'       => (float) $loan->total_payable,
+                'interest_rate'       => $product ? (float) $product->interest_rate : null,
+                'interest_type'       => $product ? ($interestTypes[$product->interest_type] ?? ucwords(str_replace('_', ' ', $product->interest_type))) : null,
+                'term'                => $product ? (int) $product->term : null,
+                'repayment_frequency' => $product ? ($periods[$product->term_period] ?? ($product->term_period ?: null)) : null,
+                'late_penalty_rate'   => (float) $loan->late_payment_penalties,
+                'interest_paid'       => (float) $payments->sum('interest'),
+                'penalties_paid'      => (float) $payments->sum('late_penalties'),
+                'reserve_locked'      => \App\Services\LoanReserveService::remaining($loan),
+                'description'         => $loan->description,
+            ],
             'schedule' => $schedule,
         ], 'Loan details loaded.');
     }

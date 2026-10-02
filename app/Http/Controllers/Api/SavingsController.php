@@ -37,7 +37,7 @@ class SavingsController extends ApiController
                 'id'              => $acc->id,
                 'account_no'      => $acc->account_number,
                 'product_name'    => $acc->savings_type->name ?? 'N/A',
-                'balance'         => (float) get_account_balance($acc->id, $memberId),
+                ...$this->accountBalances($acc, $memberId),
                 'currency'        => $acc->savings_type->currency->name ?? get_option('currency'),
                 'opening_balance' => (float) $acc->opening_balance,
                 'status'          => $acc->status,
@@ -47,8 +47,9 @@ class SavingsController extends ApiController
         $totalBalance = $accounts->sum('balance');
 
         return $this->success([
-            'accounts'      => $accounts,
-            'total_balance' => $totalBalance,
+            'accounts'             => $accounts,
+            'total_balance'        => $totalBalance,
+            'total_ledger_balance' => round($accounts->sum('ledger_balance'), 2),
             'count'         => $accounts->count(),
         ], 'Savings accounts loaded.');
     }
@@ -98,7 +99,7 @@ class SavingsController extends ApiController
 
         return $this->success([
             'account_no'   => $account->account_number,
-            'balance'      => (float) get_account_balance($id, $memberId),
+            ...$this->accountBalances($account, $memberId),
             'currency'     => $account->savings_type->currency->name ?? get_option('currency'),
             'transactions' => $mapped,
             'pagination'   => [
