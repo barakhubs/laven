@@ -56,7 +56,14 @@ class LoanController extends Controller
             ->orderBy("id", "asc")
             ->get();
         if ($loan) {
-            return view('backend.customer_portal.loan.loan_details', compact('loan', 'customFields'));
+            // 30% reserve: what it will cover (from the last installment back)
+            // and what the client still has to pay themselves.
+            $reserve         = \App\Services\LoanReserveService::status($loan, date('Y-m-d'));
+            $reserveCoverage = $loan->status == 1
+                ? \App\Services\LoanReserveService::coverage($loan, LoanRepaymentService::arrears($loan, date('Y-m-d'))['installments'])
+                : [];
+
+            return view('backend.customer_portal.loan.loan_details', compact('loan', 'customFields', 'reserve', 'reserveCoverage'));
         }
     }
 

@@ -193,6 +193,12 @@ h5, .h5 {
     margin-right: 5px;
 }
 
+/* Keep sub-menus folded until metisMenu has initialised them (it adds
+   .collapse / .in), otherwise every sub-link flashes open on page load. */
+#menu ul.nav-second-level:not(.collapse):not(.collapsing):not(.in) {
+    display: none;
+}
+
 .metismenu >li >a {
     padding-left: 20px!important;
 }

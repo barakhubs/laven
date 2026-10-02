@@ -79,6 +79,22 @@
                             {{ decimalPlace($loan->remaining_balance, currency($loan->currency->name)) }}
                             </td>
                         </tr>
+                        @if($loan->status == 1 && $reserve['required'])
+                        <tr>
+                            <td>{{ _lang("30% Savings Reserve") }}</td>
+                            <td>
+                            {{ decimalPlace($reserve['remaining'], currency($loan->currency->name)) }}
+                            <br><small class="text-muted">{{ _lang('Kept in your savings to pay your last installment(s).') }}</small>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>{{ _lang("You Still Need to Pay") }}</td>
+                            <td class="font-weight-bold">
+                            {{ decimalPlace($reserve['client_must_pay'], currency($loan->currency->name)) }}
+                            <br><small class="text-muted font-weight-normal">{{ _lang('Everything you owe today, including any late penalty, less what your 30% savings will cover.') }}</small>
+                            </td>
+                        </tr>
+                        @endif
                         <tr><td>{{ _lang('Late Payment Penalties') }}</td><td>{{ $loan->late_payment_penalties }} %</td></tr>
                         <!--Custom Fields-->
                         @if(! $customFields->isEmpty())
@@ -189,6 +205,8 @@
                                 <th class="text-right">{{ _lang("Principal Amount") }}</th>
                                 <th class="text-right">{{ _lang("Interest") }}</th>
                                 <th class="text-right">{{ _lang("Balance") }}</th>
+                                <th class="text-right">{{ _lang("You Pay") }}</th>
+                                <th class="text-right">{{ _lang("From 30% Savings") }}</th>
                                 <th class="text-center">{{ _lang("Status") }}</th>
                                 <th class="text-center">{{ _lang("Action") }}</th>
                             </tr>
@@ -200,11 +218,27 @@
                                 <td class="text-right">
                                     {{ decimalPlace($repayment['amount_to_pay'], currency($loan->currency->name)) }}
                                     @if($repayment['status'] == 0 && ($repayment->interest_paid + $repayment->principal_paid + $repayment->penalty_paid) > 0)
-                                    <br><small class="text-info">{{ _lang('Part paid') }}: {{ decimalPlace($repayment->interest_paid + $repayment->principal_paid + $repayment->penalty_paid, currency($loan->currency->name)) }}</small>
+                                    <br><small class="text-success">{{ _lang('Paid so far') }}: {{ decimalPlace($repayment->interest_paid + $repayment->principal_paid, currency($loan->currency->name)) }}</small>
+                                    @if($repayment->penalty_paid > 0)
+                                    <br><small class="text-muted">{{ _lang('+ penalty paid') }}: {{ decimalPlace($repayment->penalty_paid, currency($loan->currency->name)) }}</small>
+                                    @endif
+                                    <br><small class="text-info">{{ _lang('Remaining') }}: {{ decimalPlace($repayment->amount_due, currency($loan->currency->name)) }}</small>
                                     @endif
                                 </td>
                                 <td class="text-right">
+                                    @if($repayment['status'] == 0)
+                                    {{-- Penalty runs on the unpaid part only, so show today's rate and what has built up. --}}
+                                    {{ decimalPlace($repayment->current_daily_penalty, currency($loan->currency->name)) }}/ {{ _lang('Day') }}
+                                    @if($repayment->current_daily_penalty + 0.005 < $repayment['penalty'])
+                                    <br><small class="text-muted">{{ _lang('Full rate') }}: {{ decimalPlace($repayment['penalty'], currency($loan->currency->name)) }}</small>
+                                    @endif
+                                    @php $penaltyOwed = $repayment->penaltyDue(date('Y-m-d')); @endphp
+                                    @if($penaltyOwed > 0)
+                                    <br><small class="text-danger">{{ _lang('Owed now') }}: {{ decimalPlace($penaltyOwed, currency($loan->currency->name)) }}</small>
+                                    @endif
+                                    @else
                                     {{ decimalPlace($repayment['penalty'], currency($loan->currency->name)) }}/ {{ _lang('Day') }}
+                                    @endif
                                 </td>
                                 <td class="text-right">
                                     {{ decimalPlace($repayment['principal_amount'], currency($loan->currency->name)) }}
@@ -215,9 +249,29 @@
                                 <td class="text-right">
                                     {{ decimalPlace($repayment['balance'], currency($loan->currency->name)) }}
                                 </td>
+                                @php
+                                    $owedNow     = $repayment['status'] == 0 ? \App\Services\LoanRepaymentService::due($repayment, date('Y-m-d'))['total'] : 0;
+                                    $fromReserve = $reserveCoverage[$repayment->id] ?? 0;
+                                @endphp
+                                <td class="text-right">
+                                    @if($repayment['status'] == 0)
+                                    <strong>{{ decimalPlace(max(0, $owedNow - $fromReserve), currency($loan->currency->name)) }}</strong>
+                                    @php $penaltyInIt = $repayment->penaltyDue(date('Y-m-d')); @endphp
+                                    @if($penaltyInIt > 0 && $owedNow - $fromReserve > 0)
+                                    <br><small class="text-muted">{{ _lang('incl. penalty') }} {{ decimalPlace($penaltyInIt, currency($loan->currency->name)) }}</small>
+                                    @endif
+                                    @else
+                                    -
+                                    @endif
+                                </td>
+                                <td class="text-right text-info">
+                                    {{ $fromReserve > 0 ? decimalPlace($fromReserve, currency($loan->currency->name)) : '-' }}
+                                </td>
                                 <td class="text-center">
                                     @if($repayment['status'] == 0 && date('Y-m-d') > $repayment->getRawOriginal('repayment_date'))
                                         {!! xss_clean(show_status(_lang('Due'),'danger')) !!}
+                                        @php $daysLate = (int) \Carbon\Carbon::parse($repayment->getRawOriginal('repayment_date'))->diffInDays(\Carbon\Carbon::today()); @endphp
+                                        <br><small class="text-danger text-nowrap">({{ $daysLate }} {{ $daysLate == 1 ? _lang('day late') : _lang('days late') }})</small>
                                     @elseif($repayment['status'] == 0 && date('Y-m-d') <= $repayment->getRawOriginal('repayment_date'))
                                         {!! xss_clean(show_status(_lang('Unpaid'),'warning')) !!}
                                     @else
