@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Customer;
 use App\Http\Controllers\Controller;
 use App\Models\DepositMethod;
 use App\Models\DepositRequest;
+use App\Models\Loan;
 use App\Models\SavingsAccount;
 use App\Models\Transaction;
 use App\Models\WithdrawMethod;
@@ -298,10 +299,27 @@ class TransferController extends Controller {
 	 */
 	public function transaction_requests(Request $request) {
 		$member_id = auth()->user()->member->id;
-		$deposit_requests = DepositRequest::where('member_id', $member_id)->get();
-		$withdraw_requests = WithdrawRequest::where('member_id', $member_id)->get();
 
-		return view('backend.customer_portal.transaction-requests', compact('deposit_requests', 'withdraw_requests'));
+		$types = ['deposit_requests', 'withdraw_requests', 'loan_applications'];
+		$type = in_array($request->type, $types) ? $request->type : 'deposit_requests';
+		// Pending only by default; "all" shows the full history
+		$status = $request->status == 'all' ? 'all' : 'pending';
+
+		if ($type == 'loan_applications') {
+			$query = Loan::with('loan_product', 'currency')->where('borrower_id', $member_id);
+		} else {
+			$model = $type == 'deposit_requests' ? DepositRequest::class : WithdrawRequest::class;
+			$query = $model::with('account.savings_type.currency', 'method')->where('member_id', $member_id);
+		}
+
+		if ($status == 'pending') {
+			$query->where('status', 0);
+		}
+
+		// Newest first; PostgreSQL has no default order
+		$transaction_requests = $query->orderBy('created_at', 'desc')->orderBy('id', 'desc')->get();
+
+		return view('backend.customer_portal.transaction-requests', compact('transaction_requests', 'type', 'status'));
 	}
 
 	public function get_exchange_amount($from, $to, $amount) {
