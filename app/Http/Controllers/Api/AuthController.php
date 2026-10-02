@@ -388,6 +388,9 @@ class AuthController extends ApiController
             'email'     => $user->email,
             'user_type' => $user->user_type,
             'is_staff'  => $isStaff,
+            // Admin mode in the app; recording repayments needs superadmin.
+            'is_admin'      => $user->isAdmin(),
+            'is_superadmin' => $user->isSuperAdmin(),
             'member_id' => $member->id ?? null,
             'member_no' => $member->member_no ?? null,
             'photo'     => $member ? $this->memberPhotoUrl($member, $user) : $this->photoUrl($user->profile_picture),

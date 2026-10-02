@@ -2,6 +2,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\DepositRequest;
+use App\Services\RequestApprovalService;
 use App\Models\Transaction;
 use App\Notifications\ApprovedDepositRequest;
 use App\Notifications\RejectDepositRequest;
@@ -100,65 +101,13 @@ class DepositRequestController extends Controller
      */
     public function approve($id)
     {
-        DB::beginTransaction();
-
-        $depositRequest = DepositRequest::find($id);
-
-        //Create Transaction
-        $transaction                     = new Transaction();
-        $transaction->trans_date         = now();
-        $transaction->member_id          = $depositRequest->member_id;
-        $transaction->savings_account_id = $depositRequest->credit_account_id;
-        $transaction->charge             = convert_currency($depositRequest->method->currency->name, $depositRequest->account->savings_type->currency->name, $depositRequest->charge);
-        $transaction->amount             = $depositRequest->amount;
-        $transaction->dr_cr              = 'cr';
-        $transaction->type               = 'Deposit';
-        $transaction->method             = $depositRequest->method->name;
-        $transaction->status             = 2;
-        $transaction->description        = _lang('Deposit Via') . ' ' . $depositRequest->method->name;
-        $transaction->created_user_id    = auth()->id();
-        $transaction->branch_id          = auth()->user()->branch_id;
-
-        $transaction->save();
-
-        $depositRequest->status         = 2;
-        $depositRequest->transaction_id = $transaction->id;
-        $depositRequest->save();
-
-        try {
-            $transaction->member->notify(new ApprovedDepositRequest($transaction));
-        } catch (\Exception $e) {}
-
-        DB::commit();
+        RequestApprovalService::approveDeposit(DepositRequest::findOrFail($id));
         return redirect()->route('deposit_requests.index')->with('success', _lang('Request Approved'));
     }
 
-    /**
-     * Reject Wire Transfer
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
     public function reject($id)
     {
-        DB::beginTransaction();
-        $depositRequest = DepositRequest::find($id);
-
-        if ($depositRequest->transaction_id != null) {
-            $transaction = Transaction::find($depositRequest->transaction_id);
-            $transaction->delete();
-        }
-
-        $depositRequest->status         = 1;
-        $depositRequest->transaction_id = null;
-        $depositRequest->save();
-
-        DB::commit();
-
-        try {
-            $depositRequest->member->notify(new RejectDepositRequest($depositRequest));
-        } catch (\Exception $e) {}
-
+        RequestApprovalService::rejectDeposit(DepositRequest::findOrFail($id));
         return redirect()->route('deposit_requests.index')->with('success', _lang('Request Rejected'));
     }
 

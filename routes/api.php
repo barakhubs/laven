@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\AppVersionController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DashboardController;
@@ -38,6 +39,18 @@ Route::prefix('v1')->middleware('app.version')->group(function () {
 
         // Staff-only: list/search clients
         Route::get('staff/clients', [AuthController::class, 'clients'])->name('api.staff.clients');
+
+        // Admin mode: admins and superadmins (recording repayments is superadmin-only inside).
+        Route::prefix('admin')->middleware('api.admin')->name('api.admin.')->group(function () {
+            Route::get('overview',          [AdminController::class, 'overview'])->name('overview');
+            Route::get('financial-summary', [AdminController::class, 'financialSummary'])->name('financial-summary');
+            Route::get('collections',       [AdminController::class, 'collections'])->name('collections');
+            Route::get('requests',          [AdminController::class, 'requests'])->name('requests');
+            Route::post('requests/{type}/{id}/{action}', [AdminController::class, 'decide'])
+                ->whereIn('type', ['deposit', 'withdraw'])->whereIn('action', ['approve', 'reject'])->name('requests.decide');
+            Route::get('loans/{id}/repayment',   [AdminController::class, 'repaymentPreview'])->name('repayment.preview');
+            Route::post('loans/{id}/repayments', [AdminController::class, 'recordRepayment'])->name('repayment.store');
+        });
 
         Route::post('profile/update',          [ProfileController::class, 'apiUpdate'])->name('api.profile.update');
         Route::post('profile/update_password', [ProfileController::class, 'apiUpdatePassword'])->name('api.profile.update_password');

@@ -42,96 +42,107 @@ class DashboardController extends Controller
                 ->get();
             $data['loans'] = Loan::where('status', 1)->where('borrower_id', $user->member->id)->get();
         } else {
-            $data['recent_transactions'] = Transaction::limit('10')
-                ->orderBy('trans_date', 'desc')
-                ->get();
-
-            $data['due_repayments'] = LoanRepayment::selectRaw('loan_id, MAX(repayment_date) as repayment_date, COUNT(id) as total_due_repayment, SUM(' . LoanRepayment::amountDueSql() . ') as total_due')
-                ->with('loan')
-                ->forCurrentLoanDomain()
-                ->whereRaw("repayment_date < '$date'")
-                ->where('status', 0)
-                ->groupBy('loan_id')
-                ->get();
-
-            $data['loan_balances'] = Loan::where('status', 1)
-                ->selectRaw('currency_id, SUM(applied_amount) as total_amount, SUM(total_paid) as total_paid')
-                ->with('currency')
-                ->groupBy('currency_id')
-                ->get();
-
-            $data['total_customer'] = Member::count();
-
-            // ---- Loan / repayment / recovery summary cards ----
-            $baseCurrencyId = base_currency_id();
-            $monthStart     = Carbon::now()->startOfMonth()->toDateString();
-            $monthEnd       = Carbon::now()->endOfMonth()->toDateString();
-
-            $data['active_loans_count']  = Loan::where('status', 1)->count();
-            $data['pending_loans_count'] = Loan::where('status', 0)->count();
-
-            $data['overall_disbursed'] = Loan::where('currency_id', $baseCurrencyId)
-                ->whereIn('status', [1, 2])
-                ->sum('applied_amount');
-
-            $data['monthly_disbursed'] = Loan::where('currency_id', $baseCurrencyId)
-                ->whereIn('status', [1, 2])
-                ->whereBetween('release_date', [$monthStart, $monthEnd])
-                ->sum('applied_amount');
-
-            $data['overall_recovered'] = LoanRepayment::whereHas('loan', function (Builder $q) use ($baseCurrencyId) {
-                $q->where('currency_id', $baseCurrencyId);
-            })
-                ->sum(DB::raw('interest_paid + principal_paid'));
-
-            $data['monthly_recovered'] = LoanRepayment::whereHas('loan', function (Builder $q) use ($baseCurrencyId) {
-                $q->where('currency_id', $baseCurrencyId);
-            })
-                ->whereBetween('repayment_date', [$monthStart, $monthEnd])
-                ->sum(DB::raw('interest_paid + principal_paid'));
-
-            $data['total_overdue'] = LoanRepayment::whereHas('loan', function (Builder $q) use ($baseCurrencyId) {
-                $q->where('currency_id', $baseCurrencyId);
-            })
-                ->where('status', 0)
-                ->where('repayment_date', '<', $date)
-                ->sum(DB::raw(LoanRepayment::amountDueSql()));
-
-            $data['monthly_overdue'] = LoanRepayment::whereHas('loan', function (Builder $q) use ($baseCurrencyId) {
-                $q->where('currency_id', $baseCurrencyId);
-            })
-                ->where('status', 0)
-                ->whereBetween('repayment_date', [$monthStart, $date])
-                ->sum(DB::raw(LoanRepayment::amountDueSql()));
-
-            $data['total_not_due'] = LoanRepayment::whereHas('loan', function (Builder $q) use ($baseCurrencyId) {
-                $q->where('currency_id', $baseCurrencyId);
-            })
-                ->where('status', 0)
-                ->where('repayment_date', '>=', $date)
-                ->sum(DB::raw(LoanRepayment::amountDueSql()));
-
-            $overallDueSoFar = $data['overall_recovered'] + $data['total_overdue'];
-            $data['overall_recovery_rate'] = $overallDueSoFar > 0
-                ? round(($data['overall_recovered'] / $overallDueSoFar) * 100, 1)
-                : 0;
-
-            $monthlyDueSoFar = $data['monthly_recovered'] + $data['monthly_overdue'];
-            $data['monthly_recovery_rate'] = $monthlyDueSoFar > 0
-                ? round(($data['monthly_recovered'] / $monthlyDueSoFar) * 100, 1)
-                : 0;
-
-            $data['outstanding_portfolio'] = (float) Loan::where('currency_id', $baseCurrencyId)
-                ->where('status', 1)
-                ->selectRaw('COALESCE(SUM(applied_amount - COALESCE(total_paid, 0)), 0) as total')
-                ->value('total');
-
-            $data['portfolio_at_risk'] = $data['outstanding_portfolio'] > 0
-                ? round(($data['total_overdue'] / $data['outstanding_portfolio']) * 100, 1)
-                : 0;
+            $data = self::adminSummary();
         }
 
         return view("backend.dashboard-$user_type", $data);
+    }
+
+    /** Figures for the admin dashboard; also served to the mobile admin app. */
+    public static function adminSummary(): array
+    {
+        $date = date('Y-m-d');
+        $data = [];
+
+        $data['recent_transactions'] = Transaction::limit('10')
+            ->orderBy('trans_date', 'desc')
+            ->get();
+
+        $data['due_repayments'] = LoanRepayment::selectRaw('loan_id, MAX(repayment_date) as repayment_date, COUNT(id) as total_due_repayment, SUM(' . LoanRepayment::amountDueSql() . ') as total_due')
+            ->with('loan')
+            ->forCurrentLoanDomain()
+            ->whereRaw("repayment_date < '$date'")
+            ->where('status', 0)
+            ->groupBy('loan_id')
+            ->get();
+
+        $data['loan_balances'] = Loan::where('status', 1)
+            ->selectRaw('currency_id, SUM(applied_amount) as total_amount, SUM(total_paid) as total_paid')
+            ->with('currency')
+            ->groupBy('currency_id')
+            ->get();
+
+        $data['total_customer'] = Member::count();
+
+        // ---- Loan / repayment / recovery summary cards ----
+        $baseCurrencyId = base_currency_id();
+        $monthStart     = Carbon::now()->startOfMonth()->toDateString();
+        $monthEnd       = Carbon::now()->endOfMonth()->toDateString();
+
+        $data['active_loans_count']  = Loan::where('status', 1)->count();
+        $data['pending_loans_count'] = Loan::where('status', 0)->count();
+
+        $data['overall_disbursed'] = Loan::where('currency_id', $baseCurrencyId)
+            ->whereIn('status', [1, 2])
+            ->sum('applied_amount');
+
+        $data['monthly_disbursed'] = Loan::where('currency_id', $baseCurrencyId)
+            ->whereIn('status', [1, 2])
+            ->whereBetween('release_date', [$monthStart, $monthEnd])
+            ->sum('applied_amount');
+
+        $data['overall_recovered'] = LoanRepayment::whereHas('loan', function (Builder $q) use ($baseCurrencyId) {
+            $q->where('currency_id', $baseCurrencyId);
+        })
+            ->sum(DB::raw('interest_paid + principal_paid'));
+
+        $data['monthly_recovered'] = LoanRepayment::whereHas('loan', function (Builder $q) use ($baseCurrencyId) {
+            $q->where('currency_id', $baseCurrencyId);
+        })
+            ->whereBetween('repayment_date', [$monthStart, $monthEnd])
+            ->sum(DB::raw('interest_paid + principal_paid'));
+
+        $data['total_overdue'] = LoanRepayment::whereHas('loan', function (Builder $q) use ($baseCurrencyId) {
+            $q->where('currency_id', $baseCurrencyId);
+        })
+            ->where('status', 0)
+            ->where('repayment_date', '<', $date)
+            ->sum(DB::raw(LoanRepayment::amountDueSql()));
+
+        $data['monthly_overdue'] = LoanRepayment::whereHas('loan', function (Builder $q) use ($baseCurrencyId) {
+            $q->where('currency_id', $baseCurrencyId);
+        })
+            ->where('status', 0)
+            ->whereBetween('repayment_date', [$monthStart, $date])
+            ->sum(DB::raw(LoanRepayment::amountDueSql()));
+
+        $data['total_not_due'] = LoanRepayment::whereHas('loan', function (Builder $q) use ($baseCurrencyId) {
+            $q->where('currency_id', $baseCurrencyId);
+        })
+            ->where('status', 0)
+            ->where('repayment_date', '>=', $date)
+            ->sum(DB::raw(LoanRepayment::amountDueSql()));
+
+        $overallDueSoFar = $data['overall_recovered'] + $data['total_overdue'];
+        $data['overall_recovery_rate'] = $overallDueSoFar > 0
+            ? round(($data['overall_recovered'] / $overallDueSoFar) * 100, 1)
+            : 0;
+
+        $monthlyDueSoFar = $data['monthly_recovered'] + $data['monthly_overdue'];
+        $data['monthly_recovery_rate'] = $monthlyDueSoFar > 0
+            ? round(($data['monthly_recovered'] / $monthlyDueSoFar) * 100, 1)
+            : 0;
+
+        $data['outstanding_portfolio'] = (float) Loan::where('currency_id', $baseCurrencyId)
+            ->where('status', 1)
+            ->selectRaw('COALESCE(SUM(applied_amount - COALESCE(total_paid, 0)), 0) as total')
+            ->value('total');
+
+        $data['portfolio_at_risk'] = $data['outstanding_portfolio'] > 0
+            ? round(($data['total_overdue'] / $data['outstanding_portfolio']) * 100, 1)
+            : 0;
+
+        return $data;
     }
 
     public function total_customer_widget()

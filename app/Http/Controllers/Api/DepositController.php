@@ -192,7 +192,7 @@ class DepositController extends ApiController
             ->orderBy('id', 'desc')
             ->paginate($perPage);
 
-        $statusMap = [0 => 'Pending', 1 => 'Approved', 2 => 'Rejected'];
+        $statusMap = [0 => 'Pending', 1 => 'Rejected', 2 => 'Approved'];
 
         $mapped = collect($deposits->items())->map(fn($d) => [
             'id'         => $d->id,

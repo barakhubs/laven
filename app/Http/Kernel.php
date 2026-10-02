@@ -65,6 +65,7 @@ class Kernel extends HttpKernel
         'api.2fa_verified'      => \App\Http\Middleware\EnsureTwoFactorVerified::class,
         'staff.client.context' => \App\Http\Middleware\StaffClientContext::class,
         'app.version'          => \App\Http\Middleware\EnforceAppVersion::class,
+        'api.admin'            => \App\Http\Middleware\EnsureApiAdmin::class,
         'superadmin'       => \App\Http\Middleware\SuperAdmin::class,
     ];
 }

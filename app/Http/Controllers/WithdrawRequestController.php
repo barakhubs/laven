@@ -3,6 +3,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Transaction;
 use App\Models\WithdrawRequest;
+use App\Services\RequestApprovalService;
 use App\Notifications\ApprovedWithdrawRequest;
 use App\Notifications\RejectWithdrawRequest;
 use DataTables;
@@ -101,61 +102,13 @@ class WithdrawRequestController extends Controller
      */
     public function approve($id)
     {
-        DB::beginTransaction();
-
-        $withdrawRequest         = WithdrawRequest::find($id);
-        $withdrawRequest->status = 2;
-        $withdrawRequest->save();
-
-        $transaction         = Transaction::find($withdrawRequest->transaction_id);
-        $transaction->status = 2;
-        $transaction->save();
-
-        $childTransaction = Transaction::where('parent_id', $transaction->id)->first();
-
-        if ($childTransaction) {
-            $childTransaction->status = 2;
-            $childTransaction->save();
-        }
-
-        try {
-            $transaction->member->notify(new ApprovedWithdrawRequest($withdrawRequest));
-        } catch (\Exception $e) {}
-
-        DB::commit();
+        RequestApprovalService::approveWithdraw(WithdrawRequest::findOrFail($id));
         return redirect()->route('withdraw_requests.index')->with('success', _lang('Request Approved'));
     }
 
-    /**
-     * Reject Wire Transfer
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
     public function reject($id)
     {
-        DB::beginTransaction();
-        $withdrawRequest = WithdrawRequest::find($id);
-
-        $transaction         = Transaction::find($withdrawRequest->transaction_id);
-        $transaction->status = 1;
-        $transaction->save();
-
-        $childTransaction = Transaction::where('parent_id', $transaction->id)->first();
-
-        if ($childTransaction) {
-            $childTransaction->status = 1;
-            $childTransaction->save();
-        }
-
-        $withdrawRequest->status = 1;
-        $withdrawRequest->save();
-
-        try {
-            $transaction->member->notify(new RejectWithdrawRequest($withdrawRequest));
-        } catch (\Exception $e) {}
-
-        DB::commit();
+        RequestApprovalService::rejectWithdraw(WithdrawRequest::findOrFail($id));
         return redirect()->route('withdraw_requests.index')->with('success', _lang('Request Rejected'));
     }
 

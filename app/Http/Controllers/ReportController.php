@@ -569,6 +569,12 @@ class ReportController extends Controller
      */
     public function financial_summary(Request $request)
     {
+        return view('backend.reports.financial_summary', self::financialSummaryData($request));
+    }
+
+    /** Figures behind the financial summary; also served to the mobile admin app. */
+    public static function financialSummaryData(Request $request): array
+    {
         $baseCurrencyId = base_currency_id();
         $today          = date('Y-m-d');
         $year           = $request->year ?: date('Y');
@@ -765,7 +771,7 @@ class ReportController extends Controller
             })->values();
         }
 
-        return view('backend.reports.financial_summary', $data);
+        return $data;
     }
 
     /**

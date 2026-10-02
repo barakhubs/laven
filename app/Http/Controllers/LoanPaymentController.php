@@ -6,6 +6,7 @@ use App\Models\LoanPayment;
 use App\Models\SavingsAccount;
 use App\Models\Transaction;
 use App\Notifications\LoanPaymentReceived;
+use App\Services\LoanPaymentRecorder;
 use App\Services\LoanRepaymentService;
 use App\Services\LoanReserveService;
 use DataTables;
@@ -213,82 +214,18 @@ class LoanPaymentController extends Controller
             }
         }
 
-        DB::beginTransaction();
-
-        // Reject the request outright if loan_id doesn't resolve on this
-        // domain (e.g. an emergency loan_id posted to the main domain).
-        // lockForUpdate() holds the row lock for the rest of this transaction
-        // so a second concurrent payment on the same loan blocks here instead
-        // of both requests reading the same stale total_paid and one silently
-        // overwriting the other's update (lost update).
-        $loan = Loan::lockForUpdate()->find($request->loan_id);
-        if (! $loan) {
-            DB::rollBack();
-            return back()->with('error', _lang('Invalid loan selected for this domain'));
-        }
-
-        // The amount actually received is the source of truth; it's spread
-        // over the open installments oldest first (see LoanRepaymentService).
-        $amount = round((float) $request->total_amount, 2);
-        if ($request->account_id != 'cash') {
-
-            $account = SavingsAccount::where('id', $request->account_id)
-                ->where('member_id', $loan->borrower_id)
-                ->first();
-
-            if (! $account) {
-                DB::rollBack();
-                return back()->with('error', _lang('Invalid account !'));
-            }
-
-            //Check Available Balance
-            if (get_account_balance($request->account_id, $loan->borrower_id) < $amount) {
-                DB::rollBack();
-                return back()->with('error', _lang('Insufficient balance !'));
-            }
-        }
-
-        if ($request->account_id != 'cash') {
-            //Create Debit Transactions
-            $debit                     = new Transaction();
-            $debit->trans_date         = now();
-            $debit->member_id          = $loan->borrower_id;
-            $debit->savings_account_id = $request->account_id;
-            $debit->amount             = $amount;
-            $debit->dr_cr              = 'dr';
-            $debit->type               = 'Loan_Repayment';
-            $debit->method             = 'Manual';
-            $debit->status             = 2;
-            $debit->note               = _lang('Loan Repayment');
-            $debit->description        = _lang('Loan Repayment');
-            $debit->created_user_id    = auth()->id();
-            $debit->branch_id          = $loan->borrower->branch_id;
-            $debit->loan_id            = $loan->id;
-
-            $debit->save();
-        }
-
         // Penalty to charge; lowering it below what has accrued waives the
         // difference (recorded on the payment).
         $penaltyCharge = $request->filled('late_penalties') ? (float) $request->late_penalties : null;
 
         try {
-            $loanpayment = LoanRepaymentService::apply($loan, $amount, $request->paid_at, $penaltyCharge, [
-                'remarks'        => $request->remarks,
-                'transaction_id' => $request->account_id != 'cash' ? $debit->id : null,
-            ]);
+            $loanpayment = LoanPaymentRecorder::record(
+                $request->loan_id, (float) $request->total_amount, $request->paid_at,
+                $request->account_id, $penaltyCharge, $request->remarks,
+            );
         } catch (\InvalidArgumentException $e) {
-            DB::rollBack();
             return back()->with('error', $e->getMessage())->withInput();
         }
-
-        DB::commit();
-
-        \App\Utilities\CreditScoreCalculator::recalculate($loan);
-
-        try {
-            $loanpayment->member->notify(new LoanPaymentReceived($loanpayment));
-        } catch (Exception $e) {}
 
         // Print the receipt straight away, then come back to the list.
         return redirect()->route('loan_payments.receipt', [$loanpayment->id, 'next' => route('loan_payments.index')])
