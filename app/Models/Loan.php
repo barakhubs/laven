@@ -18,9 +18,20 @@ class Loan extends Model {
     protected static function booted() {
         static::addGlobalScope('borrower_id', function (Builder $builder) {
             if (auth()->check() && auth()->user()->user_type == 'user') {
-                return $builder->whereHas('borrower', function (Builder $query) {
-                    $query->where('branch_id', auth()->user()->branch_id);
-                });
+                // Same rule as the Branch/Member traits: all-branch staff are only narrowed
+                // when they have picked a branch in the switcher.
+                if (auth()->user()->all_branch_access == 1) {
+                    if (session('branch_id') != '') {
+                        $branch_id = session('branch_id') == 'default' ? null : session('branch_id');
+                        return $builder->whereHas('borrower', function (Builder $query) use ($branch_id) {
+                            $query->where('branch_id', $branch_id);
+                        });
+                    }
+                } else {
+                    return $builder->whereHas('borrower', function (Builder $query) {
+                        $query->where('branch_id', auth()->user()->branch_id);
+                    });
+                }
             } else {
                 if (session('branch_id') != '') {
                     $branch_id = session('branch_id') == 'default' ? null : session('branch_id');
