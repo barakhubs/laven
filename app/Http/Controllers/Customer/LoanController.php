@@ -343,6 +343,61 @@ class LoanController extends Controller
     }
 
     /**
+     * The client's loan payments, newest first, each with its receipt.
+     */
+    public function payments()
+    {
+        $payments = LoanPayment::withoutGlobalScopes()
+            ->with(['loan.currency', 'allocations'])
+            ->whereHas('loan', fn ($q) => $q->withoutGlobalScopes()->where('borrower_id', auth()->user()->member->id))
+            ->orderByDesc('paid_at')
+            ->orderByDesc('id')
+            ->get();
+
+        return view('backend.customer_portal.loan.payments', compact('payments'));
+    }
+
+    /**
+     * One of the client's receipts in the 58mm format, to view or print.
+     */
+    public function payment_receipt($id)
+    {
+        $loanpayment = $this->ownPayment($id);
+
+        return view('backend.loan_payment.receipt', \App\Services\LoanReceiptService::data($loanpayment) + [
+            'next'      => null,
+            'autoPrint' => false,
+            'actions'   => [
+                _lang('Download PDF') => route('loans.payment_receipt_pdf', $loanpayment->id),
+                _lang('Back')         => route('loans.payments'),
+            ],
+        ]);
+    }
+
+    /**
+     * The same receipt as a 58mm-wide PDF download.
+     */
+    public function payment_receipt_pdf($id)
+    {
+        $loanpayment = $this->ownPayment($id);
+
+        return response(\App\Services\LoanReceiptService::pdf($loanpayment), 200, [
+            'Content-Type'        => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="Laven-Receipt-' . $loanpayment->id . '.pdf"',
+        ]);
+    }
+
+    /**
+     * A payment on one of the logged-in client's own loans, or 404.
+     */
+    private function ownPayment($id): LoanPayment
+    {
+        return LoanPayment::withoutGlobalScopes()
+            ->whereHas('loan', fn ($q) => $q->withoutGlobalScopes()->where('borrower_id', auth()->user()->member->id))
+            ->findOrFail($id);
+    }
+
+    /**
      * "Pay Now": how to pay this loan by MTN or Airtel mobile money, with the
      * amount to send (the client's share, penalty included) and their name
      * to use as the reference. Staff record the payment once it arrives.

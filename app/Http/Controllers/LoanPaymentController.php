@@ -323,8 +323,7 @@ class LoanPaymentController extends Controller
      */
     public function receipt(Request $request, $id)
     {
-        $loanpayment = LoanPayment::forCurrentLoanDomain()->with(['loan.borrower', 'loan.currency', 'allocations.repayment', 'transaction'])->findOrFail($id);
-        $loan        = $loanpayment->loan;
+        $loanpayment = LoanPayment::forCurrentLoanDomain()->findOrFail($id);
 
         // Only follow next= within this site.
         $next = $request->query('next');
@@ -335,29 +334,7 @@ class LoanPaymentController extends Controller
         // Keep the "payment made" message for the page we go back to.
         session()->reflash();
 
-        $paidAt   = $loanpayment->getRawOriginal('paid_at');
-        $arrears  = LoanRepaymentService::arrears($loan, $paidAt);
-        $owed     = $arrears['owed'];
-        $reserve  = LoanReserveService::status($loan, $paidAt);
-        $coverage = LoanReserveService::coverage($loan, $arrears['installments']);
-
-        // What the client has to bring next: anything still overdue, and the
-        // next installment not yet due (both net of what the 30% reserve covers).
-        $clientPays     = fn ($due) => max(0, round($due['total'] - ($coverage[$due['repayment']->id] ?? 0), 2));
-        $upcoming       = collect($arrears['installments'])->first(fn ($due) => ! $due['overdue']);
-        $nextInstalment = $upcoming ? ['date' => $upcoming['repayment']->repayment_date, 'amount' => $clientPays($upcoming)] : null;
-
-        // What each installment this payment touched still owes (0 once
-        // cleared), and anything overdue on installments it didn't reach.
-        $stillOwes = [];
-        foreach ($arrears['installments'] as $due) {
-            $stillOwes[$due['repayment']->id] = $clientPays($due);
-        }
-        $touched      = $loanpayment->allocations->pluck('loan_repayment_id')->all();
-        $otherOverdue = round(array_sum(array_map($clientPays, array_filter($arrears['installments'],
-            fn ($due) => $due['overdue'] && ! in_array($due['repayment']->id, $touched)))), 2);
-
-        return view('backend.loan_payment.receipt', compact('loanpayment', 'loan', 'next', 'owed', 'reserve', 'stillOwes', 'otherOverdue', 'nextInstalment'));
+        return view('backend.loan_payment.receipt', \App\Services\LoanReceiptService::data($loanpayment) + ['next' => $next, 'autoPrint' => true]);
     }
 
     /**

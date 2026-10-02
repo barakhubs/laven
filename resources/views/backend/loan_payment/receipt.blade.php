@@ -1,4 +1,10 @@
 @php
+    // autoPrint: staff flow (print on load, then go to $next). forPdf: the
+    // dompdf download (no buttons/script). actions: [label => url] buttons
+    // shown on screen instead of "Print again / Continue" (client portal).
+    $autoPrint = $autoPrint ?? true;
+    $forPdf    = $forPdf ?? false;
+    $actions   = $actions ?? null;
     $cur    = currency($loan->currency->name);
     $method = $loanpayment->transaction_id == null
         ? _lang('Cash')
@@ -118,16 +124,26 @@
 
     <div class="rule"></div>
     <div class="center small">
-        {{ _lang('Served by') }}: {{ auth()->user()->name }}<br>
+        @if($servedBy){{ _lang('Served by') }}: {{ $servedBy }}<br>@endif
         {{ _lang('Printed') }}: {{ date(get_date_format() . ' H:i') }}<br>
         <strong>{{ _lang('Thank you') }}</strong>
     </div>
 
+    @unless($forPdf)
     <div class="screen-only">
-        <button onclick="window.print()">{{ _lang('Print again') }}</button>
-        <a href="{{ $next }}">{{ _lang('Continue') }}</a>
+        @if($actions)
+            <button onclick="window.print()">{{ _lang('Print') }}</button>
+            @foreach($actions as $label => $url)
+                <a href="{{ $url }}" style="margin-left:3mm">{{ $label }}</a>
+            @endforeach
+        @else
+            <button onclick="window.print()">{{ _lang('Print again') }}</button>
+            <a href="{{ $next }}">{{ _lang('Continue') }}</a>
+        @endif
     </div>
+    @endunless
 
+    @if($autoPrint && ! $forPdf)
     <script>
         // Print as soon as the receipt is shown, then carry on to the next
         // page. With Chrome's --kiosk-printing this needs no clicks at all.
@@ -143,5 +159,6 @@
             });
         })();
     </script>
+    @endif
 </body>
 </html>

@@ -389,6 +389,56 @@ class MemberController extends Controller {
     /**
      * Display the specified resource.
      */
+    /**
+     * Figures for the member profile page (backend.member.view). Shared by
+     * the staff member page and the client's own "My Profile" in the portal.
+     */
+    public static function profileData(Member $member): array {
+        $id = $member->id;
+
+        $savingsAccounts = \App\Models\SavingsAccount::with('savings_type.currency')
+            ->where('member_id', $id)
+            ->get();
+
+        $loans = $member->loans()->with(['loan_product', 'currency', 'payments'])->get();
+
+        // Totals
+        $totalSavingsBalance = 0;
+        foreach ($savingsAccounts as $account) {
+            // Whole balance (shown under the Balance column): what's
+            // available plus what's held by guarantees and 30% reserves.
+            $totalSavingsBalance += get_account_balance($account->id, $id) + get_blocked_balance($account->id, $id) + get_loan_reserve_balance($account->id, $id);
+        }
+
+        $totalLoanApplied   = $loans->sum('applied_amount');
+        $totalLoanPaid      = $loans->sum('total_paid');
+        $totalLoanDue       = $loans->where('status', 1)->sum(function ($loan) {
+            return $loan->remaining_balance;
+        });
+        $totalInterestPaid  = $loans->flatMap->payments->sum('interest');
+        $totalPenaltiesPaid = $loans->flatMap->payments->sum('late_penalties');
+
+        $activeLoans    = $loans->where('status', 1)->count();
+        $completedLoans = $loans->where('status', 2)->count();
+        $pendingLoans   = $loans->where('status', 0)->count();
+
+        // Recent transactions (last 10)
+        $recentTransactions = Transaction::with(['account.savings_type.currency'])
+            ->where('member_id', $id)
+            ->orderBy('trans_date', 'desc')
+            ->limit(10)
+            ->get();
+
+        return compact(
+            'member', 'id',
+            'savingsAccounts', 'loans',
+            'totalSavingsBalance', 'totalLoanApplied', 'totalLoanPaid',
+            'totalLoanDue', 'totalInterestPaid', 'totalPenaltiesPaid',
+            'activeLoans', 'completedLoans', 'pendingLoans',
+            'recentTransactions'
+        );
+    }
+
     public function show(Request $request, $id) {
         $member       = Member::withoutGlobalScopes(['status'])->find($id);
         $customFields = CustomField::where('table', 'members')
@@ -396,48 +446,7 @@ class MemberController extends Controller {
             ->orderBy("id", "asc")
             ->get();
         if (! $request->ajax()) {
-            // Financial summary data for the member profile
-            $savingsAccounts = \App\Models\SavingsAccount::with('savings_type.currency')
-                ->where('member_id', $id)
-                ->get();
-
-            $loans = $member->loans()->with(['loan_product', 'currency', 'payments'])->get();
-
-            // Totals
-            $totalSavingsBalance = 0;
-            foreach ($savingsAccounts as $account) {
-                // Whole balance (shown under the Balance column): what's
-                // available plus what's held by guarantees and 30% reserves.
-                $totalSavingsBalance += get_account_balance($account->id, $id) + get_blocked_balance($account->id, $id) + get_loan_reserve_balance($account->id, $id);
-            }
-
-            $totalLoanApplied   = $loans->sum('applied_amount');
-            $totalLoanPaid      = $loans->sum('total_paid');
-            $totalLoanDue       = $loans->where('status', 1)->sum(function ($loan) {
-                return $loan->remaining_balance;
-            });
-            $totalInterestPaid  = $loans->flatMap->payments->sum('interest');
-            $totalPenaltiesPaid = $loans->flatMap->payments->sum('late_penalties');
-
-            $activeLoans    = $loans->where('status', 1)->count();
-            $completedLoans = $loans->where('status', 2)->count();
-            $pendingLoans   = $loans->where('status', 0)->count();
-
-            // Recent transactions (last 10)
-            $recentTransactions = Transaction::with(['account.savings_type.currency'])
-                ->where('member_id', $id)
-                ->orderBy('trans_date', 'desc')
-                ->limit(10)
-                ->get();
-
-            return view('backend.member.view', compact(
-                'member', 'id', 'customFields',
-                'savingsAccounts', 'loans',
-                'totalSavingsBalance', 'totalLoanApplied', 'totalLoanPaid',
-                'totalLoanDue', 'totalInterestPaid', 'totalPenaltiesPaid',
-                'activeLoans', 'completedLoans', 'pendingLoans',
-                'recentTransactions'
-            ));
+            return view('backend.member.view', self::profileData($member) + compact('customFields'));
         } else {
             return view('backend.member.modal.view', compact('member', 'id', 'customFields'));
         }

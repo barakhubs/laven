@@ -1,6 +1,9 @@
 @extends('layouts.app')
 
 @section('content')
+{{-- $portal: the client's own "My Profile" in the customer portal — same
+     page without staff-only actions; loan links go to the portal loan page. --}}
+@php $portal = $portal ?? false; @endphp
 
 {{-- ===== MEMBER PROFILE HEADER ===== --}}
 <div class="row mb-3">
@@ -27,6 +30,7 @@
                             @endif
                         </small>
                     </div>
+                    @unless($portal)
                     <div class="ml-auto mt-2 mt-md-0">
                         <a href="{{ route('members.edit', $member->id) }}" class="btn btn-sm btn-outline-primary mr-1">
                             <i class="ti-pencil-alt mr-1"></i>{{ _lang('Edit') }}
@@ -35,6 +39,7 @@
                             <i class="ti-files mr-1"></i>{{ _lang('Documents') }}
                         </a>
                     </div>
+                    @endunless
                 </div>
             </div>
         </div>
@@ -91,8 +96,12 @@
             <li class="nav-item"><a class="nav-link" data-toggle="tab" href="#loan_history"><i class="ti-agenda"></i>&nbsp;{{ _lang('Loan History') }}</a></li>
             <li class="nav-item"><a class="nav-link" data-toggle="tab" href="#transaction-history"><i class="ti-view-list-alt"></i>&nbsp;{{ _lang('Transactions') }}</a></li>
             <li class="nav-item"><a class="nav-link" data-toggle="tab" href="#kyc_documents"><i class="ti-files"></i>&nbsp;{{ _lang('KYC Documents') }}</a></li>
+            @unless($portal)
             <li class="nav-item"><a class="nav-link" data-toggle="tab" href="#email"><i class="ti-email"></i>&nbsp;{{ _lang('Send Email') }}</a></li>
             <li class="nav-item"><a class="nav-link" data-toggle="tab" href="#sms"><i class="ti-comment-alt"></i>&nbsp;{{ _lang('Send SMS') }}</a></li>
+            @else
+            <li class="nav-item"><a class="nav-link" href="{{ route('loans.payments') }}"><i class="ti-receipt"></i>&nbsp;{{ _lang('Payments & Receipts') }}</a></li>
+            @endunless
         </ul>
     </div>
 
@@ -104,7 +113,9 @@
                 <div class="card">
                     <div class="card-header d-flex align-items-center">
                         <span class="header-title">{{ _lang('Member Details') }}</span>
+                        @unless($portal)
                         <a href="{{ route('members.edit', $member->id) }}" class="btn btn-xs btn-primary ml-auto"><i class="ti-pencil-alt mr-1"></i>{{ _lang('Edit') }}</a>
+                        @endunless
                     </div>
                     <div class="card-body">
                         <div class="row">
@@ -170,7 +181,9 @@
                 <div class="card">
                     <div class="card-header d-flex align-items-center">
                         <span class="header-title">{{ _lang('Savings Accounts') }}</span>
+                        @unless($portal)
                         <a href="{{ route('savings_accounts.create') }}" class="btn btn-xs btn-primary ml-auto"><i class="ti-plus mr-1"></i>{{ _lang('New Account') }}</a>
+                        @endunless
                     </div>
                     <div class="card-body">
                         @if($savingsAccounts->isEmpty())
@@ -248,8 +261,12 @@
                                             <td class="text-right text-primary font-weight-bold">{{ decimalPlace($avl, currency($account->savings_type->currency->name)) }}</td>
                                             <td class="text-center">{!! xss_clean(status($account->status)) !!}</td>
                                             <td class="text-center">
+                                                @if($portal)
+                                                <a href="{{ route('customer_reports.account_statement') }}" class="btn btn-xs btn-outline-primary" title="{{ _lang('Account Statement') }}"><i class="ti-eye"></i></a>
+                                                @else
                                                 <a href="{{ route('savings_accounts.show', $account->id) }}" class="btn btn-xs btn-outline-primary"><i class="ti-eye"></i></a>
                                                 <a href="{{ route('savings_accounts.edit', $account->id) }}" class="btn btn-xs btn-outline-secondary"><i class="ti-pencil-alt"></i></a>
+                                                @endif
                                             </td>
                                         </tr>
                                         @endforeach
@@ -273,7 +290,11 @@
                 <div class="card">
                     <div class="card-header d-flex align-items-center">
                         <span class="header-title">{{ _lang('Loan Summary') }}</span>
+                        @if($portal)
+                        <a href="{{ route('loans.loan_products') }}" class="btn btn-xs btn-primary ml-auto"><i class="ti-plus mr-1"></i>{{ _lang('Apply for a Loan') }}</a>
+                        @else
                         <a href="{{ route('loans.create') }}" class="btn btn-xs btn-primary ml-auto"><i class="ti-plus mr-1"></i>{{ _lang('New Loan') }}</a>
+                        @endif
                     </div>
                     <div class="card-body">
                         <div class="row mb-4">
@@ -336,7 +357,7 @@
                                     @foreach($loans as $loan)
                                     @php $lInt = $loan->payments->sum('interest'); $lPen = $loan->payments->sum('late_penalties'); $lDue = $loan->remaining_balance; @endphp
                                     <tr>
-                                        <td><a href="{{ route('loans.show', $loan->id) }}" class="font-weight-bold">{{ $loan->loan_id ?: '#'.$loan->id }}</a></td>
+                                        <td><a href="{{ $portal ? route('loans.loan_details', $loan->id) : route('loans.show', $loan->id) }}" class="font-weight-bold">{{ $loan->loan_id ?: '#'.$loan->id }}</a></td>
                                         <td>{{ $loan->loan_product->name }}</td>
                                         <td class="text-right">{{ decimalPlace($loan->applied_amount, currency($loan->currency->name)) }}</td>
                                         <td class="text-right text-success">{{ decimalPlace($loan->total_paid, currency($loan->currency->name)) }}</td>
@@ -376,7 +397,11 @@
                 <div class="card">
                     <div class="card-header d-flex align-items-center">
                         <span class="header-title">{{ _lang('Loan History') }}</span>
+                        @if($portal)
+                        <a href="{{ route('loans.loan_products') }}" class="btn btn-xs btn-primary ml-auto"><i class="ti-plus mr-1"></i>{{ _lang('Apply for a Loan') }}</a>
+                        @else
                         <a href="{{ route('loans.create') }}" class="btn btn-xs btn-primary ml-auto"><i class="ti-plus mr-1"></i>{{ _lang('New Loan') }}</a>
+                        @endif
                     </div>
                     <div class="card-body">
                         @if($loans->isEmpty())
@@ -405,7 +430,7 @@
                                     @foreach($loans as $loan)
                                     @php $lInt = $loan->payments->sum('interest'); $lBal = $loan->remaining_balance; @endphp
                                     <tr>
-                                        <td><a href="{{ route('loans.show', $loan->id) }}" class="font-weight-bold">{{ $loan->loan_id ?: '#'.$loan->id }}</a></td>
+                                        <td><a href="{{ $portal ? route('loans.loan_details', $loan->id) : route('loans.show', $loan->id) }}" class="font-weight-bold">{{ $loan->loan_id ?: '#'.$loan->id }}</a></td>
                                         <td>{{ $loan->loan_product->name }}</td>
                                         <td>{{ $loan->release_date ?: '-' }}</td>
                                         <td class="text-right">{{ decimalPlace($loan->applied_amount, currency($loan->currency->name)) }}</td>
@@ -421,7 +446,7 @@
                                             @endif
                                         </td>
                                         <td class="text-center">
-                                            <a href="{{ route('loans.show', $loan->id) }}" class="btn btn-xs btn-outline-primary"><i class="ti-eye"></i> {{ _lang('View') }}</a>
+                                            <a href="{{ $portal ? route('loans.loan_details', $loan->id) : route('loans.show', $loan->id) }}" class="btn btn-xs btn-outline-primary"><i class="ti-eye"></i> {{ _lang('View') }}</a>
                                         </td>
                                     </tr>
                                     @endforeach
@@ -438,9 +463,39 @@
                 <div class="card">
                     <div class="card-header d-flex align-items-center">
                         <span class="header-title">{{ _lang('Transaction History') }}</span>
+                        @unless($portal)
                         <a href="{{ route('transactions.create') }}" class="btn btn-xs btn-primary ml-auto"><i class="ti-plus mr-1"></i>{{ _lang('New Transaction') }}</a>
+                        @endunless
                     </div>
                     <div class="card-body">
+                        @if($portal)
+                        <div class="table-responsive">
+                        <table class="table table-bordered data-table">
+                            <thead class="thead-light">
+                                <tr>
+                                    <th>{{ _lang('Date') }}</th>
+                                    <th>{{ _lang('Account Number') }}</th>
+                                    <th class="text-right">{{ _lang('Amount') }}</th>
+                                    <th>{{ _lang('Debit/Credit') }}</th>
+                                    <th>{{ _lang('Type') }}</th>
+                                    <th>{{ _lang('Status') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($portalTransactions as $transaction)
+                                <tr>
+                                    <td data-order="{{ $transaction->getRawOriginal('trans_date') }}">{{ $transaction->trans_date }}</td>
+                                    <td>{{ $transaction->account->account_number ?? '-' }}</td>
+                                    <td class="text-right">{{ decimalPlace($transaction->amount, currency($transaction->account->savings_type->currency->name ?? '')) }}</td>
+                                    <td>{{ strtoupper($transaction->dr_cr) }}</td>
+                                    <td>{{ str_replace('_', ' ', $transaction->type) }}</td>
+                                    <td>{!! xss_clean(transaction_status($transaction->status)) !!}</td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                        </div>
+                        @else
                         <table id="transactions_table" class="table table-bordered">
                             <thead class="thead-light">
                                 <tr>
@@ -456,6 +511,7 @@
                             </thead>
                             <tbody></tbody>
                         </table>
+                        @endif
                     </div>
                 </div>
             </div>
@@ -465,7 +521,9 @@
                 <div class="card">
                     <div class="card-header d-flex align-items-center">
                         <span class="header-title">{{ _lang('Documents of').' '.$member->first_name.' '.$member->last_name }}</span>
+                        @unless($portal)
                         <a class="btn btn-primary btn-xs ml-auto ajax-modal" data-title="{{ _lang('Add New Document') }}" href="{{ route('member_documents.create', $member->id) }}"><i class="ti-plus"></i>&nbsp;{{ _lang('Add New') }}</a>
+                        @endunless
                     </div>
                     <div class="card-body">
                         <table class="table table-bordered data-table">
@@ -474,7 +532,7 @@
                                     <th>{{ _lang('Document Name') }}</th>
                                     <th>{{ _lang('Document File') }}</th>
                                     <th>{{ _lang('Submitted At') }}</th>
-                                    <th>{{ _lang('Action') }}</th>
+                                    @unless($portal)<th>{{ _lang('Action') }}</th>@endunless
                                 </tr>
                             </thead>
                             <tbody>
@@ -483,6 +541,7 @@
                                     <td>{{ $document->name }}</td>
                                     <td><a target="_blank" href="{{ asset('uploads/documents/'.$document->document) }}"><i class="ti-file mr-1"></i>{{ $document->document }}</a></td>
                                     <td>{{ date('d M, Y H:i', strtotime($document->created_at)) }}</td>
+                                    @unless($portal)
                                     <td class="text-center">
                                         <span class="dropdown">
                                             <button class="btn btn-primary dropdown-toggle btn-xs" type="button" data-toggle="dropdown">{{ _lang('Action') }}</button>
@@ -495,9 +554,10 @@
                                             </form>
                                         </span>
                                     </td>
+                                    @endunless
                                 </tr>
                                 @empty
-                                <tr><td colspan="4" class="text-center text-muted py-3">{{ _lang('No documents uploaded yet.') }}</td></tr>
+                                <tr><td colspan="{{ $portal ? 3 : 4 }}" class="text-center text-muted py-3">{{ _lang('No documents uploaded yet.') }}</td></tr>
                                 @endforelse
                             </tbody>
                         </table>
@@ -505,6 +565,7 @@
                 </div>
             </div>
 
+            @unless($portal)
             {{-- TAB: SEND EMAIL --}}
             <div id="email" class="tab-pane">
                 <div class="card">
@@ -540,6 +601,8 @@
                 </div>
             </div>
 
+            @endunless
+
         </div>{{-- end tab-content --}}
     </div>
 </div>
@@ -551,6 +614,7 @@
 (function ($) {
     "use strict";
 
+    @unless($portal)
     $('#transactions_table').DataTable({
         processing: true,
         serverSide: true,
@@ -589,10 +653,11 @@
             $(".dataTables_paginate > .pagination").addClass("pagination-bordered");
         }
     });
+    @endunless
 
-    $('.nav-tabs a').on('shown.bs.tab', function (event) {
+    $('.nav-tabs a[data-toggle="tab"]').on('shown.bs.tab', function (event) {
         var tab = $(event.target).attr("href");
-        var url = "{{ route('members.show', $member->id) }}";
+        var url = "{{ $portal ? route('profile.my_profile') : route('members.show', $member->id) }}";
         history.pushState({}, null, url + "?tab=" + tab.substring(1));
     });
 

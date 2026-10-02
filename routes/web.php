@@ -293,6 +293,7 @@ Route::group(['middleware' => ['install']], function () {
 
                 // Membership Details
                 Route::get('profile/membership_details', [ProfileController::class, 'membership_details'])->name('profile.membership_details');
+                Route::get('profile/my_profile', [ProfileController::class, 'my_profile'])->name('profile.my_profile');
 
                 // Transfer Controller
                 Route::match(['get', 'post'], 'transfer/own_account_transfer', [App\Http\Controllers\Customer\TransferController::class, 'own_account_transfer'])->name('transfer.own_account_transfer');
@@ -308,6 +309,9 @@ Route::group(['middleware' => ['install']], function () {
                 Route::match(['get', 'post'], 'loans/apply_loan', [App\Http\Controllers\Customer\LoanController::class, 'apply_loan'])->name('loans.apply_loan');
                 Route::get('loans/loan_details/{id}', [App\Http\Controllers\Customer\LoanController::class, 'loan_details'])->name('loans.loan_details');
                 Route::get('loans/how_to_pay/{loan_id}', [App\Http\Controllers\Customer\LoanController::class, 'how_to_pay'])->name('loans.how_to_pay');
+                Route::get('loans/payments', [App\Http\Controllers\Customer\LoanController::class, 'payments'])->name('loans.payments');
+                Route::get('loans/payments/{id}/receipt', [App\Http\Controllers\Customer\LoanController::class, 'payment_receipt'])->name('loans.payment_receipt');
+                Route::get('loans/payments/{id}/receipt.pdf', [App\Http\Controllers\Customer\LoanController::class, 'payment_receipt_pdf'])->name('loans.payment_receipt_pdf');
                 Route::match(['get', 'post'], 'loans/payment/{loan_id}', [App\Http\Controllers\Customer\LoanController::class, 'loan_payment'])->name('loans.loan_payment');
                 Route::get('loans/my_loans', [App\Http\Controllers\Customer\LoanController::class, 'index'])->name('loans.my_loans');
 

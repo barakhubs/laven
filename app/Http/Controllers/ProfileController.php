@@ -23,6 +23,31 @@ class ProfileController extends Controller {
         return view('backend.profile.profile_view', compact('profile', 'alert_col'));
     }
 
+    /**
+     * The client's own profile: the same page staff see for a member, minus
+     * the staff-only actions (see $portal in backend.member.view).
+     */
+    public function my_profile(Request $request) {
+        $member = auth()->user()->member;
+        if (! $member) {
+            return redirect()->route('dashboard.index')->with('error', _lang('No member profile is linked to your account.'));
+        }
+
+        $customFields = \App\Models\CustomField::where('table', 'members')->where('status', 1)->orderBy('id', 'asc')->get();
+
+        // Transactions are listed directly (the staff tab loads them from an admin-only feed).
+        $portalTransactions = \App\Models\Transaction::withoutGlobalScopes()
+            ->with(['account.savings_type.currency'])
+            ->where('member_id', $member->id)
+            ->orderBy('trans_date', 'desc')
+            ->orderBy('id', 'desc')
+            ->limit(200)
+            ->get();
+
+        return view('backend.member.view', \App\Http\Controllers\MemberController::profileData($member)
+            + compact('customFields', 'portalTransactions') + ['portal' => true]);
+    }
+
     public function membership_details(Request $request){
         $alert_col = 'col-lg-8 offset-lg-2';
         $auth = auth()->user();

@@ -176,6 +176,7 @@ class LoanRepaymentService
         $loanPayment->total_amount     = round($amount, 2);
         $loanPayment->repayment_id     = $plan['lines'][0]['repayment_id'];
         $loanPayment->member_id        = $loan->borrower_id;
+        $loanPayment->created_user_id  = auth()->id();
         foreach ($attributes as $key => $value) {
             $loanPayment->$key = $value;
         }

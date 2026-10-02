@@ -32,6 +32,10 @@ class LoanPayment extends Model {
         return $this->hasMany('App\Models\LoanPaymentAllocation', 'loan_payment_id')->orderBy('loan_repayment_id');
     }
 
+    public function created_by() {
+        return $this->belongsTo('App\Models\User', 'created_user_id')->withDefault(['name' => null]);
+    }
+
     public function transaction() {
         return $this->belongsTo('App\Models\Transaction', 'transaction_id')->withDefault();
     }
