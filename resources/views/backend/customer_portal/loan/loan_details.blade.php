@@ -280,7 +280,7 @@
                                 </td>
                                 <td class="text-center">
                                     @if($repayment['status'] == 0 && $loan->next_payment->id == $repayment->id)
-                                        <a href="{{ route('loans.loan_payment', $repayment->loan_id) }}" class="btn btn-success btn-xs"><i class="ti-credit-card"></i>&nbsp;{{ _lang('Pay Now') }}</a>
+                                        <a href="{{ route('loans.how_to_pay', $repayment->loan_id) }}" class="btn btn-success btn-xs"><i class="ti-credit-card"></i>&nbsp;{{ _lang('Pay Now') }}</a>
                                     @else
                                         <span class="badge badge-secondary">{{ _lang('No Action') }}</span>
                                     @endif

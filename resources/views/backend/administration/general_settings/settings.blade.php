@@ -7,6 +7,7 @@
 			 <li class="nav-item"><a class="nav-link active" data-toggle="tab" href="#general"><i class="ti-settings"></i>&nbsp;{{ _lang('General Settings') }}</a></li>
 			 <li class="nav-item"><a class="nav-link" data-toggle="tab" href="#system"><i class="ti-panel"></i>&nbsp;{{ _lang('System Settings') }}</a></li>
 			 <li class="nav-item"><a class="nav-link" data-toggle="tab" href="#transaction_fee"><i class="ti-money"></i>&nbsp;{{ _lang('Transaction Fee') }}</a></li>
+			 <li class="nav-item"><a class="nav-link" data-toggle="tab" href="#mobile_money"><i class="ti-mobile"></i>&nbsp;{{ _lang('Mobile Money Payments') }}</a></li>
 			 <li class="nav-item"><a class="nav-link" data-toggle="tab" href="#email"><i class="ti-email"></i>&nbsp;{{ _lang('Email Settings') }}</a></li>
 			 <li class="nav-item"><a class="nav-link" data-toggle="tab" href="#sms_gateway"><i class="ti-comment"></i>&nbsp;{{ _lang('SMS Gateways') }}</a></li>
 			 <li class="nav-item"><a class="nav-link" data-toggle="tab" href="#recaptcha"><i class="ti-check-box"></i>&nbsp;{{ _lang('Google Recaptcha V3') }}</a></li>
@@ -269,6 +270,57 @@
 				</div>
 			</div>
 
+
+			<div id="mobile_money" class="tab-pane fade">
+				<div class="card">
+					<div class="card-header">
+						<span class="panel-title">{{ _lang('Mobile Money Payments') }}</span>
+					</div>
+					<div class="card-body">
+						<p class="text-muted">{{ _lang('Shown to clients when they tap Pay Now in the customer portal.') }}</p>
+						<form method="post" class="settings-submit params-panel" autocomplete="off" action="{{ route('settings.update_settings','store') }}" enctype="multipart/form-data">
+							@csrf
+							<div class="row">
+								<div class="col-md-6">
+									<div class="form-group">
+										<label class="control-label">{{ _lang('MTN Mobile Money Number') }}</label>
+										<input type="text" class="form-control" name="mtn_pay_number" value="{{ get_option('mtn_pay_number', '0794040006') }}">
+									</div>
+								</div>
+								<div class="col-md-6">
+									<div class="form-group">
+										<label class="control-label">{{ _lang('MTN Registered Name') }}</label>
+										<input type="text" class="form-control" name="mtn_pay_name" value="{{ get_option('mtn_pay_name', 'Adrole Samuel') }}">
+									</div>
+								</div>
+								<div class="col-md-6">
+									<div class="form-group">
+										<label class="control-label">{{ _lang('Airtel Money Number') }}</label>
+										<input type="text" class="form-control" name="airtel_pay_number" value="{{ get_option('airtel_pay_number', '0747565123') }}">
+									</div>
+								</div>
+								<div class="col-md-6">
+									<div class="form-group">
+										<label class="control-label">{{ _lang('Airtel Registered Name') }}</label>
+										<input type="text" class="form-control" name="airtel_pay_name" value="{{ get_option('airtel_pay_name', 'Adrole Samuel') }}">
+									</div>
+								</div>
+								<div class="col-md-6">
+									<div class="form-group">
+										<label class="control-label">{{ _lang('Payment Confirmed Within (hours)') }}</label>
+										<input type="number" min="1" class="form-control" name="pay_confirm_hours" value="{{ get_option('pay_confirm_hours', 24) }}">
+									</div>
+								</div>
+								<div class="col-md-12 mt-3">
+									<div class="form-group">
+										<button type="submit" class="btn btn-primary"><i class="ti-check-box"></i>&nbsp;{{ _lang('Save Settings') }}</button>
+									</div>
+								</div>
+							</div>
+						</form>
+					</div>
+				</div>
+			</div>
 
 			<div id="email" class="tab-pane fade">
 				<div class="card">

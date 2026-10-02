@@ -68,7 +68,7 @@
 								<td class="text-nowrap">{{ $loan->next_payment->repayment_date }}</td>
 								<td>{!! $loan->next_payment->getRawOriginal('repayment_date') >= date('Y-m-d') ? xss_clean(show_status(_lang('Upcoming'),'success')) : xss_clean(show_status(_lang('Due'),'danger')) !!}</td>
 								<td class="text-nowrap text-right">{{ decimalPlace($loan->next_payment->amount_due, currency($loan->currency->name)) }}</td>
-								<td class="text-center"><a href="{{ route('loans.loan_payment',$loan->id) }}" class="btn btn-primary btn-xs text-nowrap">{{ _lang('Pay Now') }}</a></td>
+								<td class="text-center"><a href="{{ route('loans.how_to_pay',$loan->id) }}" class="btn btn-primary btn-xs text-nowrap">{{ _lang('Pay Now') }}</a></td>
 							</tr>
 							@endforeach
 						</tbody>

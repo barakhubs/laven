@@ -307,6 +307,7 @@ Route::group(['middleware' => ['install']], function () {
                 Route::get('loans/loan_products', [App\Http\Controllers\Customer\LoanController::class, 'loan_products'])->name('loans.loan_products');
                 Route::match(['get', 'post'], 'loans/apply_loan', [App\Http\Controllers\Customer\LoanController::class, 'apply_loan'])->name('loans.apply_loan');
                 Route::get('loans/loan_details/{id}', [App\Http\Controllers\Customer\LoanController::class, 'loan_details'])->name('loans.loan_details');
+                Route::get('loans/how_to_pay/{loan_id}', [App\Http\Controllers\Customer\LoanController::class, 'how_to_pay'])->name('loans.how_to_pay');
                 Route::match(['get', 'post'], 'loans/payment/{loan_id}', [App\Http\Controllers\Customer\LoanController::class, 'loan_payment'])->name('loans.loan_payment');
                 Route::get('loans/my_loans', [App\Http\Controllers\Customer\LoanController::class, 'index'])->name('loans.my_loans');
 

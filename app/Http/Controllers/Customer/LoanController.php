@@ -342,6 +342,40 @@ class LoanController extends Controller
 
     }
 
+    /**
+     * "Pay Now": how to pay this loan by MTN or Airtel mobile money, with the
+     * amount to send (the client's share, penalty included) and their name
+     * to use as the reference. Staff record the payment once it arrives.
+     */
+    public function how_to_pay($loan_id)
+    {
+        $loan = Loan::where('id', $loan_id)->where('borrower_id', auth()->user()->member->id)->where('status', 1)->first();
+        if (! $loan) {
+            return redirect()->route('loans.my_loans')->with('error', _lang('Loan not found.'));
+        }
+
+        $today    = date('Y-m-d');
+        $arrears  = LoanRepaymentService::arrears($loan, $today);
+        $coverage = \App\Services\LoanReserveService::coverage($loan, $arrears['installments']);
+        $pays     = fn ($due) => max(0, round($due['total'] - ($coverage[$due['repayment']->id] ?? 0), 2));
+
+        // Overdue installments first; otherwise the next one due.
+        $overdue = array_values(array_filter($arrears['installments'], fn ($due) => $due['overdue'] && $pays($due) > 0));
+        $next    = collect($arrears['installments'])->first(fn ($due) => ! $due['overdue'] && $pays($due) > 0);
+
+        $amount      = $overdue ? round(array_sum(array_map($pays, $overdue)), 2) : ($next ? $pays($next) : 0);
+        $amountLabel = $overdue ? _lang('Overdue amount (including penalty)') : ($next ? _lang('Next installment due') . ' ' . $next['repayment']->repayment_date : '');
+
+        $member    = auth()->user()->member;
+        $reference = strtoupper(trim($member->first_name . ' ' . $member->last_name));
+
+        $savingsAvailable = $loan->debit_account_id ? max(0, get_account_balance($loan->debit_account_id, $loan->borrower_id)) : 0;
+
+        $alert_col = 'col-lg-10 offset-lg-1';
+
+        return view('backend.customer_portal.loan.how_to_pay', compact('loan', 'amount', 'amountLabel', 'reference', 'savingsAvailable', 'alert_col'));
+    }
+
     public function loan_payment(Request $request, $loan_id)
     {
         if (request()->isMethod('get')) {
