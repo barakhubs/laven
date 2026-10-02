@@ -31,7 +31,7 @@ class StaffClientContext
             ], 401);
         }
 
-        $isStaff = strtolower($user->role->name ?? '') === 'staff';
+        $isStaff = $user->isMobileStaff();
 
         if ($isStaff) {
             $clientId = $request->header('X-Client-Id');

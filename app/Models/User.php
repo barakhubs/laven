@@ -44,6 +44,14 @@ class User extends Authenticatable {
         return $this->user_type === 'superadmin';
     }
 
+    /**
+     * Back-office accounts in the mobile app: anyone who isn't a customer (superadmin, admin,
+     * or a staff user of any role). They pick a client and act on that client's account.
+     */
+    public function isMobileStaff(): bool {
+        return $this->user_type !== 'customer';
+    }
+
     /** Both superadmin and regular admin — use for general backend access checks */
     public function isAdmin(): bool {
         return in_array($this->user_type, ['admin', 'superadmin']);

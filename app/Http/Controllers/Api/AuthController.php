@@ -48,12 +48,7 @@ class AuthController extends ApiController
             return $this->error('Your account is not active. Please contact support.', 'ACCOUNT_INACTIVE', [], 403);
         }
 
-        $isStaff = strtolower($user->role->name ?? '') === 'staff';
-
-        // Allow: customers, staff (role), admins are blocked
-        if ($user->isAdmin() && !$isStaff) {
-            return $this->error('Mobile access is not available for admin accounts.', 'UNAUTHORIZED_USER_TYPE', [], 403);
-        }
+        // Customers see their own account; admins and staff pick a client (see StaffClientContext).
 
         // Revoke all previous tokens for this device name to prevent token bloat
         $user->tokens()->where('name', $request->device_name)->delete();
@@ -349,9 +344,9 @@ class AuthController extends ApiController
     // ----------------------------------------------------------------
     public function clients(Request $request)
     {
-        $user = $request->user()->load('role');
+        $user = $request->user();
 
-        if (strtolower($user->role->name ?? '') !== 'staff') {
+        if (!$user->isMobileStaff()) {
             return $this->error('Access denied.', 'FORBIDDEN', [], 403);
         }
 
@@ -385,7 +380,7 @@ class AuthController extends ApiController
     private function formatUser(User $user): array
     {
         $member  = $user->member;
-        $isStaff = strtolower($user->role->name ?? '') === 'staff';
+        $isStaff = $user->isMobileStaff();
 
         return [
             'id'        => $user->id,
