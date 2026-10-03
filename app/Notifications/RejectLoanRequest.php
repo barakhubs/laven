@@ -7,9 +7,10 @@ use App\Models\EmailSMSTemplate;
 use App\Utilities\Overrider;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\MailMessage;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
 
-class RejectLoanRequest extends Notification {
+class RejectLoanRequest extends Notification implements ShouldQueue {
 	use Queueable;
 
 	private $loan;

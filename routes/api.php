@@ -22,7 +22,7 @@ Route::prefix('v1')->middleware('app.version')->group(function () {
     // app can still read which version to install.
     Route::get('app-version', [AppVersionController::class, 'show'])->withoutMiddleware('app.version')->name('api.app-version');
 
-    Route::prefix('auth')->name('api.auth.')->group(function () {
+    Route::prefix('auth')->name('api.auth.')->middleware('throttle:auth')->group(function () {
         Route::post('login',           [AuthController::class, 'login'])->name('login');
         Route::post('register',        [AuthController::class, 'register'])->name('register');
         Route::post('forgot-password', [AuthController::class, 'forgotPassword'])->name('forgot-password');
@@ -30,8 +30,8 @@ Route::prefix('v1')->middleware('app.version')->group(function () {
     });
 
     Route::prefix('auth')->name('api.auth.')->middleware('auth:sanctum')->group(function () {
-        Route::post('verify-otp', [AuthController::class, 'verifyOtp'])->name('verify-otp');
-        Route::post('resend-otp', [AuthController::class, 'resendOtp'])->name('resend-otp');
+        Route::post('verify-otp', [AuthController::class, 'verifyOtp'])->middleware('throttle:auth')->name('verify-otp');
+        Route::post('resend-otp', [AuthController::class, 'resendOtp'])->middleware('throttle:auth')->name('resend-otp');
         Route::post('logout',     [AuthController::class, 'logout'])->name('logout');
     });
 

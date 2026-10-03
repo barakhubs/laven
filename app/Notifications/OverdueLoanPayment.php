@@ -6,9 +6,10 @@ use App\Models\EmailSMSTemplate;
 use App\Utilities\Overrider;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\MailMessage;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
 
-class OverdueLoanPayment extends Notification {
+class OverdueLoanPayment extends Notification implements ShouldQueue {
     use Queueable;
 
     private $loanPayment;

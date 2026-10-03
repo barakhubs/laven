@@ -18,6 +18,16 @@ class AppServiceProvider extends ServiceProvider
     {
         Paginator::useBootstrap();
 
+        // Queued notices run in a worker, not a web request: load the site's mail (SMTP) and
+        // timezone settings there too, as controllers do with Overrider::load('Settings').
+        \Illuminate\Support\Facades\Queue::before(function () {
+            try {
+                \App\Utilities\Overrider::load('Settings');
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        });
+
         // ----------------------------------------------------------------
         // Audit Observer — fires on every create / update / delete
         // across all models listed below.

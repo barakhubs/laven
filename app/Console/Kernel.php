@@ -27,6 +27,11 @@ class Kernel extends ConsoleKernel {
         $schedule->call(new \App\Cronjobs\OverdueLoanNotification)->everyThirtyMinutes();
         $schedule->call(new \App\Cronjobs\UpcommingLoanNotification)->everyTenMinutes();
         $schedule->call(new \App\Cronjobs\CreditScoreCalculation)->dailyAt('01:00');
+
+        // Sends queued client notices (email, SMS, push). Runs from the existing
+        // schedule:run cron, so no separate worker process is needed on shared hosting.
+        $schedule->command('queue:work --stop-when-empty --tries=3 --backoff=30 --max-time=50')
+            ->everyMinute()->withoutOverlapping(5)->runInBackground();
     }
 
     /**

@@ -39,7 +39,8 @@ return [
             'table' => 'jobs',
             'queue' => 'default',
             'retry_after' => 90,
-            'after_commit' => false,
+            // Notices queued inside a transaction go out only once it's committed.
+            'after_commit' => true,
         ],
 
         'beanstalkd' => [

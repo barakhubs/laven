@@ -28,6 +28,21 @@ class RouteServiceProvider extends ServiceProvider
             return Limit::perMinute(60)->by($request->user()?->id ?: $request->ip());
         });
 
+        // Sign-in, password reset and email codes: slows password guessing and code spam.
+        // 5 tries a minute per account from one address, 20 a minute per address overall.
+        RateLimiter::for('auth', function (Request $request) {
+            $tooMany = fn (Request $request, array $headers) => response()->json([
+                'success' => false,
+                'code'    => 'TOO_MANY_ATTEMPTS',
+                'message' => 'Too many attempts. Please wait a minute and try again.',
+            ], 429, $headers);
+
+            return [
+                Limit::perMinute(5)->by('auth:' . strtolower((string) $request->input('email', $request->user()?->id)) . '|' . $request->ip())->response($tooMany),
+                Limit::perMinute(20)->by('auth-ip:' . $request->ip())->response($tooMany),
+            ];
+        });
+
         $this->routes(function () {
             Route::middleware('api')
                 ->prefix('api')
