@@ -87,6 +87,9 @@ class LoanController extends ApiController
                 'principal_paid'   => (float) $r->principal_paid,
                 'penalty_paid'     => (float) $r->penalty_paid,
                 'penalty_waived'   => (float) $r->penalty_waived,
+                'interest_waived'  => (float) $r->interest_waived,
+                // Overdue days up to here are already settled; only later days carry penalty.
+                'penalty_settled_until' => $r->status == 0 ? $r->penaltySettledUntil()?->toDateString() : null,
                 'cleared_at'       => $r->cleared_at,
                 'status'           => $r->status ?? 0,
             ]);

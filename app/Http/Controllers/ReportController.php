@@ -697,7 +697,7 @@ class ReportController extends Controller
         })
             ->forCurrentLoanDomain()
             ->where('status', 0)
-            ->selectRaw('COALESCE(SUM(GREATEST(principal_amount - principal_paid, 0)),0) as principal, COALESCE(SUM(GREATEST(interest - interest_paid, 0)),0) as interest, COALESCE(SUM(' . LoanRepayment::amountDueSql() . '),0) as total')
+            ->selectRaw('COALESCE(SUM(GREATEST(principal_amount - principal_paid, 0)),0) as principal, COALESCE(SUM(GREATEST(interest - interest_paid - interest_waived, 0)),0) as interest, COALESCE(SUM(' . LoanRepayment::amountDueSql() . '),0) as total')
             ->first();
 
         // Includes part payments taken on installments that are still open.
@@ -890,7 +890,7 @@ class ReportController extends Controller
                 ->whereBetween('repayment_date', [$scheduleStart->toDateString(), $end->toDateString()])
                 // Interest already collected (installments paid early, fully
                 // or in part) is in $actualInterest; only count what's left.
-                ->selectRaw('COALESCE(SUM(GREATEST(interest - interest_paid, 0)),0) + COALESCE(SUM(penalty),0) as amt')
+                ->selectRaw('COALESCE(SUM(GREATEST(interest - interest_paid - interest_waived, 0)),0) + COALESCE(SUM(penalty),0) as amt')
                 ->value('amt');
 
             $lastScheduledDate = LoanRepayment::whereHas('loan', fn (Builder $q) => $q->where('currency_id', $baseCurrencyId))

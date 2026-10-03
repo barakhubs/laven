@@ -92,6 +92,15 @@ class LoanReserveService
     }
 
     /**
+     * What the reserve can actually pay right now: what's set aside, capped
+     * by what the linked account holds for it.
+     */
+    public static function usable(Loan $loan): float
+    {
+        return $loan->debit_account_id ? min(self::remaining($loan), self::availableForReserve($loan)) : 0;
+    }
+
+    /**
      * Everything the admin needs to decide whether the reserve can be used
      * now: what the loan owes as of $asOf, the reserve, the account balance
      * available to it, and what the client must still pay first.

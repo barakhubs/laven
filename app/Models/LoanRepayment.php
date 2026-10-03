@@ -127,6 +127,34 @@ class LoanRepayment extends Model {
     }
 
     /**
+     * The date up to which this installment's late penalty has been fully
+     * settled (paid or waived), or null if no penalty has been settled yet.
+     * Penalty is only owed for overdue days after this date.
+     */
+    public function penaltySettledUntil(): ?\Carbon\Carbon
+    {
+        if ((float) $this->penalty_paid + (float) $this->penalty_waived <= 0) {
+            return null;
+        }
+
+        $lastSettled = \Illuminate\Support\Facades\DB::table('loan_payment_allocations')
+            ->join('loan_payments', 'loan_payments.id', '=', 'loan_payment_allocations.loan_payment_id')
+            ->where('loan_payment_allocations.loan_repayment_id', $this->id)
+            ->whereRaw('loan_payment_allocations.penalty + loan_payment_allocations.penalty_waived > 0')
+            ->max('loan_payments.paid_at');
+
+        if ($lastSettled === null) {
+            return null;
+        }
+
+        $lastSettled = \Carbon\Carbon::parse($lastSettled)->startOfDay();
+        $settled     = (float) $this->penalty_paid + (float) $this->penalty_waived;
+
+        // Only a payment that cleared everything accrued by its date settles it.
+        return $this->penaltyAccrued($lastSettled) <= $settled + 0.005 ? $lastSettled : null;
+    }
+
+    /**
      * What one more overdue day adds right now: the daily rate on the share
      * of principal + interest still unpaid (0 once the installment is paid).
      */
@@ -166,7 +194,7 @@ class LoanRepayment extends Model {
 
     public function getInterestDueAttribute(): float
     {
-        return max(0, round((float) $this->interest - (float) $this->interest_paid, 2));
+        return max(0, round((float) $this->interest - (float) $this->interest_paid - (float) $this->interest_waived, 2));
     }
 
     public function getPrincipalDueAttribute(): float
@@ -175,22 +203,23 @@ class LoanRepayment extends Model {
     }
 
     /**
-     * Principal + interest still owed (penalty excluded); 0 once closed.
+     * Principal + interest still owed (penalty and waived interest
+     * excluded); 0 once closed.
      */
     public function getAmountDueAttribute(): float
     {
-        return max(0, round((float) $this->amount_to_pay - (float) $this->interest_paid - (float) $this->principal_paid, 2));
+        return max(0, round((float) $this->amount_to_pay - (float) $this->interest_paid - (float) $this->interest_waived - (float) $this->principal_paid, 2));
     }
 
     /**
      * SQL for what an installment still owes (excluding penalty). For a
      * closed installment this is 0; for an open one it's amount_to_pay less
-     * any partial payments already taken. Use it in place of a bare
+     * any partial payments already taken and any interest waived. Use it in place of a bare
      * SUM(amount_to_pay) over unpaid rows.
      */
     public static function amountDueSql(string $table = 'loan_repayments'): string
     {
-        return "GREATEST({$table}.amount_to_pay - {$table}.interest_paid - {$table}.principal_paid, 0)";
+        return "GREATEST({$table}.amount_to_pay - {$table}.interest_paid - {$table}.interest_waived - {$table}.principal_paid, 0)";
     }
 
 }

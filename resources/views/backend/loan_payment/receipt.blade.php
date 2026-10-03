@@ -74,6 +74,9 @@
         @if($loanpayment->penalty_waived > 0)
         <tr><td>{{ _lang('Penalty waived') }}</td><td class="r">{{ decimalPlace($loanpayment->penalty_waived, $cur) }}</td></tr>
         @endif
+        @if($loanpayment->interest_waived > 0)
+        <tr><td>{{ _lang('Interest waived') }}</td><td class="r">{{ decimalPlace($loanpayment->interest_waived, $cur) }}</td></tr>
+        @endif
     </table>
 
     @if($loanpayment->allocations->count() > 0)

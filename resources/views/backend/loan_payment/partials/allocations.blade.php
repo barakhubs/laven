@@ -20,7 +20,12 @@
 				<br><small class="text-muted">{{ _lang('Waived') }}: {{ decimalPlace($allocation->penalty_waived, currency($loanpayment->loan->currency->name)) }}</small>
 				@endif
 			</td>
-			<td class="text-right">{{ decimalPlace($allocation->interest, currency($loanpayment->loan->currency->name)) }}</td>
+			<td class="text-right">
+				{{ decimalPlace($allocation->interest, currency($loanpayment->loan->currency->name)) }}
+				@if($allocation->interest_waived > 0)
+				<br><small class="text-muted">{{ _lang('Waived') }}: {{ decimalPlace($allocation->interest_waived, currency($loanpayment->loan->currency->name)) }}</small>
+				@endif
+			</td>
 			<td class="text-right">{{ decimalPlace($allocation->principal, currency($loanpayment->loan->currency->name)) }}</td>
 			<td>{{ $allocation->repayment->status == 1 ? _lang('Cleared') : _lang('Still owes') }}</td>
 		</tr>

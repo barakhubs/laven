@@ -21,9 +21,10 @@ class LoanPaymentRecorder
     /**
      * @param  string|int  $accountId  a savings account id of the borrower, or 'cash'
      * @param  float|null  $penaltyCharge  penalty to charge; less than accrued waives the rest
+     * @param  float|null  $interestCharge  interest to charge on an early payoff; less than owed waives the rest
      * @throws InvalidArgumentException with a message fit to show the user
      */
-    public static function record($loanId, float $amount, string $paidAt, $accountId, ?float $penaltyCharge, ?string $remarks): LoanPayment
+    public static function record($loanId, float $amount, string $paidAt, $accountId, ?float $penaltyCharge, ?string $remarks, ?float $interestCharge = null): LoanPayment
     {
         $amount = round($amount, 2);
 
@@ -71,7 +72,7 @@ class LoanPaymentRecorder
             $payment = LoanRepaymentService::apply($loan, $amount, $paidAt, $penaltyCharge, [
                 'remarks'        => $remarks,
                 'transaction_id' => $debit?->id,
-            ]);
+            ], $interestCharge);
 
             DB::commit();
         } catch (\Throwable $e) {

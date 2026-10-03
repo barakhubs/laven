@@ -209,8 +209,10 @@ class AdminController extends ApiController
     // ---------------------------------------------------------------- repayments (superadmin)
 
     /**
-     * GET /v1/admin/loans/{id}/repayment?paid_at=&amount=&late_penalties=
+     * GET /v1/admin/loans/{id}/repayment?paid_at=&amount=&late_penalties=&interest_charge=
      * What's owed as of paid_at and, with an amount, where it would go. Saves nothing.
+     * late_penalties / interest_charge below what's owed waive the difference (interest
+     * only when the payment pays the loan off; plan.interest_error says why not).
      */
     public function repaymentPreview(Request $request, $id)
     {
@@ -225,12 +227,16 @@ class AdminController extends ApiController
 
         $plan = null;
         if ($request->filled('amount') && (float) $request->amount > 0) {
-            $penalty = $request->filled('late_penalties') ? (float) $request->late_penalties : null;
-            $result  = LoanRepaymentService::plan($arrears['installments'], (float) $request->amount, $penalty);
-            $plan    = [
-                'lines'       => array_map(fn ($line) => collect($line)->except('repayment')->all(), $result['lines']),
-                'unallocated' => $result['unallocated'],
-                'waived'      => $result['waived'],
+            $penalty  = $request->filled('late_penalties') ? (float) $request->late_penalties : null;
+            $interest = $request->filled('interest_charge') ? (float) $request->interest_charge : null;
+            $result   = LoanRepaymentService::plan($arrears['installments'], (float) $request->amount, $penalty, $interest);
+            $plan     = [
+                'lines'           => array_map(fn ($line) => collect($line)->except('repayment')->all(), $result['lines']),
+                'unallocated'     => $result['unallocated'],
+                'waived'          => $result['waived'],
+                'interest_waived' => $result['interest_waived'],
+                'owed_after'      => $result['owed_after'],
+                'interest_error'  => LoanRepaymentService::interestWaiverError($loan, $result, $asOf),
             ];
         }
 
@@ -266,6 +272,8 @@ class AdminController extends ApiController
                 'from_reserve'   => $coverage[$due['repayment']->id] ?? 0,
             ], $arrears['installments']),
             'plan'         => $plan,
+            // client_must_pay: what clears the loan once the 30% reserve pays the end.
+            'reserve'      => LoanReserveService::status($loan, $asOf),
             'accounts'     => $accounts,
         ], 'Repayment preview loaded.');
     }
@@ -282,6 +290,7 @@ class AdminController extends ApiController
             'total_amount'   => 'required|numeric|gt:0',
             'account_id'     => 'required',
             'late_penalties' => 'nullable|numeric|min:0',
+            'interest_charge' => 'nullable|numeric|min:0',
             'remarks'        => 'nullable|string|max:500',
         ]);
         if ($validator->fails()) {
@@ -292,14 +301,17 @@ class AdminController extends ApiController
             $payment = LoanPaymentRecorder::record(
                 $id, (float) $request->total_amount, $request->paid_at, $request->account_id,
                 $request->filled('late_penalties') ? (float) $request->late_penalties : null, $request->remarks,
+                $request->filled('interest_charge') ? (float) $request->interest_charge : null,
             );
         } catch (\InvalidArgumentException $e) {
             return $this->error($e->getMessage(), 'PAYMENT_REJECTED', [], 422);
         }
 
         return $this->success([
-            'payment_id'   => $payment->id,
-            'total_amount' => (float) $payment->total_amount,
+            'payment_id'      => $payment->id,
+            'total_amount'    => (float) $payment->total_amount,
+            'penalty_waived'  => (float) $payment->penalty_waived,
+            'interest_waived' => (float) $payment->interest_waived,
             'paid_at'      => $payment->getRawOriginal('paid_at'),
         ], 'Repayment recorded.', 201);
     }

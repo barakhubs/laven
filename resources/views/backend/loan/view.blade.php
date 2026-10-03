@@ -426,6 +426,9 @@
                            </td>
                            <td class="text-right">
                               {{ decimalPlace($repayment['interest'], currency($loan->currency->name)) }}
+                              @if($repayment->interest_waived > 0)
+                              <br><small class="text-success">{{ _lang('Waived') }}: {{ decimalPlace($repayment->interest_waived, currency($loan->currency->name)) }}</small>
+                              @endif
                            </td>
                            <td class="text-right">
                               @if($repayment['status'] == 0)
@@ -466,8 +469,7 @@
                            <td class="text-center">
                               @if($repayment['status'] == 0 && date('Y-m-d') > $repayment->getRawOriginal('repayment_date'))
                               {!! xss_clean(show_status(_lang('Due'),'danger')) !!}
-                              @php $daysLate = (int) \Carbon\Carbon::parse($repayment->getRawOriginal('repayment_date'))->diffInDays(\Carbon\Carbon::today()); @endphp
-                              <br><small class="text-danger text-nowrap">({{ $daysLate }} {{ $daysLate == 1 ? _lang('day late') : _lang('days late') }})</small>
+                              @include('backend.loan.partials.days_late')
                               @elseif($repayment['status'] == 0 && date('Y-m-d') <= $repayment->getRawOriginal('repayment_date'))
                               {!! xss_clean(show_status(_lang('Unpaid'),'warning')) !!}
                               @else

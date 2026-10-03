@@ -50,6 +50,20 @@
 
 						<div class="col-lg-6">
 							<div class="form-group">
+								<label class="control-label">{{ _lang('Interest to Charge') }}</label>
+								<div class="input-group">
+									<input type="text" class="form-control float-field" name="interest_charge" id="interest_charge" value="{{ old('interest_charge') }}">
+									<div class="input-group-append">
+										<span class="input-group-text currency"></span>
+									</div>
+								</div>
+								<small class="form-text text-muted">{{ _lang('All interest still owed on the loan. For a client paying off early, lower it to waive the difference (latest installments first); only allowed when this payment clears the loan.') }}</small>
+								<small class="form-text text-info font-weight-bold" id="payoff_hint"></small>
+							</div>
+						</div>
+
+						<div class="col-lg-12">
+							<div class="form-group">
 								<label class="control-label">{{ _lang('Debit Account') }}</label>
 								<select class="form-control auto-select select2" data-selected="{{ old('account_id', 'cash') }}" id="account_id" name="account_id" required>
 									<option value="cash">{{ _lang('Cash Amount') }}</option>
@@ -103,6 +117,21 @@ $(function() {
 	var lookupUrl = "{{ url('admin/loan_payments/get_repayment_by_loan_id') }}/";
 	var keepOldInput = {{ old('loan_id') ? 'true' : 'false' }};
 	var previewTimer = null;
+	var lastOwed = null;
+
+	// What the client must pay to clear the loan now, after the waivers
+	// typed in and whatever the 30% reserve will cover.
+	function updatePayoffHint() {
+		if (! lastOwed || lastOwed.owed.total <= 0) {
+			$("#payoff_hint").text('');
+			return;
+		}
+		var penalty  = $("#late_penalties").val() === '' ? lastOwed.owed.penalty : Math.min(parseFloat($("#late_penalties").val()) || 0, lastOwed.owed.penalty);
+		var interest = $("#interest_charge").val() === '' ? lastOwed.owed.interest : Math.min(parseFloat($("#interest_charge").val()) || 0, lastOwed.owed.interest);
+		var waived   = (lastOwed.owed.penalty - penalty) + (lastOwed.owed.interest - interest);
+		var payoff   = Math.max(0, lastOwed.reserve.client_must_pay - waived);
+		$("#payoff_hint").text('{{ _lang('To clear the loan now the client pays') }}: ' + money(payoff));
+	}
 
 	function money(value) {
 		return parseFloat(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -165,6 +194,7 @@ $(function() {
 			rows += '<tr><td>' + line.repayment_date + '</td>'
 				+ '<td class="text-right">' + (line.penalty_waived > 0 ? money(line.penalty_waived) : '-') + '</td>'
 				+ '<td class="text-right">' + money(line.penalty) + '</td>'
+				+ '<td class="text-right">' + (line.interest_waived > 0 ? money(line.interest_waived) : '-') + '</td>'
 				+ '<td class="text-right">' + money(line.interest) + '</td>'
 				+ '<td class="text-right">' + money(line.principal) + '</td>'
 				+ '<td>' + (line.closes ? '<span class="badge badge-success">{{ _lang('Cleared') }}</span>' : '<span class="badge badge-warning">{{ _lang('Still owes') }}</span>') + '</td></tr>';
@@ -173,13 +203,16 @@ $(function() {
 		var warning = plan.unallocated > 0
 			? '<div class="alert alert-danger mb-2">' + money(plan.unallocated) + ' {{ _lang('more than the loan still owes. Reduce the amount.') }}</div>'
 			: '';
+		if (plan.interest_error) {
+			warning += '<div class="alert alert-danger mb-2">' + $('<div>').text(plan.interest_error).html() + '</div>';
+		}
 
 		$("#allocation_preview").html(
 			warning
 			+ '<label class="control-label">{{ _lang('This Payment Will Cover') }}</label>'
 			+ '<div class="table-responsive"><table class="table table-sm table-bordered">'
 			+ '<thead><tr><th>{{ _lang('Due Date') }}</th><th class="text-right">{{ _lang('Penalty Waived') }}</th><th class="text-right">{{ _lang('Penalty') }}</th>'
-			+ '<th class="text-right">{{ _lang('Interest') }}</th><th class="text-right">{{ _lang('Principal') }}</th><th></th></tr></thead>'
+			+ '<th class="text-right">{{ _lang('Interest Waived') }}</th><th class="text-right">{{ _lang('Interest') }}</th><th class="text-right">{{ _lang('Principal') }}</th><th></th></tr></thead>'
 			+ '<tbody>' + rows + '</tbody></table></div>'
 		);
 	}
@@ -198,7 +231,8 @@ $(function() {
 			data: {
 				paid_at: $("#paid_at").val(),
 				amount: resetFields ? '' : $("#total_amount").val(),
-				late_penalties: resetFields ? '' : $("#late_penalties").val()
+				late_penalties: resetFields ? '' : $("#late_penalties").val(),
+				interest_charge: resetFields ? '' : $("#interest_charge").val()
 			},
 			success: function(json) {
 				if (reloadAccounts) {
@@ -211,9 +245,11 @@ $(function() {
 				}
 
 				renderArrears(json);
+				lastOwed = json;
 
 				if (resetFields) {
 					$("#late_penalties").val(json.owed.penalty.toFixed(2));
+					$("#interest_charge").val(json.owed.interest.toFixed(2));
 					if ($("#total_amount").val() == '' && json.installments.length && json.reserve.client_must_pay > 0) {
 						// Suggest the client's share only; the 30% reserve pays the end of the loan.
 						var overdueShare = 0;
@@ -225,6 +261,7 @@ $(function() {
 				} else {
 					renderPlan(json.plan);
 				}
+				updatePayoffHint();
 			}
 		});
 	}
@@ -244,7 +281,8 @@ $(function() {
 		refresh(true, false);
 	});
 
-	$(document).on('keyup change', '#total_amount, #late_penalties', refreshSoon);
+	$(document).on('keyup change', '#total_amount, #late_penalties, #interest_charge', refreshSoon);
+	$(document).on('keyup change', '#late_penalties, #interest_charge', updatePayoffHint);
 
 	// Opened with ?loan_id= (e.g. from a loan's details page) or after a
 	// failed submit: scripts.js preselects the loan and fires 'change'

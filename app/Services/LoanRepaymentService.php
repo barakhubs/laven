@@ -96,53 +96,101 @@ class LoanRepaymentService
      * below the accrued total is waived, oldest installment first. null
      * charges everything accrued.
      *
+     * $interestCharge is the same for interest, for a client paying off
+     * early: anything below the interest still owed is waived, LATEST
+     * installment first (interest for months not yet reached). apply()
+     * only allows it when the payment pays the loan off (see 'owed_after').
+     *
      * Returns ['lines' => [...per installment...], 'unallocated' => leftover,
-     *          'waived' => total waived].
+     *          'waived' => penalty waived, 'interest_waived' => interest
+     *          waived, 'owed_after' => what the loan still owes afterwards].
      */
-    public static function plan(array $installments, float $amount, ?float $penaltyCharge = null): array
+    public static function plan(array $installments, float $amount, ?float $penaltyCharge = null, ?float $interestCharge = null): array
     {
         $accrued   = array_sum(array_column($installments, 'penalty'));
         $toWaive   = $penaltyCharge === null ? 0 : max(0, round($accrued - $penaltyCharge, 2));
         $remaining = round($amount, 2);
         $lines     = [];
         $waived    = 0;
+        $owedAfter = 0;
+
+        // Interest waived on each installment, newest first.
+        $interestOwed     = array_sum(array_column($installments, 'interest'));
+        $interestToWaive  = $interestCharge === null ? 0 : max(0, round($interestOwed - $interestCharge, 2));
+        $interestWaivers  = [];
+        foreach (array_reverse($installments) as $due) {
+            $waive = round(min($interestToWaive, $due['interest']), 2);
+            $interestToWaive = round($interestToWaive - $waive, 2);
+            $interestWaivers[$due['repayment']->id] = $waive;
+        }
+        $interestWaived = round(array_sum($interestWaivers), 2);
 
         foreach ($installments as $due) {
-            if ($remaining <= self::EPSILON && $toWaive <= self::EPSILON) {
-                break;
-            }
-
             $waive    = round(min($toWaive, $due['penalty']), 2);
             $toWaive  = round($toWaive - $waive, 2);
             $waived   = round($waived + $waive, 2);
             $penalty  = round($due['penalty'] - $waive, 2);
 
+            $interestWaive = $interestWaivers[$due['repayment']->id] ?? 0;
+            $interest      = round($due['interest'] - $interestWaive, 2);
+
             $penaltyPaid   = round(min($remaining, $penalty), 2);
             $remaining     = round($remaining - $penaltyPaid, 2);
-            $interestPaid  = round(min($remaining, $due['interest']), 2);
+            $interestPaid  = round(min($remaining, $interest), 2);
             $remaining     = round($remaining - $interestPaid, 2);
             $principalPaid = round(min($remaining, $due['principal']), 2);
             $remaining     = round($remaining - $principalPaid, 2);
 
-            if ($waive + $penaltyPaid + $interestPaid + $principalPaid <= 0) {
+            $left      = round(($penalty - $penaltyPaid) + ($interest - $interestPaid) + ($due['principal'] - $principalPaid), 2);
+            $owedAfter = round($owedAfter + $left, 2);
+
+            if ($waive + $interestWaive + $penaltyPaid + $interestPaid + $principalPaid <= 0) {
                 continue;
             }
 
             $lines[] = [
-                'repayment'      => $due['repayment'],
-                'repayment_id'   => $due['repayment']->id,
-                'repayment_date' => $due['repayment']->repayment_date,
-                'penalty_waived' => $waive,
-                'penalty'        => $penaltyPaid,
-                'interest'       => $interestPaid,
-                'principal'      => $principalPaid,
-                'closes'         => $penalty - $penaltyPaid <= self::EPSILON
-                    && $due['interest'] - $interestPaid <= self::EPSILON
+                'repayment'       => $due['repayment'],
+                'repayment_id'    => $due['repayment']->id,
+                'repayment_date'  => $due['repayment']->repayment_date,
+                'penalty_waived'  => $waive,
+                'penalty'         => $penaltyPaid,
+                'interest_waived' => $interestWaive,
+                'interest'        => $interestPaid,
+                'principal'       => $principalPaid,
+                'closes'          => $penalty - $penaltyPaid <= self::EPSILON
+                    && $interest - $interestPaid <= self::EPSILON
                     && $due['principal'] - $principalPaid <= self::EPSILON,
             ];
         }
 
-        return ['lines' => $lines, 'unallocated' => max(0, $remaining), 'waived' => $waived];
+        return [
+            'lines'           => $lines,
+            'unallocated'     => max(0, $remaining),
+            'waived'          => $waived,
+            'interest_waived' => $interestWaived,
+            'owed_after'      => max(0, $owedAfter),
+        ];
+    }
+
+    /**
+     * Interest may only be waived by a payment that pays the loan off: what
+     * it leaves owing must be nothing, or no more than the 30% reserve can
+     * then clear. Returns the error message, or null if the plan is fine.
+     */
+    public static function interestWaiverError(Loan $loan, array $plan, $asOf): ?string
+    {
+        if ($plan['interest_waived'] <= self::EPSILON) {
+            return null;
+        }
+
+        $reserve = LoanReserveService::usable($loan);
+        if ($plan['owed_after'] <= $reserve + self::EPSILON) {
+            return null;
+        }
+
+        return _lang('Interest can only be waived when this payment pays off the loan')
+            . ($reserve > 0 ? ' (' . _lang('apart from what the 30% reserve covers') . ')' : '')
+            . '. ' . _lang('It would still owe') . ' ' . decimalPlace($plan['owed_after'] - $reserve) . '.';
     }
 
     /**
@@ -152,16 +200,19 @@ class LoanRepaymentService
      *
      * $attributes are extra LoanPayment columns (remarks, transaction_id).
      */
-    public static function apply(Loan $loan, float $amount, $paidAt, ?float $penaltyCharge = null, array $attributes = []): LoanPayment
+    public static function apply(Loan $loan, float $amount, $paidAt, ?float $penaltyCharge = null, array $attributes = [], ?float $interestCharge = null): LoanPayment
     {
         $arrears = self::arrears($loan, $paidAt, true);
-        $plan    = self::plan($arrears['installments'], $amount, $penaltyCharge);
+        $plan    = self::plan($arrears['installments'], $amount, $penaltyCharge, $interestCharge);
 
         if (empty($plan['lines'])) {
             throw new \InvalidArgumentException(_lang('This loan has nothing left to pay.'));
         }
         if ($plan['unallocated'] > self::EPSILON) {
             throw new \InvalidArgumentException(_lang('Amount is more than the loan still owes') . ' (' . decimalPlace($amount - $plan['unallocated']) . ')');
+        }
+        if ($error = self::interestWaiverError($loan, $plan, $paidAt)) {
+            throw new \InvalidArgumentException($error);
         }
 
         $sum = fn ($key) => round(array_sum(array_column($plan['lines'], $key)), 2);
@@ -172,6 +223,7 @@ class LoanRepaymentService
         $loanPayment->late_penalties   = $sum('penalty');
         $loanPayment->penalty_waived   = $sum('penalty_waived');
         $loanPayment->interest         = $sum('interest');
+        $loanPayment->interest_waived  = $sum('interest_waived');
         $loanPayment->repayment_amount = round($sum('principal') + $sum('interest'), 2);
         $loanPayment->total_amount     = round($amount, 2);
         $loanPayment->repayment_id     = $plan['lines'][0]['repayment_id'];
@@ -191,6 +243,7 @@ class LoanRepaymentService
                 'penalty'           => $line['penalty'],
                 'penalty_waived'    => $line['penalty_waived'],
                 'interest'          => $line['interest'],
+                'interest_waived'   => $line['interest_waived'],
                 'principal'         => $line['principal'],
             ]);
 
@@ -198,6 +251,7 @@ class LoanRepaymentService
             $repayment->penalty_paid   = round($repayment->penalty_paid + $line['penalty'], 2);
             $repayment->penalty_waived = round($repayment->penalty_waived + $line['penalty_waived'], 2);
             $repayment->interest_paid  = round($repayment->interest_paid + $line['interest'], 2);
+            $repayment->interest_waived = round($repayment->interest_waived + $line['interest_waived'], 2);
             $repayment->principal_paid = round($repayment->principal_paid + $line['principal'], 2);
             if ($line['closes']) {
                 $repayment->status     = 1;
@@ -217,7 +271,7 @@ class LoanRepaymentService
 
     /**
      * Undo $loanPayment exactly: take back what it put on each installment
-     * (reopening any it closed, restoring any penalty it waived), take its
+     * (reopening any it closed, restoring any penalty or interest it waived), take its
      * principal off the loan, and delete it. Does not touch the linked
      * savings Transaction — the caller decides whether to delete that.
      */
@@ -244,8 +298,9 @@ class LoanRepaymentService
             $repayment->penalty_paid   = max(0, round($repayment->penalty_paid - $allocation->penalty, 2));
             $repayment->penalty_waived = max(0, round($repayment->penalty_waived - $allocation->penalty_waived, 2));
             $repayment->interest_paid  = max(0, round($repayment->interest_paid - $allocation->interest, 2));
+            $repayment->interest_waived = max(0, round($repayment->interest_waived - $allocation->interest_waived, 2));
             $repayment->principal_paid = max(0, round($repayment->principal_paid - $allocation->principal, 2));
-            if ($repayment->interest_due + $repayment->principal_due > self::EPSILON || $allocation->penalty + $allocation->penalty_waived > 0) {
+            if ($repayment->interest_due + $repayment->principal_due > self::EPSILON || $allocation->penalty + $allocation->penalty_waived + $allocation->interest_waived > 0) {
                 $repayment->status     = 0;
                 $repayment->cleared_at = null;
             }

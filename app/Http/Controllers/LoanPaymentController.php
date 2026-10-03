@@ -201,6 +201,7 @@ class LoanPaymentController extends Controller
             'loan_id'          => 'required',
             'paid_at'          => 'required',
             'late_penalties'   => 'nullable|numeric|min:0',
+            'interest_charge'  => 'nullable|numeric|min:0',
             'total_amount'     => 'required|numeric|gt:0',
         ]);
 
@@ -217,11 +218,13 @@ class LoanPaymentController extends Controller
         // Penalty to charge; lowering it below what has accrued waives the
         // difference (recorded on the payment).
         $penaltyCharge = $request->filled('late_penalties') ? (float) $request->late_penalties : null;
+        // Same for interest, only allowed when the payment pays the loan off.
+        $interestCharge = $request->filled('interest_charge') ? (float) $request->interest_charge : null;
 
         try {
             $loanpayment = LoanPaymentRecorder::record(
                 $request->loan_id, (float) $request->total_amount, $request->paid_at,
-                $request->account_id, $penaltyCharge, $request->remarks,
+                $request->account_id, $penaltyCharge, $request->remarks, $interestCharge,
             );
         } catch (\InvalidArgumentException $e) {
             return back()->with('error', $e->getMessage())->withInput();
@@ -305,12 +308,15 @@ class LoanPaymentController extends Controller
 
         $plan = null;
         if ($request->filled('amount') && (float) $request->amount > 0) {
-            $penaltyCharge = $request->filled('late_penalties') ? (float) $request->late_penalties : null;
-            $result        = LoanRepaymentService::plan($arrears['installments'], (float) $request->amount, $penaltyCharge);
-            $plan          = [
-                'lines'       => array_map(fn ($line) => collect($line)->except('repayment')->all(), $result['lines']),
-                'unallocated' => $result['unallocated'],
-                'waived'      => $result['waived'],
+            $penaltyCharge  = $request->filled('late_penalties') ? (float) $request->late_penalties : null;
+            $interestCharge = $request->filled('interest_charge') ? (float) $request->interest_charge : null;
+            $result         = LoanRepaymentService::plan($arrears['installments'], (float) $request->amount, $penaltyCharge, $interestCharge);
+            $plan           = [
+                'lines'           => array_map(fn ($line) => collect($line)->except('repayment')->all(), $result['lines']),
+                'unallocated'     => $result['unallocated'],
+                'waived'          => $result['waived'],
+                'interest_waived' => $result['interest_waived'],
+                'interest_error'  => LoanRepaymentService::interestWaiverError($loan, $result, $asOf),
             ];
         }
 

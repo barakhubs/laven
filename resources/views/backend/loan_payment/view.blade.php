@@ -38,6 +38,9 @@
 					@if($loanpayment->penalty_waived > 0)
 					<tr><td>{{ _lang('Penalty Waived') }}</td><td>{{ decimalPlace($loanpayment->penalty_waived, currency($loanpayment->loan->currency->name)) }}</td></tr>
 					@endif
+					@if($loanpayment->interest_waived > 0)
+					<tr><td>{{ _lang('Interest Waived') }}</td><td>{{ decimalPlace($loanpayment->interest_waived, currency($loanpayment->loan->currency->name)) }}</td></tr>
+					@endif
 					<tr><td>{{ _lang('Total Amount') }}</td><td>{{ decimalPlace($loanpayment->total_amount, currency($loanpayment->loan->currency->name)) }}</td></tr>
 					<tr><td>{{ _lang('Remarks') }}</td><td>{{ $loanpayment->remarks }}</td></tr>
 				</table>
@@ -70,6 +73,9 @@
 							@if($loanpayment->penalty_waived > 0)
 							<tr><td>{{ _lang('Penalty Waived') }}</td><td>: {{ decimalPlace($loanpayment->penalty_waived, currency($loanpayment->loan->currency->name)) }}</td></tr>
 							@endif
+							@if($loanpayment->interest_waived > 0)
+							<tr><td>{{ _lang('Interest Waived') }}</td><td>: {{ decimalPlace($loanpayment->interest_waived, currency($loanpayment->loan->currency->name)) }}</td></tr>
+							@endif
 							<tr><td>{{ _lang('Total Amount') }}</td><td>: {{ decimalPlace($loanpayment->total_amount, currency($loanpayment->loan->currency->name)) }}</td></tr>
 							<tr><td>{{ _lang('Remarks') }}</td><td>: {{ $loanpayment->remarks ?? _lang('N/A') }}</td></tr>
 						</table>
@@ -100,6 +106,9 @@
 						<tr><td>{{ _lang('Late Penalties') }}</td><td>{{ decimalPlace($loanpayment->late_penalties, currency($loanpayment->loan->currency->name)) }}</td></tr>
 					@if($loanpayment->penalty_waived > 0)
 					<tr><td>{{ _lang('Penalty Waived') }}</td><td>{{ decimalPlace($loanpayment->penalty_waived, currency($loanpayment->loan->currency->name)) }}</td></tr>
+					@endif
+					@if($loanpayment->interest_waived > 0)
+					<tr><td>{{ _lang('Interest Waived') }}</td><td>{{ decimalPlace($loanpayment->interest_waived, currency($loanpayment->loan->currency->name)) }}</td></tr>
 					@endif
 						<tr><td>{{ _lang('Total Amount') }}</td><td>{{ decimalPlace($loanpayment->total_amount, currency($loanpayment->loan->currency->name)) }}</td></tr>
 						<tr><td>{{ _lang('Remarks') }}</td><td>{{ $loanpayment->remarks ?? _lang('N/A') }}</td></tr>
