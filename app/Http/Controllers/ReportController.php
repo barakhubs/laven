@@ -102,7 +102,7 @@ class ReportController extends Controller
                         return $query->where('member_no', $member_no);
                     });
                 })
-                ->whereRaw("date(loans.created_at) >= '$date1' AND date(loans.created_at) <= '$date2'")
+                ->whereDate('loans.created_at', '>=', $date1)->whereDate('loans.created_at', '<=', $date2)
                 ->orderBy('id', 'desc')
                 ->get();
 
@@ -176,7 +176,7 @@ class ReportController extends Controller
                     $query->whereNull('transactions.loan_id')
                         ->orWhereHas('loan');
                 })
-                ->whereRaw("date(transactions.trans_date) >= '$date1' AND date(transactions.trans_date) <= '$date2'")
+                ->whereDate('transactions.trans_date', '>=', $date1)->whereDate('transactions.trans_date', '<=', $date2)
                 ->orderBy('transactions.trans_date', 'desc')
                 ->get();
 
@@ -213,7 +213,7 @@ class ReportController extends Controller
                 ->when($branch, function ($query, $branch) {
                     return $query->where('branch_id', $branch);
                 })
-                ->whereRaw("date(expenses.expense_date) >= '$date1' AND date(expenses.expense_date) <= '$date2'")
+                ->whereDate('expenses.expense_date', '>=', $date1)->whereDate('expenses.expense_date', '<=', $date2)
                 ->orderBy('expense_date', 'desc')
                 ->get();
 
@@ -254,7 +254,7 @@ class ReportController extends Controller
             $currency_id = $request->currency_id;
 
             $transaction_revenue = Transaction::selectRaw("CONCAT('Revenue from ', type), sum(charge) as amount")
-                ->whereRaw("EXTRACT(YEAR FROM trans_date) = '$year' AND EXTRACT(MONTH FROM trans_date) = '$month'")
+                ->whereYear('trans_date', (int) $year)->whereMonth('trans_date', (int) $month)
                 ->where('charge', '>', 0)
                 ->where('status', 2)
                 ->whereHas('account.savings_type', function ($query) use ($currency_id) {
@@ -263,7 +263,7 @@ class ReportController extends Controller
                 ->groupBy('type');
 
             $maintainaince_fee = Transaction::selectRaw("CONCAT('Revenue from ', type), sum(amount) as amount")
-                ->whereRaw("EXTRACT(YEAR FROM trans_date) = '$year' AND EXTRACT(MONTH FROM trans_date) = '$month'")
+                ->whereYear('trans_date', (int) $year)->whereMonth('trans_date', (int) $month)
                 ->where('type', 'Account_Maintenance_Fee')
                 ->where('status', 2)
                 ->whereHas('account.savings_type', function ($query) use ($currency_id) {
@@ -276,7 +276,7 @@ class ReportController extends Controller
                     ->where('transaction_categories.status', '=', 1);
             })
                 ->selectRaw("CONCAT('Revenue from ', type), sum(amount) as amount")
-                ->whereRaw("EXTRACT(YEAR FROM trans_date) = '$year' AND EXTRACT(MONTH FROM trans_date) = '$month'")
+                ->whereYear('trans_date', (int) $year)->whereMonth('trans_date', (int) $month)
                 ->where('dr_cr', 'dr')
                 ->where('transactions.status', 2)
                 ->whereHas('account.savings_type', function ($query) use ($currency_id) {
@@ -285,7 +285,7 @@ class ReportController extends Controller
                 ->groupBy('type');
 
             $data['report_data'] = LoanPayment::selectRaw("'Revenue from Loan' as type, sum(interest + late_penalties) as amount")
-                ->whereRaw("EXTRACT(YEAR FROM loan_payments.paid_at) = '$year' AND EXTRACT(MONTH FROM loan_payments.paid_at) = '$month'")
+                ->whereYear('loan_payments.paid_at', (int) $year)->whereMonth('loan_payments.paid_at', (int) $month)
                 ->whereHas('loan', function ($query) use ($currency_id) {
                     return $query->where('currency_id', $currency_id);
                 })
@@ -428,7 +428,7 @@ class ReportController extends Controller
                 ->when($bank_account_id, function ($query, $bank_account_id) {
                     return $query->where('bank_transactions.bank_account_id', $bank_account_id);
                 })
-                ->whereRaw("date(bank_transactions.trans_date) >= '$date1' AND date(bank_transactions.trans_date) <= '$date2'")
+                ->whereDate('bank_transactions.trans_date', '>=', $date1)->whereDate('bank_transactions.trans_date', '<=', $date2)
                 ->orderBy('bank_transactions.trans_date', 'desc')
                 ->get();
 

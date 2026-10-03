@@ -102,7 +102,7 @@ class ReportController extends Controller
 						return $query->where('account_number', $account_number);
 					});
 				})
-				->whereRaw("date(transactions.trans_date) >= '$date1' AND date(transactions.trans_date) <= '$date2'")
+				->whereDate('transactions.trans_date', '>=', $date1)->whereDate('transactions.trans_date', '<=', $date2)
 				->where('member_id', auth()->user()->member->id)
 				->orderBy('transactions.trans_date', 'desc')
 				->get();

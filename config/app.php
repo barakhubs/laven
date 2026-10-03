@@ -16,6 +16,9 @@ return [
     |
     */
 
+    // Set by the installer; read via config() so it survives `php artisan config:cache`.
+    'installed' => env('APP_INSTALLED', false),
+
     'name' => env('APP_NAME', 'Laravel'),
 
     /*

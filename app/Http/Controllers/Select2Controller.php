@@ -2,60 +2,46 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
 use DB;
+use Illuminate\Http\Request;
 
-
+/**
+ * Search-as-you-type for select boxes (class="select2-ajax").
+ *
+ * It used to read any table and column named in the query string and needed no sign-in, so
+ * anyone could pull users' password hashes or the SMTP/SMS credentials in settings. Now it
+ * needs a signed-in staff account and only serves the lookups listed below.
+ */
 class Select2Controller extends Controller
 {
+    /** table => [value column, display column] */
+    private const LOOKUPS = [
+        'roles' => ['id', 'name'],
+    ];
 
-	public function __construct()
+    public function __construct()
     {
-		date_default_timezone_set(get_option('timezone','Asia/Dhaka'));	
-	}
-	
-    /**
-     * Display a listing of the resource.
-     *
-     * @return \Illuminate\Http\Response
-     */
+        $this->middleware('auth');
+        date_default_timezone_set(get_option('timezone', 'Asia/Dhaka'));
+    }
+
     public function get_table_data(Request $request)
     {
-		$data_where = array(
-		   '1' => array('company_id'=> 1), //general company Data
-		   '2' => array('company_id'=> 1, 'item_type'=> 'product'), //Item Type Product
-		);
-	
-		
-        $table = $request->get('table');
-        $value = $request->get('value');
-        $display = $request->get('display');
-        $display2 = $request->get('display2');
-        $divider = $request->get('divider');
-        $where = $request->get('where');
-		
-        $q = $request->get('q');
-	
-	    $display_option = "$display as text";
-		if($display2 != ''){
-			$display_option = "CONCAT($display,' $divider ',$display2) AS text";
-		}
-		
-	   
-	    if($where != ''){
-			$result = DB::table($table)
-						  ->select("$value as id", DB::raw($display_option))
-						  ->where($display,'LIKE',"$q%")
-						  //->where($data_where[$where])
-						  ->get();
-		}else{
-			$result = DB::table($table)
-						  ->select("$value as id", DB::raw($display_option))
-						  ->where($display,'LIKE',"$q%")
-						  ->get();
-		}			  
-					  
-		return $result;   
+        if (! $request->user() || $request->user()->user_type === 'customer') {
+            abort(403);
+        }
+
+        $table = (string) $request->get('table');
+        if (! isset(self::LOOKUPS[$table])) {
+            abort(404);
+        }
+        [$value, $display] = self::LOOKUPS[$table];
+
+        return DB::table($table)
+            ->select("$value as id", "$display as text")
+            ->where($display, 'LIKE', addcslashes((string) $request->get('q'), '%_\\') . '%')
+            ->orderBy($display)
+            ->limit(50)
+            ->get();
     }
-	  
 }

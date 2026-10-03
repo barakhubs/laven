@@ -11,8 +11,24 @@ use Illuminate\Support\Facades\Validator;
 
 class InstallController extends Controller {
     public function __construct() {
-        if (env('APP_INSTALLED', false) == true) {
-            Redirect::to('/')->send();
+        // The old check, env('APP_INSTALLED'), is always null once `php artisan config:cache`
+        // has run, which left the installer open on production: anyone could create an admin
+        // account or rewrite the database settings. Treat the app as installed as soon as an
+        // administrator exists (or the flag is set), and answer 404.
+        if (self::installed()) {
+            abort(404);
+        }
+    }
+
+    public static function installed(): bool {
+        if (filter_var(config('app.installed', env('APP_INSTALLED', false)), FILTER_VALIDATE_BOOLEAN)) {
+            return true;
+        }
+        try {
+            return \Illuminate\Support\Facades\Schema::hasTable('users')
+                && \App\Models\User::whereIn('user_type', ['admin', 'superadmin'])->exists();
+        } catch (\Throwable $e) {
+            return false; // no database yet: a genuine fresh install
         }
     }
 
