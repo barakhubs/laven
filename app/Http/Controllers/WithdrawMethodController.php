@@ -68,7 +68,7 @@ class WithdrawMethodController extends Controller {
         $image = 'default.png';
         if ($request->hasfile('image')) {
             $file  = $request->file('image');
-            $image = time() . $file->getClientOriginalName();
+            $image = safe_upload_name($file);
             $file->move(public_path() . "/uploads/media/", $image);
         }
 
@@ -150,7 +150,7 @@ class WithdrawMethodController extends Controller {
 
         if ($request->hasfile('image')) {
             $file  = $request->file('image');
-            $image = time() . $file->getClientOriginalName();
+            $image = safe_upload_name($file);
             $file->move(public_path() . "/uploads/media/", $image);
         }
 

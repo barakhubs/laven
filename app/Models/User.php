@@ -51,7 +51,14 @@ class User extends Authenticatable {
      * or a staff user of any role). They pick a client and act on that client's account.
      */
     public function isMobileStaff(): bool {
-        return $this->user_type !== 'customer';
+        if ($this->user_type === 'customer') {
+            return false;
+        }
+        if ($this->isAdmin()) {
+            return true;
+        }
+        // Other staff need the same permission the web portal requires to view a member.
+        return $this->role?->permissions?->contains('permission', 'members.show') ?? false;
     }
 
     /** Both superadmin and regular admin — use for general backend access checks */

@@ -77,7 +77,7 @@ class UtilityController extends Controller
 
         if ($request->hasFile('logo')) {
             $image           = $request->file('logo');
-            $name            = 'logo.' . $image->getClientOriginalExtension();
+            $name            = 'logo.' . (in_array($image->guessExtension(), ['jpg', 'jpeg', 'png'], true) ? $image->guessExtension() : 'png');
             $destinationPath = public_path('/uploads/media');
             $image->move($destinationPath, $name);
 
@@ -108,7 +108,7 @@ class UtilityController extends Controller
 
         if ($request->hasFile($file_name)) {
             $file            = $request->file($file_name);
-            $name            = 'file_' . time() . "." . $file->getClientOriginalExtension();
+            $name            = safe_upload_name($file);
             $destinationPath = public_path('/uploads/media');
             $file->move($destinationPath, $name);
 

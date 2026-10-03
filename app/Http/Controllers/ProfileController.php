@@ -93,7 +93,7 @@ class ProfileController extends Controller {
         $profile->email = $request->email;
         if ($request->hasFile('profile_picture')) {
             $image     = $request->file('profile_picture');
-            $file_name = "profile_" . time() . '.' . $image->getClientOriginalExtension();
+            $file_name = safe_upload_name($image, ['jpg', 'jpeg', 'png', 'webp']);
             Image::make($image)->crop(300, 300)->save(base_path('public/uploads/profile/') . $file_name);
             $profile->profile_picture = $file_name;
         }
@@ -156,17 +156,24 @@ class ProfileController extends Controller {
             ],
         ]);
 
-        $user        = Auth::user();
+        $user = Auth::user();
+
+        // Changing the sign-in email can lead to a password reset, so on a borrowed or stolen
+        // phone it must not work without the current password.
+        if (strcasecmp($request->email, $user->email) !== 0 && ! Hash::check((string) $request->current_password, $user->password)) {
+            return response()->json([
+                'success' => false,
+                'code'    => 'PASSWORD_REQUIRED',
+                'message' => 'Enter your current password to change your email.',
+                'errors'  => ['current_password' => ['Enter your current password to change your email.']],
+            ], 422);
+        }
+
+        // Only the sign-in name changes here. The member's legal name is part of their KYC
+        // record and is changed at the branch.
         $user->name  = $request->first_name . ' ' . $request->last_name;
         $user->email = $request->email;
         $user->save();
-
-        // Also update the member table so dashboard reflects the change
-        if ($user->member && $user->member->id) {
-            $user->member->first_name = $request->first_name;
-            $user->member->last_name  = $request->last_name;
-            $user->member->save();
-        }
 
         return response()->json([
             'success' => true,
@@ -188,7 +195,7 @@ class ProfileController extends Controller {
     public function apiUpdatePassword(Request $request) {
         $this->validate($request, [
             'oldpassword' => 'required',
-            'password'    => 'required|string|min:6|confirmed',
+            'password'    => 'required|string|min:8|confirmed',
         ]);
 
         $user = Auth::user();

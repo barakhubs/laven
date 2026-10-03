@@ -60,11 +60,12 @@ Route::prefix('v1')->middleware('app.version')->group(function () {
         Route::post('profile/update',          [ProfileController::class, 'apiUpdate'])->name('api.profile.update');
         Route::post('profile/update_password', [ProfileController::class, 'apiUpdatePassword'])->name('api.profile.update_password');
 
-        Route::post('send-sms', [SmsController::class, 'send'])->name('api.send-sms');
+        // Sends any text to any number from Laven's sender ID: administrators only.
+        Route::post('send-sms', [SmsController::class, 'send'])->middleware(['api.admin', 'throttle:auth'])->name('api.send-sms');
 
         // Phone OTP for member registration (staff use, requires auth)
-        Route::post('members/send-otp',   [PhoneOtpController::class, 'send'])->name('api.members.send_otp');
-        Route::post('members/verify-otp', [PhoneOtpController::class, 'verify'])->name('api.members.verify_otp');
+        Route::post('members/send-otp',   [PhoneOtpController::class, 'send'])->middleware('throttle:auth')->name('api.members.send_otp');
+        Route::post('members/verify-otp', [PhoneOtpController::class, 'verify'])->middleware('throttle:auth')->name('api.members.verify_otp');
 
         // All data routes require client context resolution
         Route::middleware('staff.client.context')->group(function () {

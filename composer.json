@@ -10,7 +10,7 @@
     "require": {
         "php": "^8.2",
         "africastalking/africastalking": "^3.0",
-        "barryvdh/laravel-dompdf": "^2.0",
+        "barryvdh/laravel-dompdf": "^3.1",
         "guzzlehttp/guzzle": "^7.2",
         "intervention/image": "^2.7",
         "josiasmontag/laravel-recaptchav3": "^1.0",
@@ -19,7 +19,7 @@
         "laravel/socialite": "^5.6",
         "laravel/tinker": "^2.8",
         "laravel/ui": "^4.2",
-        "maatwebsite/excel": "^3.1",
+        "maatwebsite/excel": "^3.1.70",
         "mollie/mollie-api-php": "^2.0",
         "pahappa-limited/comms-sdk": "dev-main",
         "phpjuice/paypal-checkout-sdk": "^3.2",
@@ -86,6 +86,9 @@
         "audit": {
             "abandoned": "ignore",
             "block-insecure": false
+        },
+        "platform": {
+            "php": "8.4.26"
         }
     },
     "minimum-stability": "dev",

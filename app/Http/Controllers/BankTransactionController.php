@@ -127,7 +127,7 @@ class BankTransactionController extends Controller {
         $attachment = '';
         if ($request->hasfile('attachment')) {
             $file       = $request->file('attachment');
-            $attachment = time() . $file->getClientOriginalName();
+            $attachment = safe_upload_name($file);
             $file->move(public_path() . "/uploads/media/", $attachment);
         }
 
@@ -233,7 +233,7 @@ class BankTransactionController extends Controller {
 
         if ($request->hasfile('attachment')) {
             $file       = $request->file('attachment');
-            $attachment = time() . $file->getClientOriginalName();
+            $attachment = safe_upload_name($file);
             $file->move(public_path() . "/uploads/media/", $attachment);
         }
 

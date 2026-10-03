@@ -148,7 +148,7 @@ class DepositController extends ApiController
         $attachment = '';
         if ($request->hasFile('attachment')) {
             $file       = $request->file('attachment');
-            $attachment = time() . $file->getClientOriginalName();
+            $attachment = safe_upload_name($file);
             $file->move(public_path('/uploads/media/'), $attachment);
         }
 

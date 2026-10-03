@@ -1,0 +1,10 @@
+# Uploaded files are data, never code: refuse to serve or run scripts from here,
+# whatever their name, and don't list the folder.
+Options -Indexes -ExecCGI
+<FilesMatch "(?i)\.(php[0-9]?|phtml|phar|pht|pl|py|cgi|sh|bash|shtml|asp|aspx|jsp|exe|htaccess|htpasswd|ini|env)$">
+    Require all denied
+</FilesMatch>
+<IfModule mod_mime.c>
+    RemoveHandler .php .php3 .php4 .php5 .php7 .php8 .phtml .phar .pht
+    RemoveType .php .php3 .php4 .php5 .php7 .php8 .phtml .phar .pht
+</IfModule>

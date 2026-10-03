@@ -88,7 +88,7 @@ class LoanCollateralController extends Controller {
         $attachments = "";
         if ($request->hasfile('attachments')) {
             $file        = $request->file('attachments');
-            $attachments = time() . $file->getClientOriginalName();
+            $attachments = safe_upload_name($file);
             $file->move(public_path() . "/uploads/media/", $attachments);
         }
 
@@ -174,7 +174,7 @@ class LoanCollateralController extends Controller {
 
         if ($request->hasfile('attachments')) {
             $file        = $request->file('attachments');
-            $attachments = time() . $file->getClientOriginalName();
+            $attachments = safe_upload_name($file);
             $file->move(public_path() . "/uploads/media/", $attachments);
         }
 

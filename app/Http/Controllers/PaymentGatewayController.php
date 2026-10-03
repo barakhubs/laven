@@ -70,7 +70,7 @@ class PaymentGatewayController extends Controller {
         $image = '';
         if ($request->hasfile('image')) {
             $file  = $request->file('image');
-            $image = time() . $file->getClientOriginalName();
+            $image = safe_upload_name($file);
             $file->move(public_path() . "/backend/images/gateways/", $image);
         }
 
@@ -141,7 +141,7 @@ class PaymentGatewayController extends Controller {
 
         if ($request->hasfile('image')) {
             $file  = $request->file('image');
-            $image = time() . $file->getClientOriginalName();
+            $image = safe_upload_name($file);
             $file->move(public_path() . "/backend/images/gateways/", $image);
         }
 

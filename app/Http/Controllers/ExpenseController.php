@@ -103,7 +103,7 @@ class ExpenseController extends Controller {
         $attachment = '';
         if ($request->hasfile('attachment')) {
             $file       = $request->file('attachment');
-            $attachment = time() . $file->getClientOriginalName();
+            $attachment = safe_upload_name($file);
             $file->move(public_path() . "/uploads/media/", $attachment);
         }
 
@@ -186,7 +186,7 @@ class ExpenseController extends Controller {
 
         if ($request->hasfile('attachment')) {
             $file       = $request->file('attachment');
-            $attachment = time() . $file->getClientOriginalName();
+            $attachment = safe_upload_name($file);
             $file->move(public_path() . "/uploads/media/", $attachment);
         }
 

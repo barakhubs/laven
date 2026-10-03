@@ -76,7 +76,7 @@ class MemberDocumentController extends Controller {
         $document = '';
         if ($request->hasfile('document')) {
             $file     = $request->file('document');
-            $document = time() . uniqid() . '-' . $file->getClientOriginalName();
+            $document = safe_upload_name($file);
             $file->move(public_path() . "/uploads/documents/", $document);
         }
 
@@ -140,7 +140,7 @@ class MemberDocumentController extends Controller {
 
         if ($request->hasfile('document')) {
             $file     = $request->file('document');
-            $document = time() . uniqid() . '-' . $file->getClientOriginalName();
+            $document = safe_upload_name($file);
             $file->move(public_path() . "/uploads/documents/", $document);
         }
 

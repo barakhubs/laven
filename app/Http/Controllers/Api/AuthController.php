@@ -107,7 +107,7 @@ class AuthController extends ApiController
             'nin'          => 'required|string|max:20',
             'otp_token'    => 'required|string',
             'country_code' => 'required|string',
-            'password'     => ['required', 'confirmed', PasswordRule::min(6)],
+            'password'     => ['required', 'confirmed', PasswordRule::min(8)],
             'gender'       => 'required|string',
             'city'         => 'required|string',
             'state'        => 'required|string',
@@ -302,7 +302,7 @@ class AuthController extends ApiController
         $validator = Validator::make($request->all(), [
             'token'    => 'required|string',
             'email'    => 'required|email',
-            'password' => ['required', 'confirmed', PasswordRule::min(6)],
+            'password' => ['required', 'confirmed', PasswordRule::min(8)],
         ]);
 
         if ($validator->fails()) {

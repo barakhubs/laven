@@ -82,7 +82,7 @@ class UserController extends Controller {
         $profile_picture = "default.png";
         if ($request->hasfile('profile_picture')) {
             $file            = $request->file('profile_picture');
-            $profile_picture = time() . $file->getClientOriginalName();
+            $profile_picture = safe_upload_name($file);
             $file->move(public_path() . "/uploads/profile/", $profile_picture);
         }
 
@@ -184,7 +184,7 @@ class UserController extends Controller {
 
         if ($request->hasfile('profile_picture')) {
             $file            = $request->file('profile_picture');
-            $profile_picture = time() . $file->getClientOriginalName();
+            $profile_picture = safe_upload_name($file);
             $file->move(public_path() . "/uploads/profile/", $profile_picture);
         }
 

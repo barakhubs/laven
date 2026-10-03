@@ -237,6 +237,22 @@ if (! function_exists('sql_escape')) {
     }
 }
 
+if (! function_exists('safe_upload_name')) {
+    /**
+     * A random name for an uploaded file, with an extension taken from its contents and
+     * limited to known document/image types. Never trust the uploader's filename: a file named
+     * "x.php" stored under public/ could be run as code.
+     */
+    function safe_upload_name(\Illuminate\Http\UploadedFile $file, array $allowed = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'txt']): string
+    {
+        $ext = strtolower((string) ($file->guessExtension() ?: $file->getClientOriginalExtension()));
+        if (! in_array($ext, $allowed, true)) {
+            $ext = 'bin';
+        }
+        return \Illuminate\Support\Str::random(40) . '.' . $ext;
+    }
+}
+
 if (! function_exists('get_option')) {
     function get_option($name, $optional = '')
     {
@@ -1364,9 +1380,7 @@ if (! function_exists('store_custom_field_data')) {
                 if ($field_type == 'file') {
                     if (request()->hasFile('custom_fields.' . $field_name)) {
                         $file      = request()->file('custom_fields.' . $field_name);
-                        $file_name = $file->getClientOriginalName();
-                        $file_name = str_replace(' ', '_', $file_name);
-                        $file_name = time() . md5(uniqid()) . '_' . $file_name;
+                        $file_name = safe_upload_name($file);
                         $file->move('public/uploads/media/', $file_name);
                         $field_value = $file_name;
                     } else {

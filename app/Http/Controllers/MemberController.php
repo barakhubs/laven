@@ -295,7 +295,7 @@ class MemberController extends Controller {
         $photo = 'default.png';
         if ($request->hasfile('photo')) {
             $file  = $request->file('photo');
-            $photo = time() . $file->getClientOriginalName();
+            $photo = safe_upload_name($file);
             $file->move(public_path() . "/uploads/profile/", $photo);
         }
 
@@ -598,7 +598,7 @@ class MemberController extends Controller {
 
         if ($request->hasfile('photo')) {
             $file  = $request->file('photo');
-            $photo = time() . $file->getClientOriginalName();
+            $photo = safe_upload_name($file);
             $file->move(public_path() . "/uploads/profile/", $photo);
         }
 
