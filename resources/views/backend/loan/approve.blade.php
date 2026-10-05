@@ -59,6 +59,28 @@
 									{{ decimalPlace($loan->applied_amount, currency($loan->currency->name)) }}
 									</td>
 								</tr>
+								@if($reserveAmount > 0)
+								<tr>
+									<td>{{ _lang("Less: 30% Reserve (to savings)") }}</td>
+									<td>- {{ decimalPlace($reserveAmount, currency($loan->currency->name)) }}</td>
+								</tr>
+								@endif
+								@if($fees['application'] > 0)
+								<tr>
+									<td>{{ _lang("Less: Application Fee") }}</td>
+									<td>- {{ decimalPlace($fees['application'], currency($loan->currency->name)) }}</td>
+								</tr>
+								@endif
+								@if($fees['processing'] > 0)
+								<tr>
+									<td>{{ _lang("Less: Processing Fee") }}</td>
+									<td>- {{ decimalPlace($fees['processing'], currency($loan->currency->name)) }}</td>
+								</tr>
+								@endif
+								<tr>
+									<td><b>{{ _lang("Amount Paid Out to Client") }}</b></td>
+									<td><b>{{ decimalPlace($disbursedAmount, currency($loan->currency->name)) }}</b></td>
+								</tr>
 								<tr>
 									<td>{{ _lang("Late Payment Penalties") }}</td>
 									<td>{{ $loan->late_payment_penalties }} %</td>

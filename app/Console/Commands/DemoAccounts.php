@@ -11,6 +11,7 @@ use App\Models\SavingsAccount;
 use App\Models\SavingsProduct;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Services\LoanFeeService;
 use App\Services\LoanReserveService;
 use App\Services\LoanRepaymentService;
 use App\Utilities\LoanCalculator;
@@ -215,9 +216,15 @@ class DemoAccounts extends Command
         $loan->total_payable = $calc->payable_amount;
         $loan->save();
 
+        // Same payout as LoanController::approve: applied - 30% reserve - fees.
+        $fees = LoanFeeService::calculate($loan);
+        $loan->application_fee = $fees['application'];
+        $loan->processing_fee = $fees['processing'];
+        $loan->save();
+
         $reserve = LoanReserveService::target($loan);
         $when = $release->copy()->setTime(11, 20);
-        $this->credit($member, $account, $branch, $when, $amount - $reserve, 'Loan', 'Manual', 'Loan approved and disbursed', $loan->id);
+        $this->credit($member, $account, $branch, $when, $amount - $reserve - $fees['total'], 'Loan', 'Manual', 'Loan approved and disbursed', $loan->id);
         if ($reserve > 0) {
             $this->credit($member, $account, $branch, $when, $reserve, 'loan_savings', 'Manual', '30% loan savings deposit', $loan->id);
         }

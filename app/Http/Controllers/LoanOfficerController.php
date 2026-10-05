@@ -8,6 +8,7 @@ use App\Models\LoanRepayment;
 use App\Models\Member;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Services\LoanFeeService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -275,6 +276,20 @@ class LoanOfficerController extends Controller
             ->groupBy('members.loan_officer_id')
             ->pluck('total', 'loan_officer_id');
 
+        // ...plus the fees now withheld from the payout, stored on the loan
+        // (older loans had them debited from savings, counted above).
+        $withheldFeesQuery = Loan::withoutGlobalScope('domain_scope')
+            ->join('members', 'members.id', '=', 'loans.borrower_id')
+            ->whereNotNull('members.loan_officer_id')
+            ->disbursed();
+        if ($date1 && $date2) {
+            $withheldFeesQuery->whereBetween('loans.approved_date', [$date1, $date2]);
+        }
+        $withheldFees = $withheldFeesQuery
+            ->select('members.loan_officer_id', DB::raw('sum(' . LoanFeeService::revenueSql() . ') as total'))
+            ->groupBy('members.loan_officer_id')
+            ->pluck('total', 'loan_officer_id');
+
         // Interest + late payment penalty revenue collected from each officer's clients
         $interestQuery = LoanPayment::join('members', 'members.id', '=', 'loan_payments.member_id')
             ->whereNotNull('members.loan_officer_id');
@@ -288,7 +303,7 @@ class LoanOfficerController extends Controller
 
         $data = [];
         foreach ($officers as $officer) {
-            $officerFees      = (float) ($fees[$officer->id] ?? 0);
+            $officerFees      = (float) ($fees[$officer->id] ?? 0) + (float) ($withheldFees[$officer->id] ?? 0);
             $officerInterest  = (float) ($interest[$officer->id] ?? 0);
             $officerDisbursed    = (float) ($disbursed[$officer->id] ?? 0);
             $officerRecovered    = (float) ($recovered[$officer->id] ?? 0);
@@ -349,6 +364,18 @@ class LoanOfficerController extends Controller
             ->groupBy('member_id')
             ->pluck('total', 'member_id');
 
+        // Fees withheld from the payout (see index()).
+        $withheldFeesQuery = Loan::withoutGlobalScope('domain_scope')
+            ->whereIn('borrower_id', $memberIds)
+            ->disbursed();
+        if ($date1 && $date2) {
+            $withheldFeesQuery->whereBetween('approved_date', [$date1, $date2]);
+        }
+        $withheldFeesByMember = $withheldFeesQuery
+            ->select('borrower_id', DB::raw('sum(' . LoanFeeService::revenueSql() . ') as total'))
+            ->groupBy('borrower_id')
+            ->pluck('total', 'borrower_id');
+
         $interestQuery = LoanPayment::whereIn('member_id', $memberIds);
         if ($date1 && $date2) {
             $interestQuery->whereBetween('paid_at', [$date1, $date2]);
@@ -400,7 +427,7 @@ class LoanOfficerController extends Controller
             $disbursed = $releasedLoans->sum('applied_amount');
             $recovered    = (float) ($recoveredByMember[$client->id] ?? 0);
             $due          = (float) ($dueByMember[$client->id] ?? 0);
-            $fees         = (float) ($feesByMember[$client->id] ?? 0);
+            $fees         = (float) ($feesByMember[$client->id] ?? 0) + (float) ($withheldFeesByMember[$client->id] ?? 0);
             $interest     = (float) ($interestByMember[$client->id] ?? 0);
             $recoveredDue = (float) ($recoveredDueByMember[$client->id] ?? 0);
             $matured      = $recoveredDue + $due;

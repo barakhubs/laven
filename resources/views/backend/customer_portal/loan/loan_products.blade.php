@@ -61,7 +61,7 @@
                                     </li>
                                     <li class="mb-2">{{ _lang('Late Penalties') }}: <strong>{{ $loanProduct->late_payment_penalties }}%</strong></li>
                                     <li class="mb-2">{{ _lang('Application Fee') }}: <strong>{{ $loanProduct->loan_application_fee }} {{ $loanProduct->loan_application_fee_type == 1 ? '%' : '' }}</strong></li>
-                                    <li class="mb-2">{{ _lang('Processing Fee') }}: <strong>{{ $loanProduct->loan_processing_fee }} {{ $loanProduct->loan_application_fee_type == 1 ? '%' : '' }}</strong></li>
+                                    <li class="mb-2">{{ _lang('Processing Fee') }}: <strong>{{ $loanProduct->loan_processing_fee }} {{ $loanProduct->loan_processing_fee_type == 1 ? '%' : '' }}</strong></li>
                                     @if($loanProduct->description)
                                     <li class="mb-2">{{ _lang('Description') }}: <strong></strong>{{ $loanProduct->description }}</strong></li>
                                     @endif

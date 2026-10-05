@@ -15,6 +15,7 @@ use App\Models\Member;
 use App\Models\SavingsAccount;
 use App\Models\Transaction;
 use App\Services\CreditScoreService;
+use App\Services\LoanFeeService;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -284,6 +285,13 @@ class ReportController extends Controller
                 })
                 ->groupBy('type');
 
+            // Application + processing fees withheld from loan payouts,
+            // booked in the month the loan was approved.
+            $loan_fees = Loan::disbursed()
+                ->selectRaw("'Revenue from Loan Fees' as type, sum(" . LoanFeeService::revenueSql() . ") as amount")
+                ->where('currency_id', $currency_id)
+                ->whereYear('approved_date', (int) $year)->whereMonth('approved_date', (int) $month);
+
             $data['report_data'] = LoanPayment::selectRaw("'Revenue from Loan' as type, sum(interest + late_penalties) as amount")
                 ->whereYear('loan_payments.paid_at', (int) $year)->whereMonth('loan_payments.paid_at', (int) $month)
                 ->whereHas('loan', function ($query) use ($currency_id) {
@@ -292,6 +300,7 @@ class ReportController extends Controller
                 ->union($transaction_revenue)
                 ->union($maintainaince_fee)
                 ->union($others_fee)
+                ->union($loan_fees)
                 ->get();
 
             $data['year']        = $request->year;
@@ -614,13 +623,16 @@ class ReportController extends Controller
         $data['penalty_income']      = (float) $paymentTotals->penalty;
         $data['total_collected']     = (float) $paymentTotals->total;
 
-        // ---- Other fee income (account charges, not loan related) ----
+        // ---- Fee income: loan application/processing fees withheld from
+        // payouts, plus transaction charges (account fees, and loan fees
+        // from before they were withheld, which were debited from savings) ----
+        $data['loan_fee_income']  = self::loanFeeIncome($baseCurrencyId);
         $data['other_fee_income'] = (float) Transaction::where('charge', '>', 0)
             ->where('status', 2)
             ->whereHas('account.savings_type', function (Builder $q) use ($baseCurrencyId) {
                 $q->where('currency_id', $baseCurrencyId);
             })
-            ->sum('charge');
+            ->sum('charge') + $data['loan_fee_income'];
 
         $data['total_revenue'] = $data['interest_income'] + $data['penalty_income'] + $data['other_fee_income'];
 
@@ -642,7 +654,7 @@ class ReportController extends Controller
                 $q->where('currency_id', $baseCurrencyId);
             })
             ->whereBetween('trans_date', [$monthStart->toDateString(), $monthEnd->toDateString() . ' 23:59:59'])
-            ->sum('charge');
+            ->sum('charge') + self::loanFeeIncome($baseCurrencyId, $monthStart, $monthEnd);
 
         $data['this_month_label']    = $monthStart->format('F Y');
         $data['this_month_interest'] = (float) $thisMonthPayments->interest;
@@ -668,7 +680,7 @@ class ReportController extends Controller
                 $q->where('currency_id', $baseCurrencyId);
             })
             ->whereBetween('trans_date', [$lastMonthStart->toDateString(), $lastMonthEnd->toDateString() . ' 23:59:59'])
-            ->sum('charge');
+            ->sum('charge') + self::loanFeeIncome($baseCurrencyId, $lastMonthStart, $lastMonthEnd);
 
         $lastMonthInterest = (float) $lastMonthPayments->interest;
         $lastMonthPenalty  = (float) $lastMonthPayments->penalty;
@@ -775,7 +787,19 @@ class ReportController extends Controller
     }
 
     /**
-     * JSON data source for the monthly Interest / Penalties / Other Fees
+     * Loan application + processing fees withheld from payouts (see
+     * LoanFeeService), by approval date. No dates = lifetime.
+     */
+    private static function loanFeeIncome($currencyId, ?Carbon $from = null, ?Carbon $to = null): float
+    {
+        return (float) Loan::disbursed()
+            ->where('currency_id', $currencyId)
+            ->when($from && $to, fn ($q) => $q->whereBetween('approved_date', [$from->toDateString(), $to->toDateString()]))
+            ->sum(DB::raw(LoanFeeService::revenueSql()));
+    }
+
+    /**
+     * JSON data source for the monthly Interest / Penalties / Fees
      * breakdown on the Financial Summary page. Kept as a light-weight ajax
      * endpoint so the main page loads fast and the chart & table can be
      * refreshed independently when the year filter changes.
@@ -809,7 +833,7 @@ class ReportController extends Controller
                     $q->where('currency_id', $baseCurrencyId);
                 })
                 ->whereBetween('trans_date', [$start->toDateString(), $end->toDateString() . ' 23:59:59'])
-                ->sum('charge');
+                ->sum('charge') + self::loanFeeIncome($baseCurrencyId, $start, $end);
 
             $monthInterest = round((float) $loanIncome->interest, 2);
             $monthPenalty  = round((float) $loanIncome->penalty, 2);
@@ -869,8 +893,10 @@ class ReportController extends Controller
         $pastEnd = $today->lt($end) ? $today->copy() : $end->copy();
 
         // ---- 1. Actual results for the part of the range already past ----
-        $actualInterest = $actualExpenses = 0;
+        $actualInterest = $actualExpenses = $actualFees = 0;
         if ($start->lte($pastEnd)) {
+            $actualFees = self::loanFeeIncome($baseCurrencyId, $start, $pastEnd);
+
             $actualInterest = (float) LoanPayment::whereHas('loan', fn (Builder $q) => $q->where('currency_id', $baseCurrencyId))
                 ->forCurrentLoanDomain()
                 ->whereBetween('paid_at', [$start->toDateString(), $pastEnd->toDateString() . ' 23:59:59'])
@@ -926,6 +952,7 @@ class ReportController extends Controller
             'end_date'            => $end->toDateString(),
             'currency'            => $currency,
             'actual_interest'     => round($actualInterest, 2),
+            'actual_fees'         => round($actualFees, 2),
             'actual_expenses'     => round($actualExpenses, 2),
             'scheduled_interest'  => round($scheduledInterest, 2),
             'projected_interest'  => $projectedInterest,
@@ -934,7 +961,7 @@ class ReportController extends Controller
             'is_future'           => $end->gt($today),
         ];
 
-        $data['total_revenue']  = $data['actual_interest'] + $data['scheduled_interest'] + $data['projected_interest'];
+        $data['total_revenue']  = $data['actual_interest'] + $data['actual_fees'] + $data['scheduled_interest'] + $data['projected_interest'];
         $data['total_expenses'] = $data['actual_expenses'] + $data['projected_expenses'];
         $data['net_profit']     = $data['total_revenue'] - $data['total_expenses'];
 

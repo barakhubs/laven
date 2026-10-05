@@ -476,7 +476,11 @@ class LoanController extends Controller {
                 return back()->with('error', _lang('Loan ID and Release date must required !'));
             }
 
-            return view('backend.loan.approve', compact('loan', 'accounts', 'alert_col'));
+            $fees            = \App\Services\LoanFeeService::calculate($loan);
+            $reserveAmount   = \App\Services\LoanReserveService::target($loan);
+            $disbursedAmount = round($loan->applied_amount - $reserveAmount - $fees['total'], 2);
+
+            return view('backend.loan.approve', compact('loan', 'accounts', 'alert_col', 'fees', 'reserveAmount', 'disbursedAmount'));
         }
 
         DB::beginTransaction();
@@ -491,9 +495,20 @@ class LoanController extends Controller {
             return back()->with('error', _lang('Loan ID and Release date must required !'));
         }
 
-        // Loan processing fee is no longer collected as cash from clients
-        // (policy change) — the principal disbursed below is unaffected.
+        // Application + processing fees are not paid by the client: they are
+        // withheld from the payout below and booked as revenue on the loan.
+        // The client still owes the full applied_amount.
+        $fees            = \App\Services\LoanFeeService::calculate($loan);
+        $savingsAmount   = \App\Services\LoanReserveService::target($loan);
+        $disbursedAmount = round($loan->applied_amount - $savingsAmount - $fees['total'], 2);
 
+        if ($disbursedAmount <= 0) {
+            DB::rollBack();
+            return back()->with('error', _lang('Loan fees and the 30% reserve leave nothing to disburse. Check the loan product fee settings.'));
+        }
+
+        $loan->application_fee  = $fees['application'];
+        $loan->processing_fee   = $fees['processing'];
         $loan->status           = 1;
         $loan->approved_date    = date('Y-m-d');
         $loan->approved_user_id = Auth::id();
@@ -541,11 +556,10 @@ class LoanController extends Controller {
         }
 
         // 30% of the applied amount is set aside into the borrower's linked
-        // savings account rather than handed out with the rest of the
-        // disbursement. This does not change what the borrower owes — the
-        // repayment schedule above is still built on the full applied_amount.
-        $savingsAmount   = \App\Services\LoanReserveService::target($loan);
-        $disbursedAmount = $loan->applied_amount - $savingsAmount;
+        // savings account and the fees are withheld (both worked out above),
+        // so only the rest is handed out. This does not change what the
+        // borrower owes — the repayment schedule above is still built on the
+        // full applied_amount.
 
         if ($request->account_id != 'cash') {
             //Transfer money to use account
@@ -558,7 +572,9 @@ class LoanController extends Controller {
             $transaction->type               = 'Loan';
             $transaction->method             = 'Manual';
             $transaction->status             = 2;
-            $transaction->description        = 'Loan approved and disbursed';
+            $transaction->description        = $fees['total'] > 0
+                ? 'Loan approved and disbursed (less ' . decimalPlace($fees['total']) . ' application & processing fees)'
+                : 'Loan approved and disbursed';
             $transaction->created_user_id    = auth()->id();
             $transaction->loan_id            = $loan->id;
             $transaction->save();

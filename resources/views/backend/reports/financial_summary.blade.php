@@ -92,9 +92,9 @@
 			<div class="card-body">
 				<div class="d-flex">
 					<div class="flex-grow-1">
-						<h5>{{ _lang('Other Fee Income') }}</h5>
+						<h5>{{ _lang('Fee Income') }}</h5>
 						<h4 class="pt-1 mb-0"><b>{{ decimalPlace($other_fee_income, $currencySymbol) }}</b></h4>
-						<small>{{ _lang('Account charges, not loan related (Lifetime)') }}</small>
+						<small>{{ _lang('Loan application & processing fees + account charges (Lifetime)') }}</small>
 					</div>
 				</div>
 			</div>
@@ -131,7 +131,7 @@
 						<div>{!! $momBadge($mom_penalty_pct) !!}</div>
 					</div>
 					<div class="col-md-3 col-6" style="border-left:4px solid rgba(254, 208, 63, 0.85);">
-						<div class="text-muted" style="font-size:13px;">{{ _lang('Other Fees') }}</div>
+						<div class="text-muted" style="font-size:13px;">{{ _lang('Fees') }}</div>
 						<div style="font-size:22px;font-weight:700;">{{ decimalPlace($this_month_fees, $currencySymbol) }}</div>
 						<div>{!! $momBadge($mom_fees_pct) !!}</div>
 					</div>
@@ -228,7 +228,7 @@
 	<div class="col-12">
 		<div class="card mb-4">
 			<div class="card-header">
-				<span class="panel-title">{{ _lang('Monthly Revenue Breakdown') }} &mdash; {{ _lang('Interest, Penalties & Other Fees') }} ({{ $year }})</span>
+				<span class="panel-title">{{ _lang('Monthly Revenue Breakdown') }} &mdash; {{ _lang('Interest, Penalties & Fees') }} ({{ $year }})</span>
 			</div>
 			<div class="card-body">
 				<canvas id="financialTrendChart" height="90"></canvas>
@@ -241,7 +241,7 @@
 								<th class="pl-4">{{ _lang('Month') }}</th>
 								<th class="text-right">{{ _lang('Interest') }}</th>
 								<th class="text-right">{{ _lang('Penalties') }}</th>
-								<th class="text-right">{{ _lang('Other Fees') }}</th>
+								<th class="text-right">{{ _lang('Fees') }}</th>
 								<th class="text-right">{{ _lang('Total Revenue') }}</th>
 								<th class="text-right pr-4">{{ _lang('Growth') }} <i class="fas fa-question-circle" data-toggle="tooltip" title="{{ _lang('Change in total revenue compared to the previous month shown in this table.') }}" style="cursor:help;"></i></th>
 							</tr>
@@ -349,7 +349,7 @@
 		jQuery('[data-toggle="tooltip"]').tooltip();
 	}
 
-	// ---- Monthly Revenue Breakdown: Interest / Penalties / Other Fees ----
+	// ---- Monthly Revenue Breakdown: Interest / Penalties / Fees ----
 	var trendCtx = document.getElementById('financialTrendChart').getContext('2d');
 	var trendChart = new Chart(trendCtx, {
 		data: {
@@ -357,7 +357,7 @@
 			datasets: [
 				{ type: 'bar', label: @json(_lang('Interest')), data: [], backgroundColor: 'rgba(77, 77, 253, 0.85)', borderRadius: 4, stack: 'revenue' },
 				{ type: 'bar', label: @json(_lang('Penalties')), data: [], backgroundColor: 'rgba(216, 79, 130, 0.85)', borderRadius: 4, stack: 'revenue' },
-				{ type: 'bar', label: @json(_lang('Other Fees')), data: [], backgroundColor: 'rgba(254, 208, 63, 0.85)', borderRadius: 4, stack: 'revenue' },
+				{ type: 'bar', label: @json(_lang('Fees')), data: [], backgroundColor: 'rgba(254, 208, 63, 0.85)', borderRadius: 4, stack: 'revenue' },
 				{ type: 'line', label: @json(_lang('Total Revenue')), data: [], borderColor: 'rgba(30, 202, 123, 1)', backgroundColor: 'rgba(30, 202, 123, 1)', borderWidth: 3, tension: 0.3 }
 			]
 		},
@@ -454,7 +454,7 @@
 	new Chart(document.getElementById('revenueSourceChart').getContext('2d'), {
 		type: 'doughnut',
 		data: {
-			labels: [@json(_lang('Interest Income')), @json(_lang('Penalty Income')), @json(_lang('Other Fees'))],
+			labels: [@json(_lang('Interest Income')), @json(_lang('Penalty Income')), @json(_lang('Fees'))],
 			datasets: [{
 				data: [{{ $interest_income }}, {{ $penalty_income }}, {{ $other_fee_income }}],
 				backgroundColor: ['rgba(77, 77, 253, 0.85)', 'rgba(216, 79, 130, 0.85)', 'rgba(254, 208, 63, 0.85)']

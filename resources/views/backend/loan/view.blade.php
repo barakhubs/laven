@@ -169,6 +169,15 @@
                            @endif
                         </td>
                      </tr>
+                     @if($loan->application_fee > 0 || $loan->processing_fee > 0)
+                     <tr>
+                        <td>{{ _lang("Fees Withheld from Payout") }}</td>
+                        <td>
+                           {{ decimalPlace($loan->application_fee + $loan->processing_fee, currency($loan->currency->name)) }}
+                           <br><small class="text-muted">{{ _lang('Application Fee') }}: {{ decimalPlace($loan->application_fee, currency($loan->currency->name)) }} &middot; {{ _lang('Processing Fee') }}: {{ decimalPlace($loan->processing_fee, currency($loan->currency->name)) }}</small>
+                        </td>
+                     </tr>
+                     @endif
                      <tr>
                         <td>{{ _lang("Total Principal Paid") }}</td>
                         <td class="text-success">

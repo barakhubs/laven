@@ -38,7 +38,7 @@
 			<div class="card-body">
 				<h5>{{ _lang('Simulated Revenue') }}</h5>
 				<h4 class="pt-1 mb-0"><b>{{ decimalPlace($total_revenue, $currency) }}</b></h4>
-				<small>{{ _lang('Interest + penalties across the period') }}</small>
+				<small>{{ _lang('Interest, penalties & loan fees across the period') }}</small>
 			</div>
 		</div>
 	</div>
@@ -79,6 +79,10 @@
 				<tr>
 					<td>{{ _lang('Actual interest & penalties collected (past days in range)') }}</td>
 					<td class="text-right">{{ decimalPlace($actual_interest, $currency) }}</td>
+				</tr>
+				<tr>
+					<td>{{ _lang('Loan application & processing fees (loans approved on past days in range)') }}</td>
+					<td class="text-right">{{ decimalPlace($actual_fees, $currency) }}</td>
 				</tr>
 				<tr>
 					<td>{{ _lang('Interest & penalties already scheduled to fall due (future days, existing loan schedules)') }}</td>
