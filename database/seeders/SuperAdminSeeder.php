@@ -27,7 +27,7 @@ class SuperAdminSeeder extends Seeder
         $userId = DB::table('users')->insertGetId([
             'name' => 'Super Admin',
             'email' => 'admin@admin.com',
-            'user_type' => 'admin',
+            'user_type' => 'superadmin',
             'role_id' => $roleId,
             'branch_id' => null,
             'status' => 1,

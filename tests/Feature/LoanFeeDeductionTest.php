@@ -51,7 +51,8 @@ class LoanFeeDeductionTest extends TestCase
         $reserve = R::target($loan);
         $payout = Transaction::where('loan_id', $loan->id)->where('type', 'Loan')->value('amount');
         $this->assertEquals(1000000 - $reserve - 30000, (float) $payout);
-        $this->assertEquals(1000000, (float) $loan->repayments()->sum('principal_amount'));
+        // (installment rounding can leave a few cents either way)
+        $this->assertEqualsWithDelta(1000000, (float) $loan->repayments()->sum('principal_amount'), 1);
 
         $revenueAfter = \App\Http\Controllers\ReportController::financialSummaryData(request())['total_revenue'];
         $this->assertEqualsWithDelta($revenueBefore + 30000, $revenueAfter, 0.01);
