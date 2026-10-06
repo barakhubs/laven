@@ -144,6 +144,7 @@ $upcomming_repayments = request_count('upcomming_repayments', true);
 		<li class="nav-item"><a class="nav-link" href="{{ route('reports.account_statement') }}">{{ _lang('Account Statement') }}</a></li>
 		<li class="nav-item"><a class="nav-link" href="{{ route('reports.account_balances') }}">{{ _lang('Account Balance') }}</a></li>
 		<li class="nav-item"><a class="nav-link" href="{{ route('reports.loan_report') }}">{{ _lang('Loan Report') }}</a></li>
+		<li class="nav-item"><a class="nav-link" href="{{ route('grace_periods.index') }}">{{ _lang('Loans on Grace') }}</a></li>
 		<li class="nav-item"><a class="nav-link" href="{{ route('reports.loan_due_report') }}">{{ _lang('Loan Due Report') }}</a></li>
 		<li class="nav-item"><a class="nav-link" href="{{ route('reports.credit_score_report') }}">{{ _lang('Credit Score Report') }}</a></li>
 		<li class="nav-item"><a class="nav-link" href="{{ route('reports.loan_repayment_report') }}">{{ _lang('Loan Repayment Report') }}</a></li>

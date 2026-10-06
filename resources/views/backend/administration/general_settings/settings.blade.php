@@ -195,6 +195,21 @@
 								  	</div>
 								</div>
 
+								<div class="col-md-6">
+								  	<div class="form-group">
+										<label class="control-label">{{ _lang('Penalty Pause After a Payment (days)') }}</label>
+										<input type="number" min="0" max="30" class="form-control" name="penalty_pause_days" value="{{ get_setting($settings, 'penalty_pause_days', 3) }}">
+										<small class="form-text text-muted">{{ _lang('A payment of at least 25% of what is overdue that clears the penalty owed stops penalty for this many days. 0 turns it off. Applies to new payments only.') }}</small>
+								  	</div>
+								</div>
+
+								<div class="col-md-6">
+								  	<div class="form-group">
+										<label class="control-label">{{ _lang('Longest Grace Period (days)') }}</label>
+										<input type="number" min="1" max="90" class="form-control" name="grace_period_max_days" value="{{ get_setting($settings, 'grace_period_max_days', 14) }}">
+								  	</div>
+								</div>
+
 								<div class="col-md-12 mt-3">
 								  <div class="form-group">
 									<button type="submit" class="btn btn-primary"><i class="ti-check-box"></i>&nbsp;{{ _lang('Save Settings') }}</button>

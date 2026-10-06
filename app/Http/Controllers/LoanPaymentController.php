@@ -225,6 +225,7 @@ class LoanPaymentController extends Controller
             $loanpayment = LoanPaymentRecorder::record(
                 $request->loan_id, (float) $request->total_amount, $request->paid_at,
                 $request->account_id, $penaltyCharge, $request->remarks, $interestCharge,
+                ! $request->boolean('start_penalties_now'),
             );
         } catch (\InvalidArgumentException $e) {
             return back()->with('error', $e->getMessage())->withInput();
@@ -317,6 +318,8 @@ class LoanPaymentController extends Controller
                 'waived'          => $result['waived'],
                 'interest_waived' => $result['interest_waived'],
                 'interest_error'  => LoanRepaymentService::interestWaiverError($loan, $result, $asOf),
+                'pause'           => collect(\App\Services\LoanPenaltyPauseService::evaluate($arrears, $result, (float) $request->amount, $asOf))
+                    ->except('repayment_ids')->all(),
             ];
         }
 

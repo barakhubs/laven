@@ -90,6 +90,15 @@ class LoanController extends ApiController
                 'interest_waived'  => (float) $r->interest_waived,
                 // Overdue days up to here are already settled; only later days carry penalty.
                 'penalty_settled_until' => $r->status == 0 ? $r->penaltySettledUntil()?->toDateString() : null,
+                // A grace period or post-payment pause covering today: no penalty until this date.
+                ...(function () use ($r) {
+                    $pause = $r->status == 0 ? $r->activePause() : null;
+                    return [
+                        'penalty_paused_until' => $pause?->ends_on->toDateString(),
+                        'on_grace'             => $pause?->type === \App\Models\LoanPenaltyPause::GRACE,
+                        'grace_reason'         => $pause?->type === \App\Models\LoanPenaltyPause::GRACE ? $pause->reason : null,
+                    ];
+                })(),
                 'cleared_at'       => $r->cleared_at,
                 'status'           => $r->status ?? 0,
             ]);

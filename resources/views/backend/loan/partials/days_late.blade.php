@@ -10,7 +10,8 @@
 @if($settledUntil && $settledUntil->gt($dueDate))
    @php
       $daysSettled = (int) $dueDate->diffInDays($settledUntil);
-      $daysOpen    = max(0, (int) $settledUntil->diffInDays(\Carbon\Carbon::today()));
+      // Days since then that carry penalty (paused days don't).
+      $daysOpen    = $repayment->chargeableDays($settledUntil, \Carbon\Carbon::today());
    @endphp
    <br><small class="text-success text-nowrap">{{ _lang('Penalty paid') }}: {{ $daysSettled }} {{ $daysSettled == 1 ? _lang('day') : _lang('days') }}</small>
    <br><small class="text-muted text-nowrap">({{ _lang('to') }} {{ $settledUntil->format(get_date_format()) }})</small>

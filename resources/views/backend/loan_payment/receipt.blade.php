@@ -107,6 +107,11 @@
         @endif
     </table>
 
+    @if(! empty($pausedUntil))
+    <div class="rule"></div>
+    <div class="small">{{ _lang('No late penalty until') }} {{ \Carbon\Carbon::parse($pausedUntil)->format(get_date_format()) }}</div>
+    @endif
+
     @if($otherOverdue > 0 || $nextInstalment)
     <div class="rule"></div>
     <table>

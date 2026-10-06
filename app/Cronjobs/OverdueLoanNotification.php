@@ -17,6 +17,8 @@ class OverdueLoanNotification {
             ->whereRaw("repayment_date < '$date'")
             ->where('status', 0)
             ->where('overdue_notification', null)
+            // On a grace period: no reminder until it ends.
+            ->notOnGrace($date)
             ->groupBy('loan_id')
             ->limit(5)
             ->get();
@@ -29,6 +31,7 @@ class OverdueLoanNotification {
                         ->whereRaw("repayment_date < '$date'")
                         ->where('status', 0)
                         ->where('overdue_notification', null)
+                        ->notOnGrace($date)
                         ->update(['overdue_notification' => now()]);
                 } else {
                     $dueRepayment->overdue_notification = now();

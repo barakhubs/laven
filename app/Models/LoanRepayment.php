@@ -85,6 +85,8 @@ class LoanRepayment extends Model {
      * scaled by the share of the installment's principal + interest still
      * unpaid that day — so part payments reduce the penalty from the day
      * after they're made. A payment counts from the day after its date.
+     * Days inside a penalty pause (grace period, or the pause after a
+     * qualifying payment) cost nothing; see LoanPenaltyPause.
      */
     public function penaltyAccrued($asOf): float
     {
@@ -108,7 +110,7 @@ class LoanRepayment extends Model {
                 break;
             }
             if ($paidAt->gt($from)) {
-                $accrued += $rate * ($unpaid / $base) * (int) $from->diffInDays($paidAt);
+                $accrued += $rate * ($unpaid / $base) * $this->chargeableDays($from, $paidAt);
                 $from     = $paidAt;
             }
             $unpaid = max(0, $unpaid - $amount);
@@ -121,9 +123,105 @@ class LoanRepayment extends Model {
             $unpaid = min($base, $this->interest_due + $this->principal_due);
         }
 
-        $accrued += $rate * ($unpaid / $base) * (int) $from->diffInDays($asOf);
+        $accrued += $rate * ($unpaid / $base) * $this->chargeableDays($from, $asOf);
 
         return round($accrued, 2);
+    }
+
+    /**
+     * Days after $from up to and including $to that carry penalty: every
+     * day in between, less those inside a penalty pause.
+     */
+    public function chargeableDays(\Carbon\Carbon $from, \Carbon\Carbon $to): int
+    {
+        $days = $to->gt($from) ? (int) $from->diffInDays($to) : 0;
+        if ($days === 0) {
+            return 0;
+        }
+
+        $firstDay = $from->copy()->addDay();
+        foreach ($this->penaltyFreeWindows() as [$start, $end]) {
+            $overlapStart = $start->max($firstDay);
+            $overlapEnd   = $end->min($to);
+            if ($overlapEnd->gte($overlapStart)) {
+                $days -= (int) $overlapStart->diffInDays($overlapEnd) + 1;
+            }
+        }
+
+        return max(0, $days);
+    }
+
+    /**
+     * This installment's penalty-free days as merged [start, end] date pairs
+     * (inclusive), oldest first. Cached on the instance.
+     */
+    public function penaltyFreeWindows(): array
+    {
+        if ($this->penaltyFreeWindowsCache !== null) {
+            return $this->penaltyFreeWindowsCache;
+        }
+
+        $rows = $this->id ? \Illuminate\Support\Facades\DB::table('loan_penalty_pause_repayments')
+            ->join('loan_penalty_pauses', 'loan_penalty_pauses.id', '=', 'loan_penalty_pause_repayments.loan_penalty_pause_id')
+            ->where('loan_penalty_pause_repayments.loan_repayment_id', $this->id)
+            ->whereColumn('loan_penalty_pauses.ends_on', '>=', 'loan_penalty_pauses.starts_on')
+            ->orderBy('loan_penalty_pauses.starts_on')
+            ->get(['loan_penalty_pauses.starts_on', 'loan_penalty_pauses.ends_on']) : collect();
+
+        $windows = [];
+        foreach ($rows as $row) {
+            $start = \Carbon\Carbon::parse($row->starts_on)->startOfDay();
+            $end   = \Carbon\Carbon::parse($row->ends_on)->startOfDay();
+            $last  = count($windows) - 1;
+            if ($last >= 0 && $start->lte($windows[$last][1]->copy()->addDay())) {
+                $windows[$last][1] = $end->max($windows[$last][1]);
+            } else {
+                $windows[] = [$start, $end];
+            }
+        }
+
+        return $this->penaltyFreeWindowsCache = $windows;
+    }
+
+    /** @var array|null */
+    protected $penaltyFreeWindowsCache = null;
+
+    /**
+     * The pause covering $date (default today) on this installment, if any —
+     * a grace period wins over a payment pause; the latest-ending one first.
+     */
+    public function activePause($date = null): ?LoanPenaltyPause
+    {
+        if (! $this->id) {
+            return null;
+        }
+        $date = \Carbon\Carbon::parse($date ?? \Carbon\Carbon::today())->toDateString();
+
+        return LoanPenaltyPause::whereHas('repayments', fn ($q) => $q->where('loan_repayments.id', $this->id))
+            ->where('starts_on', '<=', $date)
+            ->where('ends_on', '>=', $date)
+            ->orderByRaw("CASE WHEN type = 'grace' THEN 0 ELSE 1 END")
+            ->orderByDesc('ends_on')
+            ->first();
+    }
+
+    /**
+     * Installments not on a grace period on $date (overdue reminders and the
+     * collections list leave those out; they still count as unpaid).
+     */
+    public function scopeNotOnGrace(Builder $query, $date)
+    {
+        $date = \Carbon\Carbon::parse($date)->toDateString();
+
+        return $query->whereNotExists(function ($q) use ($date) {
+            $q->selectRaw('1')
+                ->from('loan_penalty_pause_repayments')
+                ->join('loan_penalty_pauses', 'loan_penalty_pauses.id', '=', 'loan_penalty_pause_repayments.loan_penalty_pause_id')
+                ->whereColumn('loan_penalty_pause_repayments.loan_repayment_id', 'loan_repayments.id')
+                ->where('loan_penalty_pauses.type', LoanPenaltyPause::GRACE)
+                ->where('loan_penalty_pauses.starts_on', '<=', $date)
+                ->where('loan_penalty_pauses.ends_on', '>=', $date);
+        });
     }
 
     /**
@@ -162,6 +260,11 @@ class LoanRepayment extends Model {
     {
         $base = (float) $this->interest + (float) $this->principal_amount;
         if ($this->status == 1 || $base <= 0) {
+            return 0;
+        }
+        // Paused today: no penalty is building up.
+        $today = \Carbon\Carbon::today();
+        if ($this->chargeableDays($today->copy()->subDay(), $today) === 0) {
             return 0;
         }
 

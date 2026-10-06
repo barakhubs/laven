@@ -39,6 +39,7 @@ class AppServiceProvider extends ServiceProvider
             \App\Models\Loan::class,
             \App\Models\LoanPayment::class,
             \App\Models\LoanRepayment::class,
+            \App\Models\LoanPenaltyPause::class,
             \App\Models\LoanCollateral::class,
             \App\Models\LoanProduct::class,
             \App\Models\Guarantor::class,

@@ -22,9 +22,10 @@ class LoanPaymentRecorder
      * @param  string|int  $accountId  a savings account id of the borrower, or 'cash'
      * @param  float|null  $penaltyCharge  penalty to charge; less than accrued waives the rest
      * @param  float|null  $interestCharge  interest to charge on an early payoff; less than owed waives the rest
+     * @param  bool  $allowPause  false = penalty runs on at once, no pause after a qualifying payment (super admin only)
      * @throws InvalidArgumentException with a message fit to show the user
      */
-    public static function record($loanId, float $amount, string $paidAt, $accountId, ?float $penaltyCharge, ?string $remarks, ?float $interestCharge = null): LoanPayment
+    public static function record($loanId, float $amount, string $paidAt, $accountId, ?float $penaltyCharge, ?string $remarks, ?float $interestCharge = null, bool $allowPause = true): LoanPayment
     {
         $amount = round($amount, 2);
 
@@ -72,7 +73,7 @@ class LoanPaymentRecorder
             $payment = LoanRepaymentService::apply($loan, $amount, $paidAt, $penaltyCharge, [
                 'remarks'        => $remarks,
                 'transaction_id' => $debit?->id,
-            ], $interestCharge);
+            ], $interestCharge, $allowPause || ! auth()->user()?->isSuperAdmin());
 
             DB::commit();
         } catch (\Throwable $e) {

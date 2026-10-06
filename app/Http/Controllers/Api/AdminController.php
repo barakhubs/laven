@@ -114,6 +114,7 @@ class AdminController extends ApiController
             ->with('loan.borrower', 'loan.loan_product', 'loan.currency')
             ->forCurrentLoanDomain()
             ->where('status', 0)
+            ->notOnGrace($today)
             ->whereHas('loan', fn ($q) => $q->where('status', 1))
             ->groupBy('loan_id');
 
@@ -292,6 +293,7 @@ class AdminController extends ApiController
             'late_penalties' => 'nullable|numeric|min:0',
             'interest_charge' => 'nullable|numeric|min:0',
             'remarks'        => 'nullable|string|max:500',
+            'start_penalties_now' => 'nullable|boolean',
         ]);
         if ($validator->fails()) {
             return $this->error('Validation failed.', 'VALIDATION_ERROR', $validator->errors()->toArray(), 422);
@@ -302,6 +304,7 @@ class AdminController extends ApiController
                 $id, (float) $request->total_amount, $request->paid_at, $request->account_id,
                 $request->filled('late_penalties') ? (float) $request->late_penalties : null, $request->remarks,
                 $request->filled('interest_charge') ? (float) $request->interest_charge : null,
+                ! $request->boolean('start_penalties_now'),
             );
         } catch (\InvalidArgumentException $e) {
             return $this->error($e->getMessage(), 'PAYMENT_REJECTED', [], 422);
@@ -313,6 +316,7 @@ class AdminController extends ApiController
             'penalty_waived'  => (float) $payment->penalty_waived,
             'interest_waived' => (float) $payment->interest_waived,
             'paid_at'      => $payment->getRawOriginal('paid_at'),
+            'penalty_paused_until' => \App\Models\LoanPenaltyPause::where('loan_payment_id', $payment->id)->first()?->ends_on->toDateString(),
         ], 'Repayment recorded.', 201);
     }
 }

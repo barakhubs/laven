@@ -40,6 +40,7 @@ use App\Http\Controllers\BankTransactionController;
 use App\Http\Controllers\ExpenseCategoryController;
 use App\Http\Controllers\WithdrawRequestController;
 use App\Http\Controllers\AuditTrailController;
+use App\Http\Controllers\GracePeriodController;
 use App\Http\Controllers\TransactionCategoryController;
 use App\Http\Controllers\NotificationTemplateController;
 
@@ -147,6 +148,8 @@ Route::group(['middleware' => ['install']], function () {
                 Route::get('audit_trails/data', [AuditTrailController::class, 'get_table_data'])->name('audit_trails.data');
                 Route::get('audit_trails/export', [AuditTrailController::class, 'export'])->name('audit_trails.export');
 
+                Route::post('grace_periods/{id}/end', [GracePeriodController::class, 'end'])->name('grace_periods.end');
+
             });
 
             /** Dynamic Permission Routes **/
@@ -238,6 +241,8 @@ Route::group(['middleware' => ['install']], function () {
                 Route::get('loans/reject/{id}', [LoanController::class, 'reject'])->name('loans.reject');
                 Route::get('loans/filter/{status?}', [LoanController::class, 'index'])->name('loans.filter')->where('status', '[A-Za-z]+');
                 Route::post('loans/{id}/apply_reserve', [LoanController::class, 'apply_reserve'])->name('loans.apply_reserve');
+                Route::get('loans/{id}/grace_periods/create', [GracePeriodController::class, 'create'])->name('grace_periods.create');
+                Route::post('loans/{id}/grace_periods', [GracePeriodController::class, 'store'])->name('grace_periods.store');
                 Route::match(['get', 'post'], 'loans/{id}/change_repayment_day', [LoanController::class, 'change_repayment_day'])->name('loans.change_repayment_day');
                 Route::resource('loans', LoanController::class);
 
@@ -285,6 +290,7 @@ Route::group(['middleware' => ['install']], function () {
                 Route::get('reports/financial_summary', [ReportController::class, 'financial_summary'])->name('reports.financial_summary');
                 Route::get('reports/financial_summary/monthly_trend', [ReportController::class, 'financial_summary_monthly_trend'])->name('reports.financial_summary.monthly_trend');
                 Route::match(['get', 'post'], 'reports/profit_simulation', [ReportController::class, 'profit_simulation'])->name('reports.profit_simulation');
+                Route::get('reports/grace_periods', [GracePeriodController::class, 'index'])->name('grace_periods.index');
 
             });
 

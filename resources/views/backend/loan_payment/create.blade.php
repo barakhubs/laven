@@ -90,6 +90,16 @@
 
 						<div class="col-lg-12">
 							<div class="form-group">
+								<div class="custom-control custom-checkbox">
+									<input type="checkbox" class="custom-control-input" name="start_penalties_now" id="start_penalties_now" value="1" {{ old('start_penalties_now') ? 'checked' : '' }}>
+									<label class="custom-control-label" for="start_penalties_now">{{ _lang('Start penalties immediately (no pause after this payment)') }}</label>
+								</div>
+								<small class="form-text text-muted">{{ _lang('A payment of at least 25% of what is overdue that clears the penalty owed pauses penalty for') }} {{ \App\Services\LoanPenaltyPauseService::pauseDays() }} {{ _lang('days. Tick to let penalty run on straight away.') }}</small>
+							</div>
+						</div>
+
+						<div class="col-lg-12">
+							<div class="form-group">
 								<label class="control-label">{{ _lang('Remarks') }}</label>						
 								<textarea class="form-control" name="remarks">{{ old('remarks') }}</textarea>
 							</div>
@@ -206,6 +216,13 @@ $(function() {
 		if (plan.interest_error) {
 			warning += '<div class="alert alert-danger mb-2">' + $('<div>').text(plan.interest_error).html() + '</div>';
 		}
+		if (plan.pause && plan.pause.qualifies) {
+			warning += $("#start_penalties_now").is(':checked')
+				? '<div class="alert alert-warning mb-2">{{ _lang('Penalty will keep running: the pause is switched off for this payment.') }}</div>'
+				: '<div class="alert alert-info mb-2">{{ _lang('Penalty on what is still overdue will pause until') }} ' + plan.pause.until + '.</div>';
+		} else if (plan.pause && plan.pause.reason) {
+			warning += '<div class="alert alert-secondary mb-2">' + $('<div>').text(plan.pause.reason).html() + '.</div>';
+		}
 
 		$("#allocation_preview").html(
 			warning
@@ -282,6 +299,7 @@ $(function() {
 	});
 
 	$(document).on('keyup change', '#total_amount, #late_penalties, #interest_charge', refreshSoon);
+	$(document).on('change', '#start_penalties_now', refreshSoon);
 	$(document).on('keyup change', '#late_penalties, #interest_charge', updatePayoffHint);
 
 	// Opened with ?loan_id= (e.g. from a loan's details page) or after a

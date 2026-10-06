@@ -359,7 +359,14 @@ class LoanController extends Controller {
             ? \App\Services\LoanReserveService::coverage($loan, \App\Services\LoanRepaymentService::arrears($loan, date('Y-m-d'))['installments'])
             : [];
 
-        return view('backend.loan.view', compact('loan', 'loancollaterals', 'repayments', 'payments', 'guarantors', 'customFields', 'reserve', 'reserveCoverage'));
+        $graces   = \App\Models\LoanPenaltyPause::where('loan_id', $loan->id)
+            ->where('type', \App\Models\LoanPenaltyPause::GRACE)
+            ->with(['repayments', 'created_by', 'ended_by_user'])
+            ->orderByDesc('starts_on')->orderByDesc('id')
+            ->get();
+        $canGrace = $loan->status == 1 && (auth()->user()->isAdmin() || has_permission('grace_periods.create'));
+
+        return view('backend.loan.view', compact('loan', 'loancollaterals', 'repayments', 'payments', 'guarantors', 'customFields', 'reserve', 'reserveCoverage', 'graces', 'canGrace'));
 
     }
 

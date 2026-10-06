@@ -48,7 +48,12 @@ class LoanReceiptService
         $servedBy = $loanpayment->created_by->name
             ?? (auth()->check() && auth()->user()->user_type != 'customer' ? auth()->user()->name : null);
 
-        return compact('loanpayment', 'loan', 'owed', 'reserve', 'stillOwes', 'otherOverdue', 'nextInstalment', 'servedBy');
+        // The pause this payment earned on what's still overdue, if any.
+        $pausedUntil = \App\Models\LoanPenaltyPause::where('loan_payment_id', $loanpayment->id)
+            ->whereColumn('ends_on', '>=', 'starts_on')
+            ->value('ends_on');
+
+        return compact('loanpayment', 'loan', 'owed', 'reserve', 'stillOwes', 'otherOverdue', 'nextInstalment', 'servedBy', 'pausedUntil');
     }
 
     /**

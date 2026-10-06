@@ -275,8 +275,10 @@
                                     @if($repayment['status'] == 0 && date('Y-m-d') > $repayment->getRawOriginal('repayment_date'))
                                         {!! xss_clean(show_status(_lang('Due'),'danger')) !!}
                                         @include('backend.loan.partials.days_late')
+                                        @include('backend.loan.partials.penalty_pause')
                                     @elseif($repayment['status'] == 0 && date('Y-m-d') <= $repayment->getRawOriginal('repayment_date'))
                                         {!! xss_clean(show_status(_lang('Unpaid'),'warning')) !!}
+                                        @include('backend.loan.partials.penalty_pause')
                                     @else
                                         {!! xss_clean(show_status(_lang('Paid'),'success')) !!}
                                     @endif

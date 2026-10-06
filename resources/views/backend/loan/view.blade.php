@@ -5,8 +5,16 @@
       <div class="card">
          <div class="card-header d-sm-flex align-items-center justify-content-between">
             <div class="panel-title">{{ _lang('View Loan Details') }}</div>
+            @if($loan->status == 1 && ! auth()->user()->isSuperAdmin() && $canGrace)
+            <div>
+               <a class="btn btn-outline-info btn-xs" href="{{ route('grace_periods.create', $loan->id) }}">
+                  <i class="fas fa-pause-circle mr-1"></i>{{ _lang('Add Grace Period') }}</a>
+            </div>
+            @endif
             @if($loan->status == 1 && auth()->user()->isSuperAdmin())
             <div>
+               <a class="btn btn-outline-info btn-xs mr-1" href="{{ route('grace_periods.create', $loan->id) }}">
+                  <i class="fas fa-pause-circle mr-1"></i>{{ _lang('Add Grace Period') }}</a>
                <a class="btn btn-outline-secondary btn-xs mr-1" href="{{ route('loans.change_repayment_day', $loan->id) }}">
                   <i class="far fa-calendar-alt mr-1"></i>{{ _lang('Change Repayment Day') }}</a>
                <a class="btn btn-primary btn-xs" href="{{ route('loan_payments.create', ['loan_id' => $loan->id]) }}">
@@ -479,8 +487,10 @@
                               @if($repayment['status'] == 0 && date('Y-m-d') > $repayment->getRawOriginal('repayment_date'))
                               {!! xss_clean(show_status(_lang('Due'),'danger')) !!}
                               @include('backend.loan.partials.days_late')
+                              @include('backend.loan.partials.penalty_pause')
                               @elseif($repayment['status'] == 0 && date('Y-m-d') <= $repayment->getRawOriginal('repayment_date'))
                               {!! xss_clean(show_status(_lang('Unpaid'),'warning')) !!}
+                              @include('backend.loan.partials.penalty_pause')
                               @else
                               {!! xss_clean(show_status(_lang('Paid'),'success')) !!}
                               @endif
@@ -489,6 +499,51 @@
                         @endforeach
                      </tbody>
                   </table>
+
+                  @if($graces->count())
+                  <h5 class="mt-4">{{ _lang('Grace Periods') }}</h5>
+                  <div class="table-responsive">
+                     <table class="table table-bordered table-sm">
+                        <thead>
+                           <tr>
+                              <th>{{ _lang('From') }}</th>
+                              <th>{{ _lang('To') }}</th>
+                              <th>{{ _lang('Installments') }}</th>
+                              <th>{{ _lang('Reason') }}</th>
+                              <th>{{ _lang('Given By') }}</th>
+                              <th class="text-center">{{ _lang('Status') }}</th>
+                           </tr>
+                        </thead>
+                        <tbody>
+                           @foreach($graces as $grace)
+                           <tr>
+                              <td class="text-nowrap">{{ $grace->starts_on->format(get_date_format()) }}</td>
+                              <td class="text-nowrap">{{ $grace->isEmpty() ? '-' : $grace->ends_on->format(get_date_format()) }}</td>
+                              <td>{{ $grace->repayments->map(fn ($r) => $r->repayment_date)->implode(', ') }}</td>
+                              <td>{{ $grace->reason }}</td>
+                              <td>{{ $grace->created_by->name ?? '-' }}<br><small class="text-muted">{{ $grace->created_at }}</small></td>
+                              <td class="text-center">
+                                 @if($grace->isActive())
+                                 {!! xss_clean(show_status(_lang('On grace'), 'info')) !!}
+                                 @if(auth()->user()->isSuperAdmin())
+                                 <form method="post" action="{{ route('grace_periods.end', $grace->id) }}" class="mt-1" onsubmit="return confirm('{{ _lang('End this grace period? Penalty runs again from today.') }}');">
+                                    @csrf
+                                    <button type="submit" class="btn btn-xs btn-outline-danger">{{ _lang('End Early') }}</button>
+                                 </form>
+                                 @endif
+                                 @else
+                                 {!! xss_clean(show_status(_lang('Ended'), 'secondary')) !!}
+                                 @endif
+                                 @if($grace->ended_early_at)
+                                 <br><small class="text-muted">{{ _lang('Ended early by') }} {{ $grace->ended_by_user->name ?? '-' }}</small>
+                                 @endif
+                              </td>
+                           </tr>
+                           @endforeach
+                        </tbody>
+                     </table>
+                  </div>
+                  @endif
                </div>
                <div class="tab-pane fade mt-4" id="repayments">
                   <div class="report-header">

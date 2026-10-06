@@ -199,11 +199,16 @@ class LoanRepaymentService
      * fit for the user) if the amount is more than the loan still owes.
      *
      * $attributes are extra LoanPayment columns (remarks, transaction_id).
+     *
+     * A qualifying payment pauses penalty on what's still overdue for a few
+     * days (LoanPenaltyPauseService); $allowPause = false (super admin only)
+     * lets penalty run on straight away.
      */
-    public static function apply(Loan $loan, float $amount, $paidAt, ?float $penaltyCharge = null, array $attributes = [], ?float $interestCharge = null): LoanPayment
+    public static function apply(Loan $loan, float $amount, $paidAt, ?float $penaltyCharge = null, array $attributes = [], ?float $interestCharge = null, bool $allowPause = true): LoanPayment
     {
         $arrears = self::arrears($loan, $paidAt, true);
         $plan    = self::plan($arrears['installments'], $amount, $penaltyCharge, $interestCharge);
+        $pause   = LoanPenaltyPauseService::evaluate($arrears, $plan, $amount, $paidAt);
 
         if (empty($plan['lines'])) {
             throw new \InvalidArgumentException(_lang('This loan has nothing left to pay.'));
@@ -266,6 +271,10 @@ class LoanRepaymentService
         }
         $loan->save();
 
+        if ($allowPause) {
+            LoanPenaltyPauseService::createPaymentPause($loanPayment, $pause);
+        }
+
         return $loanPayment;
     }
 
@@ -312,6 +321,9 @@ class LoanRepaymentService
             $loan->status = 1;
         }
         $loan->save();
+
+        // Its penalty pause goes with it.
+        \App\Models\LoanPenaltyPause::where('loan_payment_id', $loanPayment->id)->get()->each->delete();
 
         $loanPayment->delete();
     }

@@ -186,6 +186,10 @@ $permissions = permission_list();
 		<li class="nav-item"><a class="nav-link" href="{{ route('reports.loan_report') }}">{{ _lang('Loan Report') }}</a></li>
 		@endif
 
+		@if (in_array('grace_periods.index',$permissions))
+		<li class="nav-item"><a class="nav-link" href="{{ route('grace_periods.index') }}">{{ _lang('Loans on Grace') }}</a></li>
+		@endif
+
 		@if (in_array('reports.loan_due_report',$permissions))
 		<li class="nav-item"><a class="nav-link" href="{{ route('reports.loan_due_report') }}">{{ _lang('Loan Due Report') }}</a></li>
 		@endif
