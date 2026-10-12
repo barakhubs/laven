@@ -195,7 +195,7 @@
 								<div style="font-size:18px;font-weight:700;">{{ decimalPlace($this_month_penalty, $currencySymbol) }}</div>
 							</div>
 						</div>
-						<p class="text-muted text-center mb-0 mt-2" style="font-size:12px;">{{ _lang('Cash received from borrowers in loan repayments this month.') }}</p>
+						<p class="text-muted text-center mb-0 mt-2" style="font-size:12px;">{{ _lang('All cash that came in on loans this month: this month\'s installments, arrears, early payments and penalties. Compare with Recovered on This Month\'s Installments on the dashboard, which only counts installments due this month.') }}</p>
 					</div>
 				</div>
 			</div>
@@ -247,7 +247,7 @@
 			<div class="card-body">
 				<h5>{{ _lang('Total Disbursed') }}</h5>
 				<h4 class="pt-1 mb-0"><b>{{ decimalPlace($total_disbursed, $currencySymbol) }}</b></h4>
-				<small class="text-muted">{{ _lang('Lifetime, approved & completed loans') }}</small>
+				<small class="text-muted">{{ _lang('Amount lent on approved & completed loans, all time, before the reserve and fees') }}</small>
 			</div>
 		</div>
 	</div>
@@ -256,7 +256,7 @@
 			<div class="card-body">
 				<h5>{{ _lang('Total Collected') }}</h5>
 				<h4 class="pt-1 mb-0"><b>{{ decimalPlace($total_collected, $currencySymbol) }}</b></h4>
-				<small class="text-muted">{{ _lang('Principal + Interest + Penalties received') }}</small>
+				<small class="text-muted">{{ _lang('All cash paid on loans, all time: principal + interest + penalties') }}</small>
 			</div>
 		</div>
 	</div>

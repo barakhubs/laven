@@ -586,7 +586,7 @@ class ReportController extends Controller
     {
         $loans = self::financialSummaryLoans($request);
 
-        return self::withLoanDomain($loans, function () use ($request, $loans) {
+        return Loan::withLoanDomain($loans, function () use ($request, $loans) {
             $data          = self::buildFinancialSummaryData($request, $loans);
             $data['loans'] = $loans;
             return $data;
@@ -594,45 +594,17 @@ class ReportController extends Controller
     }
 
     /**
-     * Which loans the financial summary covers: 'all', 'main' or 'emergency'.
-     * Admins pick with ?loans= (default all, main + emergency together).
-     * Everyone else stays on the portal they're on, since the emergency
-     * portal is admin-only (see SetLoanDomainScope).
+     * Which loans the financial summary covers: 'all' (main + emergency,
+     * the default, matching the dashboard), or for admins 'main' /
+     * 'emergency' only via ?loans=.
      */
     private static function financialSummaryLoans(Request $request): string
     {
         if (! optional($request->user())->isAdmin()) {
-            return app()->bound('loan_domain_scope') ? app('loan_domain_scope') : 'all';
+            return 'all';
         }
 
         return in_array($request->loans, ['main', 'emergency']) ? $request->loans : 'all';
-    }
-
-    /**
-     * Run $callback with the loan domain scope set to $loans ('all' lifts it,
-     * so the Loan global scope and forCurrentLoanDomain() see every loan),
-     * then put the request's own scope back.
-     */
-    private static function withLoanDomain(string $loans, callable $callback)
-    {
-        $wasBound = app()->bound('loan_domain_scope');
-        $previous = $wasBound ? app('loan_domain_scope') : null;
-
-        if ($loans === 'all') {
-            app()->offsetUnset('loan_domain_scope');
-        } else {
-            app()->instance('loan_domain_scope', $loans);
-        }
-
-        try {
-            return $callback();
-        } finally {
-            if ($wasBound) {
-                app()->instance('loan_domain_scope', $previous);
-            } else {
-                app()->offsetUnset('loan_domain_scope');
-            }
-        }
     }
 
     private static function buildFinancialSummaryData(Request $request, string $loans): array
@@ -864,7 +836,7 @@ class ReportController extends Controller
     {
         $loans = self::financialSummaryLoans($request);
 
-        return self::withLoanDomain($loans, fn () => self::financialSummaryMonthlyTrend($request, $loans));
+        return Loan::withLoanDomain($loans, fn () => self::financialSummaryMonthlyTrend($request, $loans));
     }
 
     private static function financialSummaryMonthlyTrend(Request $request, string $loans)

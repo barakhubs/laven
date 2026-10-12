@@ -48,8 +48,16 @@ class DashboardController extends Controller
         return view("backend.dashboard-$user_type", $data);
     }
 
-    /** Figures for the admin dashboard; also served to the mobile admin app. */
+    /**
+     * Figures for the admin dashboard; also served to the mobile admin app.
+     * Every loan counts, main and emergency, whichever portal it's viewed on.
+     */
     public static function adminSummary(): array
+    {
+        return Loan::withLoanDomain('all', fn () => self::summaryFigures());
+    }
+
+    private static function summaryFigures(): array
     {
         $date = date('Y-m-d');
         $data = [];
@@ -113,7 +121,8 @@ class DashboardController extends Controller
             $q->where('currency_id', $baseCurrencyId);
         })
             ->where('status', 0)
-            ->whereBetween('repayment_date', [$monthStart, $date])
+            ->where('repayment_date', '>=', $monthStart)
+            ->where('repayment_date', '<', $date)
             ->sum(DB::raw(LoanRepayment::amountDueSql()));
 
         $data['total_not_due'] = LoanRepayment::whereHas('loan', function (Builder $q) use ($baseCurrencyId) {
@@ -210,7 +219,12 @@ class DashboardController extends Controller
 
     public function json_recovery_pattern($currency_id = null)
     {
-        $currency_id = $currency_id ?: base_currency_id();
+        echo json_encode(Loan::withLoanDomain('all', fn () => self::recoveryPattern($currency_id ?: base_currency_id())));
+    }
+
+    /** This year's recovery chart, all loans. */
+    private static function recoveryPattern($currency_id): array
+    {
         $today       = Carbon::now()->toDateString();
         $year        = Carbon::now()->year;
 
@@ -248,6 +262,15 @@ class DashboardController extends Controller
             $released[]  = round((float) $releasedAmt, 2);
         }
 
-        echo json_encode(['labels' => $labels, 'recovered' => $recovered, 'missed' => $missed, 'pending' => $pending, 'released' => $released]);
+        return [
+            'year'      => $year,
+            'labels'    => $labels,
+            'recovered' => $recovered,
+            'missed'    => $missed,
+            'pending'   => $pending,
+            'released'  => $released,
+            // Same definition as the Recovery Rate cards, for this year's installments
+            'rate'      => LoanRepayment::collectionRate($currency_id, "$year-01-01"),
+        ];
     }
 }

@@ -63,14 +63,15 @@
                     var totalRecovered = json.recovered.reduce((a, b) => a + b, 0);
                     var totalMissed    = json.missed.reduce((a, b) => a + b, 0);
                     var totalReleased  = json.released.reduce((a, b) => a + b, 0);
-                    var dueSoFar       = totalRecovered + totalMissed;
-                    var rate = dueSoFar > 0 ? ((totalRecovered / dueSoFar) * 100).toFixed(1) : 0;
+                    // Worked out on the server, the same way as the Recovery Rate cards
+                    var rate = json.rate;
+                    var year = ' (' + json.year + ')';
 
                     $('#recoverySummary').html(
-                        '<div class="px-3"><h5 class="mb-0 text-primary"><b>' + chartCurrency + ' ' + totalReleased.toLocaleString() + '</b></h5><small>' + $lang_released + '</small></div>' +
-                        '<div class="px-3"><h5 class="mb-0 text-success"><b>' + chartCurrency + ' ' + totalRecovered.toLocaleString() + '</b></h5><small>' + $lang_recovered + '</small></div>' +
-                        '<div class="px-3"><h5 class="mb-0 text-danger"><b>' + chartCurrency + ' ' + totalMissed.toLocaleString() + '</b></h5><small>' + $lang_not_recovered + '</small></div>' +
-                        '<div class="px-3"><h5 class="mb-0"><b>' + rate + '%</b></h5><small>' + $lang_recovery_rate + '</small></div>'
+                        '<div class="px-3"><h5 class="mb-0 text-primary"><b>' + chartCurrency + ' ' + totalReleased.toLocaleString() + '</b></h5><small>' + $lang_released + year + '</small></div>' +
+                        '<div class="px-3"><h5 class="mb-0 text-success"><b>' + chartCurrency + ' ' + totalRecovered.toLocaleString() + '</b></h5><small>' + $lang_recovered + year + '</small></div>' +
+                        '<div class="px-3"><h5 class="mb-0 text-danger"><b>' + chartCurrency + ' ' + totalMissed.toLocaleString() + '</b></h5><small>' + $lang_not_recovered + year + '</small></div>' +
+                        '<div class="px-3"><h5 class="mb-0"><b>' + rate + '%</b></h5><small>' + $lang_recovery_rate + year + '</small></div>'
                     );
                 }
             });

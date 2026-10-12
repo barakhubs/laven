@@ -29,6 +29,7 @@
 					<div class="flex-grow-1">
 						<h5>{{ _lang('Recovered on This Month\'s Installments') }}</h5>
 						<h4 class="pt-1 mb-0"><b>{{ decimalPlace($monthly_recovered, currency()) }}</b></h4>
+						<small class="d-block mt-1" style="opacity:0.8;">{{ _lang('Principal + interest paid on installments due this month, whenever paid') }}</small>
 					</div>
 					<div>
 						<a href="{{ route('loan_payments.index') }}"><i class="ti-arrow-right"></i>&nbsp;{{ _lang('View') }}</a>
@@ -47,6 +48,7 @@
 					<div class="flex-grow-1">
 						<h5>{{ _lang('Overdue Amount') }}</h5>
 						<h4 class="pt-1 mb-0"><b>{{ decimalPlace($total_overdue, currency()) }}</b></h4>
+						<small class="d-block mt-1" style="opacity:0.8;">{{ _lang('Unpaid principal + interest on installments past their due date') }}</small>
 					</div>
 					<div>
 						<a href="{{ route('reports.loan_due_report') }}"><i class="ti-arrow-right"></i>&nbsp;{{ _lang('View') }}</a>
@@ -103,6 +105,7 @@
 					<div class="flex-grow-1">
 						<h5>{{ _lang('Disbursed This Month') }}</h5>
 						<h4 class="pt-1 mb-0"><b>{{ decimalPlace($monthly_disbursed, currency()) }}</b></h4>
+						<small class="d-block mt-1" style="opacity:0.8;">{{ _lang('Amount lent on loans released this month') }}</small>
 					</div>
 					<div>
 						<a href="{{ route('loans.index') }}"><i class="ti-arrow-right"></i>&nbsp;{{ _lang('View') }}</a>
@@ -121,6 +124,7 @@
 					<div class="flex-grow-1">
 						<h5>{{ _lang('Outstanding Portfolio') }}</h5>
 						<h4 class="pt-1 mb-0"><b>{{ decimalPlace($outstanding_portfolio, currency()) }}</b></h4>
+						<small class="d-block mt-1" style="opacity:0.8;">{{ _lang('Principal still owed on active loans') }}</small>
 					</div>
 					<div>
 						<a href="{{ route('loans.index') }}"><i class="ti-arrow-right"></i>&nbsp;{{ _lang('View') }}</a>
@@ -314,5 +318,5 @@
 
 @section('js-script')
 <script src="{{ asset('backend/plugins/chartJs/chart.min.js') }}"></script>
-<script src="{{ asset('backend/assets/js/dashboard.js?v=1.1') }}"></script>
+<script src="{{ asset('backend/assets/js/dashboard.js?v=1.2') }}"></script>
 @endsection

@@ -138,6 +138,34 @@ class Loan extends Model {
     }
 
     /**
+     * Run $callback with the loan domain scope set to $loans: 'main',
+     * 'emergency', or 'all' (lifts it, so this model's domain_scope and
+     * forCurrentLoanDomain() see every loan). The request's own scope is
+     * put back afterwards.
+     */
+    public static function withLoanDomain(string $loans, callable $callback)
+    {
+        $wasBound = app()->bound('loan_domain_scope');
+        $previous = $wasBound ? app('loan_domain_scope') : null;
+
+        if ($loans === 'all') {
+            app()->offsetUnset('loan_domain_scope');
+        } else {
+            app()->instance('loan_domain_scope', $loans);
+        }
+
+        try {
+            return $callback();
+        } finally {
+            if ($wasBound) {
+                app()->instance('loan_domain_scope', $previous);
+            } else {
+                app()->offsetUnset('loan_domain_scope');
+            }
+        }
+    }
+
+    /**
      * Portfolio at risk: the outstanding principal of active loans with an
      * installment past its due date and unpaid, as a % of the outstanding
      * principal of all active loans.

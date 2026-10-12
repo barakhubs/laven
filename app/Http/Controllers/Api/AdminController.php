@@ -55,7 +55,7 @@ class AdminController extends ApiController
             'currency'          => $this->currency(),
             'month_label'       => date('F Y'),
             'figures'           => $figures,
-            'collected_today'   => (float) LoanPayment::forCurrentLoanDomain()->whereDate('paid_at', $today)->sum('total_amount'),
+            'collected_today'   => (float) Loan::withLoanDomain('all', fn () => LoanPayment::whereDate('paid_at', $today)->sum('total_amount')),
             'pending_deposits'  => DepositRequest::where('status', 0)->count(),
             'pending_withdraws' => WithdrawRequest::where('status', 0)->count(),
             'overdue_loans'     => count($s['due_repayments'] ?? []),
