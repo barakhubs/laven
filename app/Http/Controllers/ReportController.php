@@ -587,7 +587,7 @@ class ReportController extends Controller
         $loans = self::financialSummaryLoans($request);
 
         return self::withLoanDomain($loans, function () use ($request, $loans) {
-            $data          = self::buildFinancialSummaryData($request);
+            $data          = self::buildFinancialSummaryData($request, $loans);
             $data['loans'] = $loans;
             return $data;
         });
@@ -635,7 +635,7 @@ class ReportController extends Controller
         }
     }
 
-    private static function buildFinancialSummaryData(Request $request): array
+    private static function buildFinancialSummaryData(Request $request, string $loans): array
     {
         $baseCurrencyId = base_currency_id();
         $today          = date('Y-m-d');
@@ -680,12 +680,7 @@ class ReportController extends Controller
         // payouts, plus transaction charges (account fees, and loan fees
         // from before they were withheld, which were debited from savings) ----
         $data['loan_fee_income']  = self::loanFeeIncome($baseCurrencyId);
-        $data['other_fee_income'] = (float) Transaction::where('charge', '>', 0)
-            ->where('status', 2)
-            ->whereHas('account.savings_type', function (Builder $q) use ($baseCurrencyId) {
-                $q->where('currency_id', $baseCurrencyId);
-            })
-            ->sum('charge') + $data['loan_fee_income'];
+        $data['other_fee_income'] = self::feeIncome($baseCurrencyId, $loans);
 
         $data['total_revenue'] = $data['interest_income'] + $data['penalty_income'] + $data['other_fee_income'];
 
@@ -701,13 +696,7 @@ class ReportController extends Controller
             ->selectRaw('COALESCE(SUM(repayment_amount - interest),0) as principal, COALESCE(SUM(interest),0) as interest, COALESCE(SUM(late_penalties),0) as penalty, COALESCE(SUM(total_amount),0) as total')
             ->first();
 
-        $thisMonthFees = (float) Transaction::where('charge', '>', 0)
-            ->where('status', 2)
-            ->whereHas('account.savings_type', function (Builder $q) use ($baseCurrencyId) {
-                $q->where('currency_id', $baseCurrencyId);
-            })
-            ->whereBetween('trans_date', [$monthStart->toDateString(), $monthEnd->toDateString() . ' 23:59:59'])
-            ->sum('charge') + self::loanFeeIncome($baseCurrencyId, $monthStart, $monthEnd);
+        $thisMonthFees = self::feeIncome($baseCurrencyId, $loans, $monthStart, $monthEnd);
 
         $data['this_month_label']    = $monthStart->format('F Y');
         $data['this_month_interest'] = (float) $thisMonthPayments->interest;
@@ -731,13 +720,7 @@ class ReportController extends Controller
             ->selectRaw('COALESCE(SUM(interest),0) as interest, COALESCE(SUM(late_penalties),0) as penalty, COALESCE(SUM(total_amount),0) as total')
             ->first();
 
-        $lastMonthFees = (float) Transaction::where('charge', '>', 0)
-            ->where('status', 2)
-            ->whereHas('account.savings_type', function (Builder $q) use ($baseCurrencyId) {
-                $q->where('currency_id', $baseCurrencyId);
-            })
-            ->whereBetween('trans_date', [$lastMonthStart->toDateString(), $lastMonthEnd->toDateString() . ' 23:59:59'])
-            ->sum('charge') + self::loanFeeIncome($baseCurrencyId, $lastMonthStart, $lastMonthEnd);
+        $lastMonthFees = self::feeIncome($baseCurrencyId, $loans, $lastMonthStart, $lastMonthEnd);
 
         $lastMonthInterest = (float) $lastMonthPayments->interest;
         $lastMonthPenalty  = (float) $lastMonthPayments->penalty;
@@ -800,14 +783,8 @@ class ReportController extends Controller
 
         $data['not_due_amount'] = $data['outstanding_portfolio'] - $data['overdue_amount'];
 
-        $dueSoFar = $data['total_collected'] + $data['overdue_amount'];
-        $data['collection_rate'] = $dueSoFar > 0 ? round(($data['total_collected'] / $dueSoFar) * 100, 1) : 0;
-
-        $activePortfolio = (float) Loan::where('currency_id', $baseCurrencyId)
-            ->where('status', 1)
-            ->selectRaw('COALESCE(SUM(applied_amount - COALESCE(total_paid,0)),0) as total')
-            ->value('total');
-        $data['portfolio_at_risk'] = $activePortfolio > 0 ? round(($data['overdue_amount'] / $activePortfolio) * 100, 1) : 0;
+        $data['collection_rate']   = LoanRepayment::collectionRate($baseCurrencyId);
+        $data['portfolio_at_risk'] = Loan::portfolioAtRisk($baseCurrencyId);
 
         // ---- People ----
         $data['total_members']    = Member::count();
@@ -846,6 +823,26 @@ class ReportController extends Controller
     }
 
     /**
+     * Fee revenue between $from and $to (lifetime without dates): charges
+     * on completed savings transactions plus loan fees withheld from
+     * payouts. A charge tied to a loan (fees debited from savings before
+     * they were withheld) belongs to that loan's portal; account charges
+     * aren't emergency-loan revenue, so the emergency view leaves them out.
+     */
+    private static function feeIncome($currencyId, string $loans, ?Carbon $from = null, ?Carbon $to = null): float
+    {
+        $charges = (float) Transaction::where('charge', '>', 0)
+            ->where('status', 2)
+            ->whereHas('account.savings_type', fn ($q) => $q->where('currency_id', $currencyId))
+            ->when($loans === 'main', fn ($q) => $q->where(fn ($q) => $q->whereNull('loan_id')->orWhereHas('loan')))
+            ->when($loans === 'emergency', fn ($q) => $q->whereNotNull('loan_id')->whereHas('loan'))
+            ->when($from && $to, fn ($q) => $q->whereBetween('trans_date', [$from->toDateString(), $to->toDateString() . ' 23:59:59']))
+            ->sum('charge');
+
+        return $charges + self::loanFeeIncome($currencyId, $from, $to);
+    }
+
+    /**
      * Loan application + processing fees withheld from payouts (see
      * LoanFeeService), by approval date. No dates = lifetime.
      */
@@ -865,10 +862,12 @@ class ReportController extends Controller
      */
     public function financial_summary_monthly_trend(Request $request)
     {
-        return self::withLoanDomain(self::financialSummaryLoans($request), fn () => self::financialSummaryMonthlyTrend($request));
+        $loans = self::financialSummaryLoans($request);
+
+        return self::withLoanDomain($loans, fn () => self::financialSummaryMonthlyTrend($request, $loans));
     }
 
-    private static function financialSummaryMonthlyTrend(Request $request)
+    private static function financialSummaryMonthlyTrend(Request $request, string $loans)
     {
         $baseCurrencyId = base_currency_id();
         $year           = $request->year ?: date('Y');
@@ -891,13 +890,7 @@ class ReportController extends Controller
                 ->selectRaw('COALESCE(SUM(interest),0) as interest, COALESCE(SUM(late_penalties),0) as penalty')
                 ->first();
 
-            $feeIncome = Transaction::where('charge', '>', 0)
-                ->where('status', 2)
-                ->whereHas('account.savings_type', function (Builder $q) use ($baseCurrencyId) {
-                    $q->where('currency_id', $baseCurrencyId);
-                })
-                ->whereBetween('trans_date', [$start->toDateString(), $end->toDateString() . ' 23:59:59'])
-                ->sum('charge') + self::loanFeeIncome($baseCurrencyId, $start, $end);
+            $feeIncome = self::feeIncome($baseCurrencyId, $loans, $start, $end);
 
             $monthInterest = round((float) $loanIncome->interest, 2);
             $monthPenalty  = round((float) $loanIncome->penalty, 2);

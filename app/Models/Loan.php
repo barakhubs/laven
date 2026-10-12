@@ -137,6 +137,25 @@ class Loan extends Model {
         return $this->hasMany('App\Models\LoanRepayment', 'loan_id');
     }
 
+    /**
+     * Portfolio at risk: the outstanding principal of active loans with an
+     * installment past its due date and unpaid, as a % of the outstanding
+     * principal of all active loans.
+     */
+    public static function portfolioAtRisk($currencyId): float
+    {
+        $outstanding = 'COALESCE(SUM(applied_amount - COALESCE(total_paid, 0)), 0)';
+        $active      = static::where('currency_id', $currencyId)->where('status', 1);
+
+        $total  = (float) (clone $active)->selectRaw("$outstanding as total")->value('total');
+        $atRisk = (float) (clone $active)
+            ->whereHas('repayments', fn ($q) => $q->where('status', 0)->where('repayment_date', '<', date('Y-m-d')))
+            ->selectRaw("$outstanding as total")
+            ->value('total');
+
+        return $total > 0 ? round(($atRisk / $total) * 100, 1) : 0;
+    }
+
     public function payments() {
         return $this->hasMany('App\Models\LoanPayment', 'loan_id');
     }

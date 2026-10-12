@@ -123,24 +123,15 @@ class DashboardController extends Controller
             ->where('repayment_date', '>=', $date)
             ->sum(DB::raw(LoanRepayment::amountDueSql()));
 
-        $overallDueSoFar = $data['overall_recovered'] + $data['total_overdue'];
-        $data['overall_recovery_rate'] = $overallDueSoFar > 0
-            ? round(($data['overall_recovered'] / $overallDueSoFar) * 100, 1)
-            : 0;
-
-        $monthlyDueSoFar = $data['monthly_recovered'] + $data['monthly_overdue'];
-        $data['monthly_recovery_rate'] = $monthlyDueSoFar > 0
-            ? round(($data['monthly_recovered'] / $monthlyDueSoFar) * 100, 1)
-            : 0;
+        $data['overall_recovery_rate'] = LoanRepayment::collectionRate($baseCurrencyId);
+        $data['monthly_recovery_rate'] = LoanRepayment::collectionRate($baseCurrencyId, $monthStart);
 
         $data['outstanding_portfolio'] = (float) Loan::where('currency_id', $baseCurrencyId)
             ->where('status', 1)
             ->selectRaw('COALESCE(SUM(applied_amount - COALESCE(total_paid, 0)), 0) as total')
             ->value('total');
 
-        $data['portfolio_at_risk'] = $data['outstanding_portfolio'] > 0
-            ? round(($data['total_overdue'] / $data['outstanding_portfolio']) * 100, 1)
-            : 0;
+        $data['portfolio_at_risk'] = Loan::portfolioAtRisk($baseCurrencyId);
 
         return $data;
     }

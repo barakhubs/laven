@@ -29,14 +29,15 @@ class LoanFeeService
     }
 
     /**
-     * Before the policy change the application fee was debited from the
-     * client's savings when the loan was created. Don't take it a second
-     * time from the payout of such a loan.
+     * Before the policy change (29 Sep 2026) the application fee was debited
+     * from the client's savings when the loan was created, and the
+     * processing fee when it was approved. Don't take either a second time
+     * from the payout of such a loan (or count it twice when backfilling).
      */
-    private static function applicationFeeAlreadyCharged(Loan $loan): bool
+    private static function alreadyCharged(Loan $loan, string $type): bool
     {
         return Transaction::where('loan_id', $loan->id)
-            ->where('type', 'loan_application_fee')
+            ->where('type', $type)
             ->where('status', '!=', 1)
             ->exists();
     }
@@ -49,10 +50,12 @@ class LoanFeeService
     {
         $product = $loan->loan_product;
 
-        $application = self::applicationFeeAlreadyCharged($loan)
+        $application = self::alreadyCharged($loan, 'loan_application_fee')
             ? 0
             : self::amount($loan, $product->loan_application_fee, $product->loan_application_fee_type);
-        $processing = self::amount($loan, $product->loan_processing_fee, $product->loan_processing_fee_type);
+        $processing = self::alreadyCharged($loan, 'loan_processing_fee')
+            ? 0
+            : self::amount($loan, $product->loan_processing_fee, $product->loan_processing_fee_type);
 
         return [
             'application' => $application,

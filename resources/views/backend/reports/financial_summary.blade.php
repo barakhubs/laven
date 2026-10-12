@@ -225,12 +225,12 @@
 					<div class="col-md-4 text-md-right mt-3 mt-md-0">
 						<div style="font-size:13px;opacity:0.75;">
 							{{ _lang('Collection Rate') }}
-							<i class="fas fa-question-circle" data-toggle="tooltip" title="{{ _lang('Of every shilling that has come due so far (collected + overdue), the share that has actually been collected. Higher is better.') }}" style="cursor:help;"></i>
+							<i class="fas fa-question-circle" data-toggle="tooltip" title="{{ _lang('Of the principal and interest on installments that have fallen due so far, the share that has actually been paid. Early payments and penalties are not counted. Higher is better.') }}" style="cursor:help;"></i>
 						</div>
 						<div style="font-size:32px;font-weight:700;color:#1eca7b;">{{ $collection_rate }}%</div>
 						<div style="font-size:13px;opacity:0.75;" class="{{ $portfolioAtRiskClass }}">
 							{{ _lang('Portfolio at Risk') }}
-							<i class="fas fa-question-circle" data-toggle="tooltip" title="{{ _lang('The share of currently active loans that is overdue (past its due date and still unpaid). Lower is better; above 10% is generally considered high risk.') }}" style="cursor:help;"></i>:
+							<i class="fas fa-question-circle" data-toggle="tooltip" title="{{ _lang('The outstanding principal of active loans that have an overdue installment, as a share of all outstanding principal on active loans. Lower is better; above 10% is generally considered high risk.') }}" style="cursor:help;"></i>:
 							<b>{{ $portfolio_at_risk }}%</b>
 						</div>
 					</div>

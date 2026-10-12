@@ -325,5 +325,23 @@ class LoanRepayment extends Model {
         return "GREATEST({$table}.amount_to_pay - {$table}.interest_paid - {$table}.interest_waived - {$table}.principal_paid, 0)";
     }
 
+    /**
+     * Of the principal + interest that has fallen due (installments due
+     * from $from, or ever, up to yesterday), the % actually paid. Installments
+     * paid ahead of their due date aren't counted, and neither are penalties,
+     * so early payments can't push it up. Waived interest isn't owed.
+     */
+    public static function collectionRate($currencyId, ?string $from = null): float
+    {
+        $totals = static::whereHas('loan', fn ($q) => $q->where('currency_id', $currencyId))
+            ->forCurrentLoanDomain()
+            ->where('repayment_date', '<', date('Y-m-d'))
+            ->when($from, fn ($q) => $q->where('repayment_date', '>=', $from))
+            ->selectRaw('COALESCE(SUM(interest_paid + principal_paid), 0) as paid, COALESCE(SUM(amount_to_pay - interest_waived), 0) as owed')
+            ->first();
+
+        return $totals->owed > 0 ? round(($totals->paid / $totals->owed) * 100, 1) : 0;
+    }
+
 }
 
