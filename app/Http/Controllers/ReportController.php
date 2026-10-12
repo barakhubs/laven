@@ -584,6 +584,59 @@ class ReportController extends Controller
     /** Figures behind the financial summary; also served to the mobile admin app. */
     public static function financialSummaryData(Request $request): array
     {
+        $loans = self::financialSummaryLoans($request);
+
+        return self::withLoanDomain($loans, function () use ($request, $loans) {
+            $data          = self::buildFinancialSummaryData($request);
+            $data['loans'] = $loans;
+            return $data;
+        });
+    }
+
+    /**
+     * Which loans the financial summary covers: 'all', 'main' or 'emergency'.
+     * Admins pick with ?loans= (default all, main + emergency together).
+     * Everyone else stays on the portal they're on, since the emergency
+     * portal is admin-only (see SetLoanDomainScope).
+     */
+    private static function financialSummaryLoans(Request $request): string
+    {
+        if (! optional($request->user())->isAdmin()) {
+            return app()->bound('loan_domain_scope') ? app('loan_domain_scope') : 'all';
+        }
+
+        return in_array($request->loans, ['main', 'emergency']) ? $request->loans : 'all';
+    }
+
+    /**
+     * Run $callback with the loan domain scope set to $loans ('all' lifts it,
+     * so the Loan global scope and forCurrentLoanDomain() see every loan),
+     * then put the request's own scope back.
+     */
+    private static function withLoanDomain(string $loans, callable $callback)
+    {
+        $wasBound = app()->bound('loan_domain_scope');
+        $previous = $wasBound ? app('loan_domain_scope') : null;
+
+        if ($loans === 'all') {
+            app()->offsetUnset('loan_domain_scope');
+        } else {
+            app()->instance('loan_domain_scope', $loans);
+        }
+
+        try {
+            return $callback();
+        } finally {
+            if ($wasBound) {
+                app()->instance('loan_domain_scope', $previous);
+            } else {
+                app()->offsetUnset('loan_domain_scope');
+            }
+        }
+    }
+
+    private static function buildFinancialSummaryData(Request $request): array
+    {
         $baseCurrencyId = base_currency_id();
         $today          = date('Y-m-d');
         $year           = $request->year ?: date('Y');
@@ -615,7 +668,7 @@ class ReportController extends Controller
             $q->where('currency_id', $baseCurrencyId);
         })
             ->forCurrentLoanDomain()
-            ->selectRaw('COALESCE(SUM(repayment_amount),0) as principal, COALESCE(SUM(interest),0) as interest, COALESCE(SUM(late_penalties),0) as penalty, COALESCE(SUM(total_amount),0) as total')
+            ->selectRaw('COALESCE(SUM(repayment_amount - interest),0) as principal, COALESCE(SUM(interest),0) as interest, COALESCE(SUM(late_penalties),0) as penalty, COALESCE(SUM(total_amount),0) as total')
             ->first();
 
         $data['principal_collected'] = (float) $paymentTotals->principal;
@@ -645,7 +698,7 @@ class ReportController extends Controller
         })
             ->forCurrentLoanDomain()
             ->whereBetween('paid_at', [$monthStart->toDateString(), $monthEnd->toDateString() . ' 23:59:59'])
-            ->selectRaw('COALESCE(SUM(interest),0) as interest, COALESCE(SUM(late_penalties),0) as penalty')
+            ->selectRaw('COALESCE(SUM(repayment_amount - interest),0) as principal, COALESCE(SUM(interest),0) as interest, COALESCE(SUM(late_penalties),0) as penalty, COALESCE(SUM(total_amount),0) as total')
             ->first();
 
         $thisMonthFees = (float) Transaction::where('charge', '>', 0)
@@ -662,6 +715,10 @@ class ReportController extends Controller
         $data['this_month_fees']     = $thisMonthFees;
         $data['this_month_total']    = $data['this_month_interest'] + $data['this_month_penalty'] + $data['this_month_fees'];
 
+        // Cash actually received from borrowers this month (principal + interest + penalties)
+        $data['this_month_collected']           = (float) $thisMonthPayments->total;
+        $data['this_month_principal_collected'] = (float) $thisMonthPayments->principal;
+
         // ---- Last calendar month, so "this month" can be read as up/down ----
         $lastMonthStart = Carbon::now()->subMonthNoOverflow()->startOfMonth();
         $lastMonthEnd   = Carbon::now()->subMonthNoOverflow()->endOfMonth();
@@ -671,7 +728,7 @@ class ReportController extends Controller
         })
             ->forCurrentLoanDomain()
             ->whereBetween('paid_at', [$lastMonthStart->toDateString(), $lastMonthEnd->toDateString() . ' 23:59:59'])
-            ->selectRaw('COALESCE(SUM(interest),0) as interest, COALESCE(SUM(late_penalties),0) as penalty')
+            ->selectRaw('COALESCE(SUM(interest),0) as interest, COALESCE(SUM(late_penalties),0) as penalty, COALESCE(SUM(total_amount),0) as total')
             ->first();
 
         $lastMonthFees = (float) Transaction::where('charge', '>', 0)
@@ -688,6 +745,7 @@ class ReportController extends Controller
 
         $data['last_month_label'] = $lastMonthStart->format('F Y');
         $data['last_month_total'] = $lastMonthTotal;
+        $data['last_month_collected'] = (float) $lastMonthPayments->total;
 
         // Percentage change; null means "no baseline last month" rather than
         // a misleading divide-by-zero result, so the view can show "New".
@@ -702,6 +760,7 @@ class ReportController extends Controller
         $data['mom_penalty_pct']  = $pctChange($data['this_month_penalty'], $lastMonthPenalty);
         $data['mom_fees_pct']     = $pctChange($data['this_month_fees'], (float) $lastMonthFees);
         $data['mom_total_pct']    = $pctChange($data['this_month_total'], $lastMonthTotal);
+        $data['mom_collected_pct'] = $pctChange($data['this_month_collected'], $data['last_month_collected']);
 
         // ---- Still-outstanding / not-yet-collected money (unpaid schedule lines) ----
         $unpaidTotals = LoanRepayment::whereHas('loan', function (Builder $q) use ($baseCurrencyId) {
@@ -805,6 +864,11 @@ class ReportController extends Controller
      * refreshed independently when the year filter changes.
      */
     public function financial_summary_monthly_trend(Request $request)
+    {
+        return self::withLoanDomain(self::financialSummaryLoans($request), fn () => self::financialSummaryMonthlyTrend($request));
+    }
+
+    private static function financialSummaryMonthlyTrend(Request $request)
     {
         $baseCurrencyId = base_currency_id();
         $year           = $request->year ?: date('Y');

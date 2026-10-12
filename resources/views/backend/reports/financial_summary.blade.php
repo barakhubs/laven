@@ -28,6 +28,15 @@
 			<div>
 				<h4 class="mb-0">{{ _lang('Financial Summary') }}</h4>
 				<p class="text-muted mb-0">{{ _lang('A complete picture of what the business has earned, collected and could still collect.') }}</p>
+				<p class="text-muted mb-0" style="font-size:12px;">
+					@if($loans == 'all')
+						{{ _lang('Covering all loans, main and emergency.') }}
+					@elseif($loans == 'emergency')
+						{{ _lang('Covering emergency loans only.') }}
+					@else
+						{{ _lang('Covering main loans only.') }}
+					@endif
+				</p>
 			</div>
 			<form method="get" action="{{ route('reports.financial_summary') }}" class="d-flex align-items-end">
 				<div class="form-group mb-0 mr-2">
@@ -38,6 +47,16 @@
 						@endfor
 					</select>
 				</div>
+				@if(auth()->user()->isAdmin())
+				<div class="form-group mb-0 mr-2">
+					<label class="control-label mb-0">{{ _lang('Loans') }}</label>
+					<select class="form-control" name="loans" onchange="this.form.submit()">
+						<option value="all" {{ $loans == 'all' ? 'selected' : '' }}>{{ _lang('All Loans') }}</option>
+						<option value="main" {{ $loans == 'main' ? 'selected' : '' }}>{{ _lang('Main Loans Only') }}</option>
+						<option value="emergency" {{ $loans == 'emergency' ? 'selected' : '' }}>{{ _lang('Emergency Loans Only') }}</option>
+					</select>
+				</div>
+				@endif
 			</form>
 		</div>
 	</div>
@@ -139,6 +158,44 @@
 						<div class="text-muted" style="font-size:13px;">{{ _lang('Total Revenue') }}</div>
 						<div style="font-size:22px;font-weight:700;">{{ decimalPlace($this_month_total, $currencySymbol) }}</div>
 						<div>{!! $momBadge($mom_total_pct) !!}</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+
+{{-- ================= MONEY COLLECTED THIS MONTH ================= --}}
+<div class="row">
+	<div class="col-12">
+		<div class="card mb-4">
+			<div class="card-header">
+				<span class="panel-title">{{ _lang('Money Collected This Month') }} &mdash; {{ $this_month_label }}</span>
+			</div>
+			<div class="card-body">
+				<div class="row align-items-center">
+					<div class="col-md-4 mb-3 mb-md-0" style="border-left:4px solid rgba(30, 202, 123, 0.85);">
+						<div class="text-muted" style="font-size:13px;">{{ _lang('Total Collected') }}</div>
+						<div style="font-size:26px;font-weight:700;">{{ decimalPlace($this_month_collected, $currencySymbol) }}</div>
+						<div>{!! $momBadge($mom_collected_pct) !!}</div>
+						<small class="text-muted">{{ $last_month_label }}: {{ decimalPlace($last_month_collected, $currencySymbol) }}</small>
+					</div>
+					<div class="col-md-8">
+						<div class="row text-center">
+							<div class="col-4">
+								<div class="text-muted" style="font-size:13px;">{{ _lang('Principal') }}</div>
+								<div style="font-size:18px;font-weight:700;">{{ decimalPlace($this_month_principal_collected, $currencySymbol) }}</div>
+							</div>
+							<div class="col-4">
+								<div class="text-muted" style="font-size:13px;">{{ _lang('Interest') }}</div>
+								<div style="font-size:18px;font-weight:700;">{{ decimalPlace($this_month_interest, $currencySymbol) }}</div>
+							</div>
+							<div class="col-4">
+								<div class="text-muted" style="font-size:13px;">{{ _lang('Penalties') }}</div>
+								<div style="font-size:18px;font-weight:700;">{{ decimalPlace($this_month_penalty, $currencySymbol) }}</div>
+							</div>
+						</div>
+						<p class="text-muted text-center mb-0 mt-2" style="font-size:12px;">{{ _lang('Cash received from borrowers in loan repayments this month.') }}</p>
 					</div>
 				</div>
 			</div>
@@ -395,7 +452,7 @@
 		return '<span class="' + (up ? 'text-success' : 'text-danger') + '">' + (up ? '&#9650; ' : '&#9660; ') + Math.abs(pct).toFixed(1) + '%</span>';
 	}
 
-	fetch(@json(route('reports.financial_summary.monthly_trend')) + '?year=' + @json($year))
+	fetch(@json(route('reports.financial_summary.monthly_trend')) + '?year=' + @json($year) + '&loans=' + @json($loans))
 		.then(function(r) { return r.json(); })
 		.then(function(json) {
 			trendChart.data.labels = json.labels;

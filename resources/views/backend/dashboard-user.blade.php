@@ -27,7 +27,7 @@
 			<div class="card-body">
 				<div class="d-flex">
 					<div class="flex-grow-1">
-						<h5>{{ _lang('This Month Recovered') }}</h5>
+						<h5>{{ _lang('Recovered on This Month\'s Installments') }}</h5>
 						<h4 class="pt-1 mb-0"><b>{{ decimalPlace($monthly_recovered, currency()) }}</b></h4>
 					</div>
 					<div>
