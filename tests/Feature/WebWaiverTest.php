@@ -48,7 +48,9 @@ class WebWaiverTest extends TestCase
         Sanctum::actingAs($admin);
         $api = $this->getJson("/api/v1/loans/{$loan->id}", ['X-Client-Id' => $loan->borrower_id, 'Accept' => 'application/json']);
         $api->assertOk();
-        $this->assertSame($paidAt, $api->json('data.schedule.0.penalty_settled_until'));
+        // The installment paid above, not schedule row 0: the loan may have paid installments before it.
+        $paid = collect($api->json('data.schedule'))->firstWhere('id', $first->id);
+        $this->assertSame($paidAt, $paid['penalty_settled_until']);
     }
 
     public function test_web_payoff_with_interest_waiver_then_reserve(): void
