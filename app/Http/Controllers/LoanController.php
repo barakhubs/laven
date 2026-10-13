@@ -809,9 +809,18 @@ class LoanController extends Controller {
 
     }
 
+    /**
+     * Installments due in the chosen window, one row each; the Overdue view
+     * rolls each loan's missed installments into one row. Figures are worked
+     * out the same way as the loan details page: penalty owed as of today,
+     * total owed, and how much of it the 30% reserve will cover (so Client
+     * Pays matches the loan's Client Pays column). Rows on a grace period
+     * are flagged, and hidden with ?hide_grace=1.
+     */
     public function due_payments(Request $request) {
-    $filter = $request->get('filter', 'today');
-    $today  = Carbon::today();
+    $filter    = $request->get('filter', 'today');
+    $hideGrace = $request->boolean('hide_grace');
+    $today     = Carbon::today();
 
     if ($filter === 'today') {
         $startDate = $today->copy();
@@ -847,35 +856,97 @@ class LoanController extends Controller {
         ->whereBetween('repayment_date', [$startDate->toDateString(), $endDate->toDateString()])
         ->where('status', 0)
         ->orderBy('repayment_date', 'asc')
+        ->orderBy('id', 'asc')
         ->get()
         ->filter(fn ($repayment) => $repayment->loan && $repayment->loan->borrower && $repayment->loan->borrower->exists)
         ->values();
 
-    if ($filter === 'overdue') {
-        $repayments = $repayments
-            ->groupBy(fn ($repayment) => $repayment->loan->borrower_id)
-            ->map(function ($borrowerRepayments) {
-                // Represent the borrower with their oldest (most overdue) installment,
-                // rolled up with totals across every missed payment.
-                $oldest  = $borrowerRepayments->sortBy(fn ($repayment) => $repayment->getRawOriginal('repayment_date'))->first();
-                $grouped = clone $oldest;
-
-                // Totals are what's still owed, net of any part payments.
-                $grouped->amount_to_pay     = $borrowerRepayments->sum('amount_due');
-                $grouped->principal_amount  = $borrowerRepayments->sum('principal_due');
-                $grouped->interest          = $borrowerRepayments->sum('interest_due');
-                $grouped->interest_paid     = 0;
-                $grouped->principal_paid    = 0;
-                $grouped->penalty           = $borrowerRepayments->sum('penalty');
-                $grouped->missed_count      = $borrowerRepayments->count();
-
-                return $grouped;
-            })
-            ->sortBy(fn ($repayment) => $repayment->getRawOriginal('repayment_date'))
-            ->values();
+    // Pauses covering today, per installment: a grace period wins over the
+    // pause after a payment, then the one ending last (as activePause()).
+    $pauses = [];
+    if ($repayments->isNotEmpty()) {
+        $activePauses = \App\Models\LoanPenaltyPause::with(['repayments' => fn ($q) => $q->whereIn('loan_repayments.id', $repayments->pluck('id'))])
+            ->whereHas('repayments', fn ($q) => $q->whereIn('loan_repayments.id', $repayments->pluck('id')))
+            ->where('starts_on', '<=', $today->toDateString())
+            ->where('ends_on', '>=', $today->toDateString())
+            ->orderByRaw("CASE WHEN type = 'grace' THEN 1 ELSE 0 END")
+            ->orderBy('ends_on')
+            ->get();
+        foreach ($activePauses as $pause) {
+            foreach ($pause->repayments as $covered) {
+                $pauses[$covered->id] = $pause;
+            }
+        }
     }
 
-    return view('backend.loan.due_payments', compact('repayments', 'filter', 'startDate', 'endDate'));
+    // What the 30% reserve will cover on each installment, per loan.
+    $reserveCoverage = [];
+    $coverageFor     = function (Loan $loan, $repaymentId) use (&$reserveCoverage, $today) {
+        if (! array_key_exists($loan->id, $reserveCoverage)) {
+            $reserveCoverage[$loan->id] = $loan->status == 1
+                ? \App\Services\LoanReserveService::coverage($loan, \App\Services\LoanRepaymentService::arrears($loan, $today->toDateString())['installments'])
+                : [];
+        }
+
+        return $reserveCoverage[$loan->id][$repaymentId] ?? 0;
+    };
+
+    $groups = $filter === 'overdue'
+        ? $repayments->groupBy('loan_id')->values()
+        : $repayments->map(fn ($repayment) => collect([$repayment]));
+
+    $rows = $groups->map(function ($installments) use ($pauses, $coverageFor, $today) {
+        $oldest = $installments->first();
+        $row    = (object) [
+            'repayment'     => $oldest,
+            'loan'          => $oldest->loan,
+            'missed_count'  => $installments->count(),
+            'principal_due' => 0,
+            'interest_due'  => 0,
+            'penalty_owed'  => 0,
+            'daily_penalty' => 0,
+            'total_owed'    => 0,
+            'from_reserve'  => 0,
+            'client_pays'   => 0,
+            'grace'         => null,
+            'paused'        => null,
+        ];
+
+        foreach ($installments as $repayment) {
+            $due     = \App\Services\LoanRepaymentService::due($repayment, $today->toDateString());
+            $reserve = $coverageFor($repayment->loan, $repayment->id);
+
+            $row->principal_due += $due['principal'];
+            $row->interest_due  += $due['interest'];
+            $row->penalty_owed  += $due['penalty'];
+            $row->daily_penalty += $repayment->current_daily_penalty;
+            $row->total_owed    += $due['total'];
+            $row->from_reserve  += $reserve;
+            $row->client_pays   += max(0, $due['total'] - $reserve);
+
+            $pause = $pauses[$repayment->id] ?? null;
+            if ($pause && $pause->type === \App\Models\LoanPenaltyPause::GRACE) {
+                if (! $row->grace || $pause->ends_on->gt($row->grace->ends_on)) {
+                    $row->grace = $pause;
+                }
+            } elseif ($pause && (! $row->paused || $pause->ends_on->gt($row->paused->ends_on))) {
+                $row->paused = $pause;
+            }
+        }
+
+        foreach (['principal_due', 'interest_due', 'penalty_owed', 'daily_penalty', 'total_owed', 'from_reserve', 'client_pays'] as $key) {
+            $row->$key = round($row->$key, 2);
+        }
+
+        return $row;
+    });
+
+    $onGraceCount = $rows->filter(fn ($row) => $row->grace)->count();
+    if ($hideGrace) {
+        $rows = $rows->reject(fn ($row) => $row->grace)->values();
+    }
+
+    return view('backend.loan.due_payments', compact('rows', 'filter', 'startDate', 'endDate', 'hideGrace', 'onGraceCount'));
 }
 
     /**

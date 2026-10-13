@@ -10,23 +10,23 @@
 
                 {{-- Quick filter buttons --}}
                 <div class="btn-group flex-wrap" role="group">
-                    <a href="{{ route('loans.due_payments', ['filter' => 'overdue']) }}"
+                    <a href="{{ route('loans.due_payments', ['filter' => 'overdue', 'hide_grace' => $hideGrace ? 1 : null]) }}"
                        class="btn btn-xs {{ $filter === 'overdue' ? 'btn-danger' : 'btn-outline-danger' }}">
                         <i class="ti-alert mr-1"></i>{{ _lang('Overdue') }}
                     </a>
-                    <a href="{{ route('loans.due_payments', ['filter' => 'today']) }}"
+                    <a href="{{ route('loans.due_payments', ['filter' => 'today', 'hide_grace' => $hideGrace ? 1 : null]) }}"
                        class="btn btn-xs {{ $filter === 'today' ? 'btn-dark' : 'btn-outline-dark' }}">
                         {{ _lang('Today') }}
                     </a>
-                    <a href="{{ route('loans.due_payments', ['filter' => '2days']) }}"
+                    <a href="{{ route('loans.due_payments', ['filter' => '2days', 'hide_grace' => $hideGrace ? 1 : null]) }}"
                        class="btn btn-xs {{ $filter === '2days' ? 'btn-dark' : 'btn-outline-dark' }}">
                         {{ _lang('Next 2 Days') }}
                     </a>
-                    <a href="{{ route('loans.due_payments', ['filter' => '3days']) }}"
+                    <a href="{{ route('loans.due_payments', ['filter' => '3days', 'hide_grace' => $hideGrace ? 1 : null]) }}"
                        class="btn btn-xs {{ $filter === '3days' ? 'btn-dark' : 'btn-outline-dark' }}">
                         {{ _lang('Next 3 Days') }}
                     </a>
-                    <a href="{{ route('loans.due_payments', ['filter' => 'week']) }}"
+                    <a href="{{ route('loans.due_payments', ['filter' => 'week', 'hide_grace' => $hideGrace ? 1 : null]) }}"
                        class="btn btn-xs {{ $filter === 'week' ? 'btn-dark' : 'btn-outline-dark' }}">
                         {{ _lang('This Week') }}
                     </a>
@@ -42,6 +42,9 @@
             <div id="customFilterBar" class="px-4 pt-3 pb-1 border-bottom {{ $filter === 'custom' ? '' : 'd-none' }}">
                 <form method="GET" action="{{ route('loans.due_payments') }}" class="form-inline">
                     <input type="hidden" name="filter" value="custom">
+                    @if($hideGrace)
+                    <input type="hidden" name="hide_grace" value="1">
+                    @endif
                     <div class="form-group mr-2 mb-2">
                         <label class="mr-1 font-weight-semibold">{{ _lang('From') }}</label>
                         <input type="date" name="start_date" class="form-control form-control-sm"
@@ -71,11 +74,25 @@
                             {{ _lang('to') }}
                             <strong>{{ $endDate->format(get_date_format()) }}</strong>
                         @endif
-                        &mdash; <strong>{{ $repayments->count() }}</strong> {{ _lang('record(s) found') }}
+                        &mdash; <strong>{{ $rows->count() }}</strong> {{ _lang('record(s) found') }}
+                        @if($onGraceCount > 0)
+                            &mdash;
+                            @if($hideGrace)
+                                {{ $onGraceCount }} {{ _lang('on a grace period hidden') }}
+                                <a href="{{ request()->fullUrlWithQuery(['hide_grace' => null]) }}">{{ _lang('Show them') }}</a>
+                            @else
+                                {{ $onGraceCount }} {{ _lang('on a grace period') }}
+                                <a href="{{ request()->fullUrlWithQuery(['hide_grace' => 1]) }}">{{ _lang('Hide them') }}</a>
+                            @endif
+                        @endif
                     </p>
+                    @if($filter === 'overdue')
+                    <p class="text-muted mb-0 small">{{ _lang('One row per loan: its oldest missed installment, with totals across all of its missed installments.') }}</p>
+                    @endif
+                    <p class="text-muted mb-0 small">{{ _lang('Penalty is what has built up as of today. Client Pays is the Total Owed less what the 30% reserve will cover at the end of the loan, as on the loan details page.') }}</p>
                 </div>
 
-                @if($repayments->isEmpty())
+                @if($rows->isEmpty())
                 <div class="text-center py-5 text-muted">
                     <i class="ti-check-box" style="font-size:3rem;"></i>
                     <p class="mt-2">{{ _lang('No due payments found for this period.') }}</p>
@@ -111,20 +128,23 @@
                                 @if($filter === 'overdue')
                                 <th class="text-center">{{ _lang('Missed Payments') }}</th>
                                 @endif
-                                <th class="text-right">{{ _lang('Amount Due') }}</th>
                                 <th class="text-right">{{ _lang('Principal') }}</th>
                                 <th class="text-right">{{ _lang('Interest') }}</th>
-                                <th class="text-right">{{ _lang('Penalty') }}</th>
+                                <th class="text-right">{{ _lang('Late Penalty') }}</th>
+                                <th class="text-right">{{ _lang('Total Owed') }}</th>
+                                <th class="text-right">{{ _lang('From 30% Reserve') }}</th>
+                                <th class="text-right">{{ _lang('Client Pays') }}</th>
                                 <th class="text-center">{{ _lang('Status') }}</th>
                                 <th class="text-center no-export">{{ _lang('Action') }}</th>
                             </tr>
                         </thead>
                         <tbody>
-                        @foreach($repayments as $repayment)
-                        @continue(!$repayment->loan || !$repayment->loan->borrower || !$repayment->loan->borrower->exists)
+                        @foreach($rows as $row)
                         @php
-                            $member    = $repayment->loan->borrower;
-                            $loan      = $repayment->loan;
+                            $repayment = $row->repayment;
+                            $member    = $row->loan->borrower;
+                            $loan      = $row->loan;
+                            $money     = currency($loan->currency->name);
                             $rawDate   = $repayment->getRawOriginal('repayment_date');
                             $isOverdue = \Carbon\Carbon::parse($rawDate)->lt(\Carbon\Carbon::today());
                             $diffDays  = \Carbon\Carbon::today()->diffInDays(\Carbon\Carbon::parse($rawDate), false);
@@ -138,7 +158,7 @@
                                 $member->zip,
                             ]);
                         @endphp
-                        <tr class="{{ $isOverdue ? 'table-danger' : '' }}">
+                        <tr class="{{ $row->grace ? 'table-info' : ($isOverdue ? 'table-danger' : '') }}">
 
                             <td class="align-middle">{{ $member->member_no }}</td>
 
@@ -184,28 +204,43 @@
 
                             @if($filter === 'overdue')
                             <td class="align-middle text-center">
-                                <span class="badge badge-danger">{{ $repayment->missed_count ?? 1 }}</span>
+                                <span class="badge badge-danger">{{ $row->missed_count }}</span>
                             </td>
                             @endif
 
+                            <td class="align-middle text-right text-nowrap">
+                                {{ decimalPlace($row->principal_due, $money) }}
+                            </td>
+                            <td class="align-middle text-right text-nowrap">
+                                {{ decimalPlace($row->interest_due, $money) }}
+                            </td>
+                            <td class="align-middle text-right text-nowrap">
+                                {{ decimalPlace($row->penalty_owed, $money) }}
+                                @if($row->daily_penalty > 0)
+                                <br><small class="text-muted export-hidden">+{{ decimalPlace($row->daily_penalty, $money) }}/ {{ _lang('Day') }}</small>
+                                @endif
+                            </td>
+                            <td class="align-middle text-right text-nowrap">
+                                {{ decimalPlace($row->total_owed, $money) }}
+                            </td>
+                            <td class="align-middle text-right text-nowrap text-info">
+                                {{ $row->from_reserve > 0 ? decimalPlace($row->from_reserve, $money) : '-' }}
+                            </td>
                             <td class="align-middle text-right text-nowrap font-weight-semibold">
-                                {{ decimalPlace($repayment->amount_due, currency($loan->currency->name)) }}
-                            </td>
-                            <td class="align-middle text-right text-nowrap">
-                                {{ decimalPlace($repayment->principal_due, currency($loan->currency->name)) }}
-                            </td>
-                            <td class="align-middle text-right text-nowrap">
-                                {{ decimalPlace($repayment->interest_due, currency($loan->currency->name)) }}
-                            </td>
-                            <td class="align-middle text-right text-nowrap">
-                                {{ decimalPlace($repayment->penalty, currency($loan->currency->name)) }}
+                                {{ decimalPlace($row->client_pays, $money) }}
                             </td>
 
                             <td class="align-middle text-center">
-                                @if($isOverdue)
+                                @if($row->grace)
+                                    {!! xss_clean(show_status(_lang('On grace'), 'info')) !!}
+                                    <br><small class="text-nowrap" title="{{ $row->grace->reason }}">{{ _lang('until') }} {{ $row->grace->ends_on->format(get_date_format()) }}</small>
+                                @elseif($isOverdue)
                                     {!! xss_clean(show_status(_lang('Overdue'), 'danger')) !!}
                                 @else
                                     {!! xss_clean(show_status(_lang('Upcoming'), 'warning')) !!}
+                                @endif
+                                @if(! $row->grace && $row->paused)
+                                    <br><small class="text-muted text-nowrap">{{ _lang('Penalty paused until') }} {{ $row->paused->ends_on->format(get_date_format()) }}</small>
                                 @endif
                             </td>
 
@@ -236,16 +271,22 @@
                             <tr class="font-weight-bold">
                                 <td colspan="{{ $filter === 'overdue' ? 10 : 9 }}" class="text-right">{{ _lang('Totals') }}</td>
                                 <td class="text-right text-nowrap">
-                                    {{ decimalPlace($repayments->sum('amount_due'), currency()) }}
+                                    {{ decimalPlace($rows->sum('principal_due'), currency()) }}
                                 </td>
                                 <td class="text-right text-nowrap">
-                                    {{ decimalPlace($repayments->sum('principal_due'), currency()) }}
+                                    {{ decimalPlace($rows->sum('interest_due'), currency()) }}
                                 </td>
                                 <td class="text-right text-nowrap">
-                                    {{ decimalPlace($repayments->sum('interest_due'), currency()) }}
+                                    {{ decimalPlace($rows->sum('penalty_owed'), currency()) }}
                                 </td>
                                 <td class="text-right text-nowrap">
-                                    {{ decimalPlace($repayments->sum('penalty'), currency()) }}
+                                    {{ decimalPlace($rows->sum('total_owed'), currency()) }}
+                                </td>
+                                <td class="text-right text-nowrap">
+                                    {{ decimalPlace($rows->sum('from_reserve'), currency()) }}
+                                </td>
+                                <td class="text-right text-nowrap">
+                                    {{ decimalPlace($rows->sum('client_pays'), currency()) }}
                                 </td>
                                 <td colspan="2"></td>
                             </tr>
@@ -277,6 +318,20 @@
     if ($.fn.DataTable.isDataTable($table[0])) {
         var headerText = $table.prev('.report-header').html();
         $table.DataTable().destroy();
+
+        // Exports leave out the Action column and the on-screen extras
+        // (photo, daily penalty rate) marked .export-hidden.
+        var exportOptions = {
+            columns: ':not(.no-export)',
+            format: {
+                body: function (data) {
+                    var $cell = $('<div>').html(data);
+                    $cell.find('.export-hidden').remove();
+                    $cell.find('br').replaceWith(' ');
+                    return $.trim($cell.text().replace(/\s+/g, ' '));
+                },
+            },
+        };
 
         $table.DataTable({
             responsive: true,
@@ -326,11 +381,12 @@
                 $('.dataTables_paginate > .pagination').addClass('pagination-bordered');
             },
             buttons: [
-                'copy',
-                'excel',
-                'pdf',
+                { extend: 'copy', exportOptions: exportOptions },
+                { extend: 'excel', exportOptions: exportOptions },
+                { extend: 'pdf', exportOptions: exportOptions },
                 {
                     extend: 'print',
+                    exportOptions: exportOptions,
                     title: '',
                     customize: function (win) {
                         $(win.document.body)
