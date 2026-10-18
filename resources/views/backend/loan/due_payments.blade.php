@@ -113,7 +113,7 @@
                 </div>
 
                 <div class="table-responsive">
-                    <table class="table table-bordered report-table" id="due_payments_table">
+                    <table class="table table-bordered report-table text-nowrap" id="due_payments_table">
                         <thead class="thead-light">
                             <tr>
                                 <th>{{ _lang('Member No') }}</th>
@@ -334,7 +334,8 @@
         };
 
         $table.DataTable({
-            responsive: true,
+            responsive: false,
+            scrollX: true,
             bAutoWidth: false,
             ordering: true,
             columnDefs: [
