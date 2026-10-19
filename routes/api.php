@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\DeviceController;
 use App\Http\Controllers\Api\MemberProfileController;
 use App\Http\Controllers\Api\LoanController;
 use App\Http\Controllers\Api\TransactionController;
+use App\Http\Controllers\Api\LoanPaymentController;
 use App\Http\Controllers\Api\SavingsController;
 use App\Http\Controllers\Api\DepositController;
 use App\Http\Controllers\Api\NotificationController;
@@ -81,6 +82,9 @@ Route::prefix('v1')->middleware('app.version')->group(function () {
             Route::get('loans/{id}/how-to-pay', [LoanController::class, 'howToPay'])->name('api.loans.how_to_pay');
             Route::get('loans/{id}',      [LoanController::class, 'show'])->name('api.loans.show');
             Route::get('transactions',    [TransactionController::class, 'index'])->name('api.transactions.index');
+            Route::get('loan-payments',                    [LoanPaymentController::class, 'index'])->name('api.loan_payments.index');
+            Route::get('loan-payments/{id}',               [LoanPaymentController::class, 'show'])->name('api.loan_payments.show');
+            Route::get('loan-payments/{id}/receipt.pdf',   [LoanPaymentController::class, 'pdf'])->name('api.loan_payments.pdf');
             Route::get('savings',                     [SavingsController::class, 'index'])->name('api.savings.index');
             Route::get('savings/{id}/transactions',   [SavingsController::class, 'transactions'])->name('api.savings.transactions');
             Route::get('deposit/methods',             [DepositController::class, 'methods'])->name('api.deposit.methods');

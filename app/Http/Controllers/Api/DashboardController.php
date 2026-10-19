@@ -54,6 +54,15 @@ class DashboardController extends ApiController
                 'account_no'  => $tx->account->account_no ?? null,
             ]);
 
+        // Recent 5 loan repayments
+        $recentPayments = \App\Models\LoanPayment::withoutGlobalScopes()
+            ->with('loan.currency')
+            ->whereHas('loan', fn ($q) => $q->withoutGlobalScopes()->where('borrower_id', $memberId))
+            ->orderByDesc('paid_at')->orderByDesc('id')
+            ->limit(5)
+            ->get()
+            ->map(fn ($p) => LoanPaymentController::summary($p));
+
         // Active loans
         $activeLoans = Loan::with(['loan_product', 'next_payment', 'currency'])
             ->where('borrower_id', $memberId)
@@ -97,6 +106,7 @@ class DashboardController extends ApiController
             'total_ledger_balance' => round($savingsAccounts->sum('ledger_balance'), 2),
             'savings_accounts'    => $savingsAccounts,
             'recent_transactions' => $recentTransactions,
+            'recent_payments'     => $recentPayments,
             'active_loans'        => $activeLoans,
             'pending_requests'    => [
                 'deposits'    => $pendingDeposits,
