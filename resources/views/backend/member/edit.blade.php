@@ -69,6 +69,7 @@
 							<div class="form-group">
 								<label class="control-label">{{ _lang('Email') }}</label>
 								<input type="text" class="form-control" name="email" value="{{ $member->email }}">
+								<small class="text-muted">{{ _lang('The client can sign in with this email or with their mobile number.') }}</small>
 							</div>
 						</div>
 
@@ -93,6 +94,7 @@
 								@if(!auth()->user()->isSuperAdmin())
 									<small class="text-muted">{{ _lang('Only Super Admin can edit phone number') }}</small>
 								@endif
+								<small class="text-muted d-block">{{ _lang('The client can also sign in with this number and their password. It must be unique to this client.') }}</small>
 								@if(empty($member->mobile))
 									<small class="text-warning">{{ _lang('No phone on record') }}</small>
 								@endif

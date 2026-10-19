@@ -84,45 +84,9 @@ class LoginController extends Controller {
         ];
     }
 
-    /**
-     * Look up a member by phone number, trying multiple formats:
-     *  - As stored (local format, e.g. 0771445200)
-     *  - With leading 0 replaced by country code 256 (e.g. 256771445200)
-     *  - With leading 256 stripped back to 0771... form
-     */
+    /** Look up a member by phone number (see PhoneLogin for the formats tried). */
     protected function findMemberByPhone(string $digits): ?Member {
-        // Build all possible formats from the input
-        $formats = [$digits, '+' . $digits];
-
-        if (str_starts_with($digits, '0')) {
-            $intl = '256' . substr($digits, 1);
-            array_push($formats, $intl, '+' . $intl, substr($digits, 1));
-        }
-
-        if (str_starts_with($digits, '256') && strlen($digits) === 12) {
-            $bare = substr($digits, 3);
-            array_push($formats, '0' . $bare, $bare, '+' . $digits);
-        }
-
-        // Try matching on mobile column alone
-        $member = Member::whereIn('mobile', $formats)
-            ->whereNotNull('user_id')
-            ->with('user')
-            ->first();
-        if ($member) return $member;
-
-        // Try matching on country_code + mobile combined (how the form saves it)
-        return Member::whereNotNull('user_id')
-            ->whereNotNull('mobile')
-            ->with('user')
-            ->get()
-            ->first(function ($m) use ($formats) {
-                $full = ltrim($m->country_code ?? '', '+') . ltrim($m->mobile, '0');
-                $fullWithPlus = '+' . $full;
-                return in_array($full, $formats)
-                    || in_array($fullWithPlus, $formats)
-                    || in_array($m->mobile, $formats);
-            });
+        return \App\Services\PhoneLogin::member($digits);
     }
 
     /**

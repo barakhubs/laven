@@ -206,9 +206,11 @@ class MemberController extends Controller {
         $normalizedPhone = !empty($request->input('mobile'))
             ? $this->buildE164($request->input('country_code'), $request->input('mobile'))
             : null;
-        $phoneExists = $normalizedPhone && Member::withoutGlobalScopes()
+        $phoneExists = $normalizedPhone && (Member::withoutGlobalScopes()
             ->where('mobile', $normalizedPhone)
-            ->exists();
+            ->exists()
+            // Also the same number saved another way (0771…, 256771…)
+            || \App\Services\PhoneLogin::matches(preg_replace('/\D/', '', $normalizedPhone))->isNotEmpty());
         if ($phoneExists) {
             $errors[] = 'This phone number is already registered in the system.';
         }

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Models\Member;
 use App\Models\User;
 use App\Notifications\TwoFactorCode;
+use App\Services\PhoneLogin;
 use App\Utilities\Overrider;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -26,8 +27,11 @@ class AuthController extends ApiController
     // ----------------------------------------------------------------
     public function login(Request $request)
     {
+        // `login` is a phone number or an email; older app versions send `email`.
+        $request->merge(['login' => $request->input('login', $request->input('email'))]);
+
         $validator = Validator::make($request->all(), [
-            'email'       => 'required|email',
+            'login'       => 'required|string|max:191',
             'password'    => 'required|string',
             'device_name' => 'required|string|max:191',
         ]);
@@ -36,7 +40,16 @@ class AuthController extends ApiController
             return $this->error('Validation failed', 'VALIDATION_ERROR', $validator->errors()->toArray());
         }
 
-        $user = User::with('role')->where('email', $request->email)->first();
+        if (PhoneLogin::ambiguous($request->login)) {
+            return $this->error(
+                'This phone number is linked to more than one account. Please sign in with your email instead.',
+                'PHONE_AMBIGUOUS',
+                [],
+                422
+            );
+        }
+
+        $user = PhoneLogin::user($request->login);
 
         // Wrong credentials
         if (!$user || !Hash::check($request->password, $user->password)) {
@@ -126,7 +139,8 @@ class AuthController extends ApiController
             return $this->error('This NIN is already registered in the system.', 'NIN_DUPLICATE', [], 422);
         }
 
-        if (Member::withoutGlobalScopes()->where('mobile', $request->mobile)->exists()) {
+        if (Member::withoutGlobalScopes()->where('mobile', $request->mobile)->exists()
+            || PhoneLogin::matches(preg_replace('/\D/', '', $request->mobile))->isNotEmpty()) {
             return $this->error('This phone number is already registered in the system.', 'PHONE_DUPLICATE', [], 422);
         }
 
