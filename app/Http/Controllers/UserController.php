@@ -54,6 +54,24 @@ class UserController extends Controller {
      * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\Response
      */
+    /**
+     * A phone number can sign one login in, so no other client or staff member may hold it
+     * (in any format: 0771…, 256771…, +256771…).
+     */
+    private function uniquePhone($ignoreUserId)
+    {
+        return function ($attribute, $value, $fail) use ($ignoreUserId) {
+            $digits = preg_replace('/\D/', '', (string) $value);
+            if ($digits === '') {
+                return;
+            }
+            $others = \App\Services\PhoneLogin::users($digits)->where('id', '!=', $ignoreUserId);
+            if ($others->isNotEmpty()) {
+                $fail(_lang('This phone number is already used by another account.'));
+            }
+        };
+    }
+
     public function store(Request $request) {
         if (!auth()->user()->isSuperAdmin()) {
             abort(403, 'Only Super Admin can create users.');
@@ -62,7 +80,7 @@ class UserController extends Controller {
         $validator = Validator::make($request->all(), [
             'name'            => 'required|max:255',
             'email'           => 'required|email|unique:users|max:255',
-            'phone'           => 'nullable|string|max:20',
+            'phone'           => ['nullable', 'string', 'max:20', $this->uniquePhone(null)],
             'user_type'       => 'required',
             'status'          => 'required',
             'profile_picture' => 'nullable|image',
@@ -165,7 +183,7 @@ class UserController extends Controller {
                 'email',
                 Rule::unique('users')->ignore($id),
             ],
-            'phone'           => 'nullable|string|max:20',
+            'phone'           => ['nullable', 'string', 'max:20', $this->uniquePhone($id)],
             'user_type'       => 'required',
             'status'          => 'required',
             'profile_picture' => 'nullable|image',

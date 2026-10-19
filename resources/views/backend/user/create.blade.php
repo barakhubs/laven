@@ -41,6 +41,7 @@
                                 <div class="col-xl-9">
                                     <input type="text" class="form-control" name="phone" value="{{ old('phone') }}"
                                         placeholder="+256700000000">
+                                    <small class="text-muted">{{ _lang('Can be used to sign in, and receives the verification code. Must be unique to this account.') }}</small>
                                 </div>
                             </div>
 

@@ -64,12 +64,11 @@ class LoginController extends Controller {
 
         if ($digitsOnly !== '' && preg_match('/^\+?[\d\s\-]{7,16}$/', $login)) {
 
-            $member = $this->findMemberByPhone($digitsOnly);
+            $user = \App\Services\PhoneLogin::user($login);
 
-            if ($member && $member->user) {
-
+            if ($user && ! \App\Services\PhoneLogin::ambiguous($login)) {
                 return [
-                    'email'    => $member->user->email,
+                    'email'    => $user->email,
                     'password' => $request->password,
                     'status'   => 1,
                 ];

@@ -31,6 +31,15 @@
                             </div>
 
                             <div class="form-group row">
+                                <label class="col-xl-3 col-form-label">{{ _lang('Phone') }}</label>
+                                <div class="col-xl-9">
+                                    <input type="text" class="form-control" name="phone" value="{{ old('phone', $user->phone) }}"
+                                        placeholder="+256700000000">
+                                    <small class="text-muted">{{ _lang('Can be used to sign in, and receives the verification code. Must be unique to this account.') }}</small>
+                                </div>
+                            </div>
+
+                            <div class="form-group row">
                                 <label class="col-xl-3 col-form-label">{{ _lang('Password') }}</label>
                                 <div class="col-xl-9">
                                     <input type="password" class="form-control" name="password">

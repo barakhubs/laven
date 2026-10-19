@@ -23,9 +23,9 @@ class PhoneLogin
         $login = trim($login);
 
         if (self::looksLikePhone($login)) {
-            $member = self::member(preg_replace('/\D/', '', $login));
-            if ($member && $member->user) {
-                return $member->user;
+            $user = self::users(preg_replace('/\D/', '', $login))->first();
+            if ($user) {
+                return $user;
             }
         }
 
@@ -40,7 +40,7 @@ class PhoneLogin
             return false;
         }
 
-        return self::matches(preg_replace('/\D/', '', $login))->pluck('user_id')->unique()->count() > 1;
+        return self::users(preg_replace('/\D/', '', $login))->count() > 1;
     }
 
     /** The first member with this phone number, or null. */
@@ -49,14 +49,22 @@ class PhoneLogin
         return self::matches($digits)->first();
     }
 
-    /**
-     * Every member with a login whose phone number is this one, whichever way it was stored:
-     *  - as stored (local format, e.g. 0771445200)
-     *  - with the leading 0 replaced by the country code 256 (e.g. 256771445200)
-     *  - with a leading 256 stripped back to the 0771... form
-     * Also matches on country_code + mobile combined (how the form saves it).
-     */
-    public static function matches(string $digits)
+    /** Every login that has this phone number: clients (via their member record) and staff (users.phone). */
+    public static function users(string $digits)
+    {
+        $formats = self::formats($digits);
+        $suffix  = '%' . substr($digits, -9);
+
+        $staff = User::with('role')
+            ->where('phone', 'like', $suffix)
+            ->get()
+            ->filter(fn ($u) => in_array($u->phone, $formats) || in_array(preg_replace('/\D/', '', $u->phone), $formats));
+
+        return self::matches($digits)->pluck('user')->filter()->merge($staff)->unique('id')->values();
+    }
+
+    /** The ways one phone number can be stored. */
+    private static function formats(string $digits): array
     {
         $formats = [$digits, '+' . $digits];
 
@@ -69,6 +77,20 @@ class PhoneLogin
             $bare = substr($digits, 3);
             array_push($formats, '0' . $bare, $bare, '+' . $digits);
         }
+
+        return $formats;
+    }
+
+    /**
+     * Every member with a login whose phone number is this one, whichever way it was stored:
+     *  - as stored (local format, e.g. 0771445200)
+     *  - with the leading 0 replaced by the country code 256 (e.g. 256771445200)
+     *  - with a leading 256 stripped back to the 0771... form
+     * Also matches on country_code + mobile combined (how the form saves it).
+     */
+    public static function matches(string $digits)
+    {
+        $formats = self::formats($digits);
 
         return Member::withoutGlobalScopes()
             ->whereNotNull('user_id')
