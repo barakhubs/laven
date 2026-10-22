@@ -39,6 +39,7 @@
 							&mdash; {{ $due['days_late'] }} {{ _lang('days late') }}, {{ _lang('owes') }} {{ decimalPlace($due['total'], currency($loan->currency->name)) }}
 							@if($due['penalty'] > 0) <small class="text-muted">({{ _lang('incl. penalty') }} {{ decimalPlace($due['penalty'], currency($loan->currency->name)) }})</small> @endif
 							@endif
+							<small class="text-success covers" data-date="{{ $repayment->getRawOriginal('repayment_date') }}"></small>
 						</label>
 					</div>
 					@empty
@@ -52,7 +53,7 @@
 					</div>
 					<ul class="mb-3 mt-1" id="upcoming_list">
 						@foreach($candidates['upcoming'] as $repayment)
-						<li data-date="{{ $repayment->getRawOriginal('repayment_date') }}">{{ $repayment->repayment_date }} &mdash; {{ decimalPlace($repayment->amount_due, currency($loan->currency->name)) }}</li>
+						<li data-date="{{ $repayment->getRawOriginal('repayment_date') }}">{{ $repayment->repayment_date }} &mdash; {{ decimalPlace($repayment->amount_due, currency($loan->currency->name)) }} <small class="text-success covers" data-date="{{ $repayment->getRawOriginal('repayment_date') }}"></small></li>
 						@endforeach
 					</ul>
 					<p class="text-muted small" id="no_upcoming">{{ _lang('None falls due during these days.') }}</p>
@@ -82,6 +83,15 @@
 		var end = new Date(today); end.setDate(end.getDate() + days - 1);
 		var resumes = new Date(today); resumes.setDate(resumes.getDate() + days);
 		$("#grace_resumes").text(iso(resumes));
+
+		// Penalty starts the day after the due date, so a grace only saves the days from then on.
+		$(".covers").each(function () {
+			var first = new Date(this.getAttribute('data-date') + 'T00:00:00');
+			first.setDate(first.getDate() + 1);
+			if (first < today) { first = today; }
+			var n = Math.max(0, Math.round((end - first) / 86400000) + 1);
+			$(this).text('(' + n + ' ' + (n == 1 ? @json(_lang('penalty-free day')) : @json(_lang('penalty-free days'))) + ')');
+		});
 
 		var shown = 0;
 		$("#upcoming_list li").each(function () {

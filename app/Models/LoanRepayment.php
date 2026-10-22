@@ -161,10 +161,20 @@ class LoanRepayment extends Model {
             return $this->penaltyFreeWindowsCache;
         }
 
+        return $this->penaltyFreeWindowsCache = $this->mergedPauseWindows();
+    }
+
+    /**
+     * Merged [start, end] date pairs (inclusive) of pauses on this
+     * installment, oldest first; $type limits them to 'grace' or 'payment'.
+     */
+    protected function mergedPauseWindows(?string $type = null): array
+    {
         $rows = $this->id ? \Illuminate\Support\Facades\DB::table('loan_penalty_pause_repayments')
             ->join('loan_penalty_pauses', 'loan_penalty_pauses.id', '=', 'loan_penalty_pause_repayments.loan_penalty_pause_id')
             ->where('loan_penalty_pause_repayments.loan_repayment_id', $this->id)
             ->whereColumn('loan_penalty_pauses.ends_on', '>=', 'loan_penalty_pauses.starts_on')
+            ->when($type, fn ($q) => $q->where('loan_penalty_pauses.type', $type))
             ->orderBy('loan_penalty_pauses.starts_on')
             ->get(['loan_penalty_pauses.starts_on', 'loan_penalty_pauses.ends_on']) : collect();
 
@@ -180,7 +190,42 @@ class LoanRepayment extends Model {
             }
         }
 
-        return $this->penaltyFreeWindowsCache = $windows;
+        return $windows;
+    }
+
+    /**
+     * Days after $from up to and including $to inside a staff-granted grace
+     * period on this installment (the pause after a payment isn't counted).
+     */
+    public function graceDays(\Carbon\Carbon $from, \Carbon\Carbon $to, array $extra = []): int
+    {
+        $windows = $this->mergedPauseWindows(LoanPenaltyPause::GRACE);
+        if ($extra) {
+            $windows[] = $extra;
+            usort($windows, fn ($a, $b) => $a[0] <=> $b[0]);
+            $merged = [];
+            foreach ($windows as $w) {
+                $last = count($merged) - 1;
+                if ($last >= 0 && $w[0]->lte($merged[$last][1]->copy()->addDay())) {
+                    $merged[$last][1] = $w[1]->max($merged[$last][1]);
+                } else {
+                    $merged[] = $w;
+                }
+            }
+            $windows = $merged;
+        }
+
+        $firstDay = $from->copy()->addDay();
+        $days     = 0;
+        foreach ($windows as [$start, $end]) {
+            $overlapStart = $start->max($firstDay);
+            $overlapEnd   = $end->min($to);
+            if ($overlapEnd->gte($overlapStart)) {
+                $days += (int) $overlapStart->diffInDays($overlapEnd) + 1;
+            }
+        }
+
+        return $days;
     }
 
     /** @var array|null */

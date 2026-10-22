@@ -20,6 +20,8 @@ use Carbon\Carbon;
  *   this is weighted heavier than resolved late payments because it's an
  *   active, ongoing risk.
  * - Fully completed (closed) loans add a small bonus for proven full repayment.
+ * - Days covered by a staff-granted grace period don't count as late or
+ *   overdue days.
  * - Cancelled/rejected loan applications are ignored entirely - they were
  *   never disbursed, so there's no repayment behaviour to judge.
  *
@@ -114,6 +116,10 @@ class CreditScoreService
 
                     // positive = paid late, zero/negative = paid on/before due date
                     $daysLate = (int) round(($paidAt->timestamp - $dueDate->timestamp) / 86400);
+                    // Days covered by a staff-granted grace period aren't the member's lateness.
+                    if ($daysLate > 0) {
+                        $daysLate = max(0, $daysLate - $schedule->graceDays($dueDate, $paidAt));
+                    }
 
                     if ($lastPaymentDate === null || $paidAt->gt($lastPaymentDate)) {
                         $lastPaymentDate = $paidAt;
@@ -148,6 +154,10 @@ class CreditScoreService
                     $daysOverdue = (int) round(($asOf->timestamp - $dueDate->timestamp) / 86400);
                     if ($daysOverdue <= 0) {
                         continue;
+                    }
+                    $daysOverdue -= $schedule->graceDays($dueDate, $asOf);
+                    if ($daysOverdue <= 0) {
+                        continue; // covered by a grace period
                     }
 
                     $overdueCount++;

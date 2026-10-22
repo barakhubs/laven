@@ -5,8 +5,13 @@
    $dueDate      = \Carbon\Carbon::parse($repayment->getRawOriginal('repayment_date'))->startOfDay();
    $daysLate     = (int) $dueDate->diffInDays(\Carbon\Carbon::today());
    $settledUntil = $repayment->penaltySettledUntil();
+   // Late days that carried no penalty (grace period, or pause after a payment).
+   $freeDays     = $daysLate - $repayment->chargeableDays($dueDate, \Carbon\Carbon::today());
 @endphp
 <br><small class="text-danger text-nowrap">({{ $daysLate }} {{ $daysLate == 1 ? _lang('day late') : _lang('days late') }})</small>
+@if($freeDays > 0)
+   <br><small class="text-info text-nowrap">{{ $freeDays }} {{ $freeDays == 1 ? _lang('day') : _lang('days') }} {{ _lang('without penalty') }}</small>
+@endif
 @if($settledUntil && $settledUntil->gt($dueDate))
    @php
       $daysSettled = (int) $dueDate->diffInDays($settledUntil);

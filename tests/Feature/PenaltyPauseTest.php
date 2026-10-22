@@ -233,6 +233,41 @@ class PenaltyPauseTest extends TestCase
         $this->assertEqualsWithDelta($first->penaltyAccrued($this->day(-1)), $first->penaltyAccrued($this->day(2)), 0.01);
     }
 
+    public function test_grace_days_are_capped_per_installment_in_total(): void
+    {
+        [$loan, $open] = $this->loan();
+        $post = fn (int $days) => $this->post("/admin/loans/{$loan->id}/grace_periods", ['days' => $days, 'reason' => 'More time', 'repayment_ids' => [$open[0]->id], 'include_upcoming' => 0]);
+
+        // 10 grace days already used on this installment, ended yesterday.
+        $earlier = new LoanPenaltyPause();
+        $earlier->forceFill(['loan_id' => $loan->id, 'type' => 'grace', 'starts_on' => $this->day(-10), 'ends_on' => $this->day(-1), 'reason' => 'Earlier']);
+        $earlier->save();
+        $earlier->repayments()->attach($open[0]->id);
+
+        $post(5);
+        $this->assertNotNull(session('error'), '10 + 5 grace days is over the cap of 14');
+        $this->assertSame(1, LoanPenaltyPause::where('loan_id', $loan->id)->where('type', 'grace')->count());
+
+        $this->app['session']->forget('error');
+        $post(4);
+        $this->assertNull(session('error'), (string) session('error'));
+        $this->assertSame(2, LoanPenaltyPause::where('loan_id', $loan->id)->where('type', 'grace')->count());
+    }
+
+    public function test_credit_score_ignores_days_covered_by_a_grace_period(): void
+    {
+        [$loan, $open] = $this->loan();
+        $member = $loan->borrower;
+        $ago    = \App\Services\CreditScoreService::calculate($member, $this->day(-1))['score'];
+        $this->assertGreaterThan(\App\Services\CreditScoreService::calculate($member, $this->day(6))['score'], $ago, 'one more week overdue costs points');
+
+        $this->post("/admin/loans/{$loan->id}/grace_periods", ['days' => 7, 'reason' => 'Harvest', 'repayment_ids' => [$open[0]->id], 'include_upcoming' => 1]);
+        $this->assertNull(session('error'), (string) session('error'));
+
+        $this->assertSame($ago, \App\Services\CreditScoreService::calculate($member->fresh(), $this->day(6))['score'], 'the grace week costs nothing');
+        $this->assertLessThan($ago, \App\Services\CreditScoreService::calculate($member->fresh(), $this->day(7))['score'], 'it counts again after the grace');
+    }
+
     public function test_grace_validation(): void
     {
         [$loan, $open] = $this->loan();

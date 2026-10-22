@@ -21,7 +21,7 @@ use InvalidArgumentException;
  * past payments, and reversing the payment removes its pause.
  *
  * Grace period: granted by staff for up to N days (setting
- * grace_period_max_days, default 14), starting the day it's entered — never
+ * grace_period_max_days, default 14) per installment in total, starting the day it's entered — never
  * backdated. Penalty already accrued stays owed; it just stops growing.
  */
 class LoanPenaltyPauseService
@@ -148,6 +148,15 @@ class LoanPenaltyPauseService
         }
         if (! $ids) {
             throw new InvalidArgumentException(_lang('Choose at least one installment: none is overdue or falls due during these days.'));
+        }
+
+        // The cap is per installment: grace days already given plus these can't pass it.
+        $window = [Carbon::today(), Carbon::today()->addDays($days - 1)];
+        foreach (LoanRepayment::whereIn('id', $ids)->get() as $repayment) {
+            $total = $repayment->graceDays(Carbon::parse('1970-01-01'), Carbon::today()->addDays($days), $window);
+            if ($total > self::maxGraceDays()) {
+                throw new InvalidArgumentException(_lang('Installment due') . ' ' . $repayment->repayment_date . ' ' . _lang('would have more than') . ' ' . self::maxGraceDays() . ' ' . _lang('grace days in total.'));
+            }
         }
 
         $pause                  = new LoanPenaltyPause();
