@@ -82,7 +82,7 @@ class LoanPaymentReceived extends Notification implements ShouldQueue {
 
         return (new SmsMessage())
             ->setContent($message)
-            ->setRecipient($notifiable->country_code . $notifiable->mobile);
+            ->setRecipient(format_recipient_number($notifiable));
     }
 
     /**
