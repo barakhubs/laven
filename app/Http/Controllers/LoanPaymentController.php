@@ -93,7 +93,7 @@ class LoanPaymentController extends Controller
                 . '<img src="' . $photo . '" class="rounded-circle mr-2" style="width:32px;height:32px;object-fit:cover;flex-shrink:0;" alt="' . e($member->name) . '">'
                 . '<div>'
                 . '<a href="' . route('members.show', $member->id) . '" class="font-weight-semibold d-block">' . e($member->name) . '</a>'
-                . '<small class="text-muted">' . e($member->member_no ?: '—') . ($member->mobile ? ' &middot; ' . e($member->country_code . $member->mobile) : '') . '</small>'
+                . '<small class="text-muted">' . e($member->member_no ?: '—') . ($member->mobile ? ' &middot; ' . e(format_recipient_number($member)) : '') . '</small>'
                 . '</div>'
                 . '</div>';
             })

@@ -53,7 +53,7 @@
       currency: "{{ $deposit->gateway->currency }}",
       customer: {
         email: "{{ $deposit->member->email }}",
-        phone_number: "{{ $deposit->member->country_code.$deposit->member->mobile }}",
+        phone_number: "{{ format_recipient_number($deposit->member) }}",
         name: "{{ $deposit->member->first_name.' '.$deposit->member->last_name }}",
       },
       callback: function (data) {

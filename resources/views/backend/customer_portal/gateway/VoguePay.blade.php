@@ -68,7 +68,7 @@
         customer: {
           name: '{{ $deposit->member->first_name.' '.$deposit->member->last_name }}',
           email: '{{ $deposit->member->email }}',
-          phone: '{{ $deposit->member->country_code.$deposit->member->mobile }}'
+          phone: '{{ format_recipient_number($deposit->member) }}'
         },
         closed:closedFunction,
         success:successFunction,

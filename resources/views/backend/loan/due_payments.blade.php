@@ -175,7 +175,7 @@
                             </td>
 
                             <td class="align-middle text-nowrap">
-                                {{ $member->mobile ? $member->country_code.$member->mobile : '—' }}
+                                {{ format_recipient_number($member) ?? '—' }}
                             </td>
 
                             <td class="align-middle">{{ $member->email ?: '—' }}</td>

@@ -24,7 +24,7 @@
 					<tr><td>{{ _lang('Business Name') }}</td><td>{{ $auth->member->business_name }}</td></tr>			
 					<tr><td>{{ _lang('Branch') }}</td><td>{{ $auth->member->branch->name }}</td></tr>
 					<tr><td>{{ _lang('Email') }}</td><td>{{ $auth->member->email }}</td></tr>
-					<tr><td>{{ _lang('Mobile') }}</td><td>{{ $auth->member->country_code.$auth->member->mobile }}</td></tr>
+					<tr><td>{{ _lang('Mobile') }}</td><td>{{ format_recipient_number($auth->member) }}</td></tr>
 					<tr><td>{{ _lang('Gender') }}</td><td>{{ $auth->member->gender }}</td></tr>
 					<tr><td>{{ _lang('City') }}</td><td>{{ $auth->member->city }}</td></tr>
 					<tr><td>{{ _lang('State') }}</td><td>{{ $auth->member->state }}</td></tr>
