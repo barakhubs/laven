@@ -96,7 +96,7 @@
 								<td>{{ $loan->borrower->member_no }}</td>
 								<td>{{ $loan->created_at }}</td>
 								<td>{{ $loan->loan_product->name }}</td>
-								<td>{{ $loan->borrower->name }}<br>{{ $loan->borrower->email }}</td>
+								<td data-search="{{ member_search_text($loan->borrower) }}">{{ $loan->borrower->name }}<br>{{ $loan->borrower->email }}</td>
 								<td class="text-right">{{ decimalPlace($loan->applied_amount, currency($loan->currency->name)) }}</td>
 								<td class="text-right">{{ decimalPlace($loan->remaining_balance_sum ?? 0, currency($loan->currency->name)) }}</td>
 								<td>

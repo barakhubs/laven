@@ -30,7 +30,7 @@
 			<div class="card-body">
 				<p class="text-muted small mb-2">
 					<i class="ti-search mr-1"></i>
-					{{ _lang('Tip: search works across Loan ID, borrower name, member no, mobile number and email') }}
+					{{ _lang('Tip: search works across Loan ID, borrower name, member no, phone number, city and email') }}
 				</p>
 				<table id="loan_payments_table" class="table table-bordered">
 					<thead>

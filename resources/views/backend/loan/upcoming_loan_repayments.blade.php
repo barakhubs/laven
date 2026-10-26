@@ -28,7 +28,7 @@
                     <tr>
                         <td>{{ $repayment->loan->loan_id }}</td>
                         <td>{{ $repayment->repayment_date }}</td>
-                        <td>{{ $repayment->loan->borrower->name }}</td>
+                        <td data-search="{{ member_search_text($repayment->loan->borrower) }}">{{ $repayment->loan->borrower->name }}</td>
                         <td class="text-right">
                             {{ decimalPlace($repayment->amount_due, currency($repayment->loan->currency->name)) }}
                         </td>

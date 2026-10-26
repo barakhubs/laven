@@ -114,6 +114,7 @@ class MemberController extends Controller {
                     . '</div>'
                     . '</div>';
             })
+            ->filterColumn('first_name', fn ($query, $keyword) => $query->search($keyword), true)
             ->setRowId(function ($member) {
                 return "row_" . $member->id;
             })
@@ -479,10 +480,7 @@ class MemberController extends Controller {
                 return str_replace('_', ' ', $transaction->type);
             })
             ->filterColumn('member.first_name', function ($query, $keyword) {
-                $query->whereHas('member', function ($query) use ($keyword) {
-                    return $query->where("first_name", "like", "{$keyword}%")
-                        ->orWhere("last_name", "like", "{$keyword}%");
-                });
+                $query->whereHas('member', fn ($query) => $query->withoutGlobalScope('status')->search($keyword));
             }, true)
             ->addColumn('action', function ($transaction) {
                 return '<div class="dropdown text-center">'

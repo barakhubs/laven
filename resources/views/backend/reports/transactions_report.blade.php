@@ -108,7 +108,7 @@
 							@endphp
 							<tr>
 								<td>{{ $transaction->created_at }}</td>
-								<td>{{ $transaction->member->name }}</td>
+								<td data-search="{{ member_search_text($transaction->member) }}">{{ $transaction->member->name }}</td>
 								<td>{{ $transaction->account->account_number }}</td>
 								<td><span class="{{ $class }}">{{ $symbol.' '.decimalPlace($transaction->amount, currency($transaction->account->savings_type->currency->name)) }}</span></td>
 								<td>{{ strtoupper($transaction->dr_cr) }}</td>

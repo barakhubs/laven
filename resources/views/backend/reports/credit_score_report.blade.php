@@ -163,7 +163,7 @@
 					@forelse($report_data as $row)
 						<tr>
 							<td><a href="{{ route('members.show', $row->borrower_id) }}" target="_blank">{{ $row->borrower->member_no }}</a></td>
-							<td>{{ $row->borrower->name }}</td>
+							<td data-search="{{ member_search_text($row->borrower) }}">{{ $row->borrower->name }}</td>
 							<td class="text-center">{{ $row->loan_count }}</td>
 							<td class="text-center"><strong>{{ $row->score }}</strong></td>
 							<td class="text-center"><span class="badge badge-{{ $row->rating_color }}">{{ _lang($row->rating) }}</span></td>
@@ -203,7 +203,7 @@
 					@forelse($report_data as $row)
 						<tr>
 							<td><a href="{{ route('members.show', $row->borrower_id) }}" target="_blank">{{ $row->borrower->member_no }}</a></td>
-							<td>{{ $row->borrower->name }}</td>
+							<td data-search="{{ member_search_text($row->borrower) }}">{{ $row->borrower->name }}</td>
 							<td><a href="{{ route('loans.show', $row->loan_id) }}" target="_blank">{{ $row->loan->loan_id }}</a></td>
 							<td>{{ $row->loan->loan_product->name }}</td>
 							<td class="text-center"><strong>{{ $row->score }}</strong></td>

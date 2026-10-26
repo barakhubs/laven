@@ -15,7 +15,7 @@
 				<select class="form-control select2 auto-select" name="member_id" data-selected="{{ $savingsaccount->member_id }}" required>
 					<option value="">{{ _lang('Select Member') }}</option>
 					@foreach(\App\Models\Member::all() as $member)
-						<option value="{{ $member->id }}">{{ $member->first_name.' '.$member->last_name }} ({{ $member->member_no }})</option>
+						<option value="{{ $member->id }}" data-search="{{ member_search_text($member) }}">{{ $member->first_name.' '.$member->last_name }} ({{ $member->member_no }})</option>
 					@endforeach
 				</select>
 			</div>

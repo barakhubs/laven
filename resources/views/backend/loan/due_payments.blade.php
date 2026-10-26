@@ -162,7 +162,7 @@
 
                             <td class="align-middle">{{ $member->member_no }}</td>
 
-                            <td class="align-middle">
+                            <td class="align-middle" data-search="{{ member_search_text($member) }}">
                                 <div class="d-flex align-items-center">
                                     <img src="{{ $photo }}"
                                          class="rounded-circle export-hidden mr-2"

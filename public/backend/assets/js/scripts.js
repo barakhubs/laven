@@ -278,6 +278,68 @@
     return false;
   });
 
+  /*================================
+    Client search: a phone number finds the client however it's typed.
+    Numbers are stored and shown as +256774123456, so a search for
+    0774 123 456 or +256 774 123456 is turned into its digits without
+    the leading 0 (774123456), which matches. Anything else is unchanged.
+    ==================================*/
+  function searchTerm(term) {
+    var digits = String(term).replace(/\D/g, "");
+    if (/^[\d\s()+.-]+$/.test($.trim(term)) && digits.length >= 6) {
+      return digits.replace(/^0+/, "");
+    }
+    return term;
+  }
+  window.searchTerm = searchTerm;
+
+  $(document).on("init.dt", function (e, settings) {
+    if (e.namespace !== "dt") {
+      return;
+    }
+    var api = new $.fn.dataTable.Api(settings);
+    var delay = settings.searchDelay !== null ? settings.searchDelay : (settings.oFeatures.bServerSide ? 400 : 0);
+    var timer = null;
+    $(api.table().container())
+      .find(".dataTables_filter input")
+      .off(".DT")
+      .on("keyup.DT search.DT input.DT paste.DT cut.DT", function () {
+        var term = searchTerm(this.value);
+        clearTimeout(timer);
+        timer = setTimeout(function () {
+          if (term !== api.search()) {
+            api.search(term).draw();
+          }
+        }, delay);
+      });
+  });
+
+  // Select2 pickers search an option's data-search text (a client's phone,
+  // city and so on) as well as what it shows.
+  $.fn.select2.defaults.set("matcher", function matcher(params, data) {
+    var term = $.trim(params.term || "");
+    if (term === "") {
+      return data;
+    }
+    if (data.children && data.children.length) {
+      var children = $.map(data.children, function (child) {
+        return matcher(params, child);
+      });
+      return children.length ? $.extend({}, data, { children: children }) : null;
+    }
+    if (! data.id) {
+      return null;
+    }
+    var haystack = (data.text + " " + ($(data.element).attr("data-search") || "")).toLowerCase();
+    var words = searchTerm(term) !== term ? [searchTerm(term)] : term.toLowerCase().split(/\s+/);
+    for (var i = 0; i < words.length; i++) {
+      if (haystack.indexOf(words[i]) === -1) {
+        return null;
+      }
+    }
+    return data;
+  });
+
   $(".select2").select2();
 
   /** Init Datepicker **/

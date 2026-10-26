@@ -34,6 +34,43 @@ class Member extends Model {
         return $this->first_name . ' ' . $this->last_name;
     }
 
+    /**
+     * Clients matching $term, for every search box that finds clients. Each
+     * word must match the name, member no, email, business name, city,
+     * state, address or phone. A phone number matches however it's typed
+     * (0774 123456, 774123456, +256774123456) whether it's stored as
+     * +256774123456 or, on older records, 0774123456.
+     */
+    public function scopeSearch(Builder $query, ?string $term): Builder {
+        $term = trim((string) $term);
+        if ($term === '') {
+            return $query;
+        }
+
+        $isPhone = fn ($s) => preg_match('/^[\d\s()+.-]+$/', $s) === 1;
+        $digits  = preg_replace('/\D/', '', $term);
+        // A number typed with spaces is one term, not several words.
+        $words = $isPhone($term) && strlen($digits) >= 6 ? [$digits] : preg_split('/\s+/', $term);
+
+        foreach ($words as $word) {
+            $query->where(function ($q) use ($word, $isPhone) {
+                $like = '%' . addcslashes($word, '%_\\') . '%';
+                foreach (['first_name', 'last_name', 'business_name', 'member_no', 'email', 'city', 'state', 'address', 'mobile'] as $column) {
+                    $q->orWhere("members.$column", 'like', $like);
+                }
+
+                $digits   = preg_replace('/\D/', '', $word);
+                $national = ltrim($digits, '0');
+                if ($isPhone($word) && strlen($digits) >= 3 && $national !== '') {
+                    $q->orWhere('members.mobile', 'like', "%$national%")
+                        ->orWhereRaw("CONCAT(IFNULL(members.country_code, ''), TRIM(LEADING '0' FROM members.mobile)) LIKE ?", ["%$digits%"]);
+                }
+            });
+        }
+
+        return $query;
+    }
+
     public function branch() {
         return $this->belongsTo('App\Models\Branch', 'branch_id')->withDefault();
     }

@@ -52,6 +52,24 @@ if (! function_exists('format_recipient_number')) {
     }
 }
 
+if (! function_exists('member_search_text')) {
+    /**
+     * What a search box should match a client on beyond what's shown: name,
+     * member no, phone, email, business name, city, state and address. Goes in a
+     * table cell's or select option's data-search attribute.
+     */
+    function member_search_text($member): string {
+        if (! $member) {
+            return '';
+        }
+
+        return trim(preg_replace('/\s+/', ' ', implode(' ', array_filter([
+            $member->first_name, $member->last_name, $member->member_no, $member->mobile, $member->email,
+            $member->business_name, $member->city, $member->state, $member->address,
+        ]))));
+    }
+}
+
 if (! function_exists('_dlang')) {
     function _dlang($string = '')
     {

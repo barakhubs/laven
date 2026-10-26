@@ -129,14 +129,7 @@ class LoanPaymentController extends Controller
                 // whose member record is inactive/suspended, even though their
                 // payment history is right there. Loan ID search never hits
                 // Member at all, which is why it always "worked".
-                $query->whereHas('member', function ($query) use ($keyword) {
-                    $query->withoutGlobalScope('status')
-                        ->where('first_name', 'like', "%{$keyword}%")
-                        ->orWhere('last_name', 'like', "%{$keyword}%")
-                        ->orWhere('member_no', 'like', "%{$keyword}%")
-                        ->orWhere('mobile', 'like', "%{$keyword}%")
-                        ->orWhere('email', 'like', "%{$keyword}%");
-                });
+                $query->whereHas('member', fn ($query) => $query->withoutGlobalScope('status')->search($keyword));
             }, true)
             ->filterColumn('loan.loan_id', function ($query, $keyword) {
                 $query->whereHas('loan', function ($query) use ($keyword) {

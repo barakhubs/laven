@@ -55,10 +55,7 @@ class WithdrawRequestController extends Controller
                 return transaction_status($withdraw_request->status);
             })
             ->filterColumn('member.first_name', function ($query, $keyword) {
-                $query->whereHas('member', function ($query) use ($keyword) {
-                    return $query->where("first_name", "like", "{$keyword}%")
-                        ->orWhere("last_name", "like", "{$keyword}%");
-                });
+                $query->whereHas('member', fn ($query) => $query->withoutGlobalScope('status')->search($keyword));
             }, true)
             ->addColumn('action', function ($withdraw_request) {
                 $actions = '<form action="' . route('withdraw_requests.destroy', $withdraw_request['id']) . '" class="text-center" method="post">';

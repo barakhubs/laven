@@ -96,10 +96,7 @@ class LoanController extends Controller {
                 }
             })
             ->filterColumn('borrower.first_name', function ($query, $keyword) {
-                $query->whereHas('borrower', function ($query) use ($keyword) {
-                    return $query->where("first_name", "like", "{$keyword}%")
-                        ->orWhere("last_name", "like", "{$keyword}%");
-                });
+                $query->whereHas('borrower', fn ($query) => $query->withoutGlobalScope('status')->search($keyword));
             }, true)
             ->addColumn('action', function ($loan) {
                 return '<div class="text-center">'

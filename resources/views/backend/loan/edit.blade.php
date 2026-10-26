@@ -42,7 +42,7 @@
 								<select class="form-control auto-select select2" data-selected="{{ $loan->borrower_id }}" name="borrower_id" id="borrower_id" {{ $loan->status == 1 ? 'disabled' : 'required' }}>
 									<option value="">{{ _lang('Select One') }}</option>
 									@foreach(\App\Models\Member::all() as $member )
-										<option value="{{ $member->id }}">{{ $member->first_name.' '.$member->last_name .' ('. $member->member_no . ')' }}</option>
+										<option value="{{ $member->id }}" data-search="{{ member_search_text($member) }}">{{ $member->first_name.' '.$member->last_name .' ('. $member->member_no . ')' }}</option>
 									@endforeach
 								</select>
 							</div>

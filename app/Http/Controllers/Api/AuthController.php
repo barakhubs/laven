@@ -368,15 +368,7 @@ class AuthController extends ApiController
         $perPage = min((int) $request->get('per_page', 20), 100);
 
         $query = Member::where('status', 1)
-            ->when($search, function ($q) use ($search) {
-                $q->where(function ($q2) use ($search) {
-                    $q2->where('first_name', 'like', "%{$search}%")
-                       ->orWhere('last_name',  'like', "%{$search}%")
-                       ->orWhere('email',       'like', "%{$search}%")
-                       ->orWhere('member_no',   'like', "%{$search}%")
-                       ->orWhere('mobile',      'like', "%{$search}%");
-                });
-            })
+            ->search($search)
             ->orderBy('first_name')
             ->paginate($perPage);
 
