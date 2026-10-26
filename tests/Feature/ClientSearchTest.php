@@ -13,8 +13,8 @@ class ClientSearchTest extends TestCase
     {
         $member = Member::withoutGlobalScopes()->where('status', 1)->firstOrFail();
         $member->forceFill([
-            'first_name' => 'Tabu', 'last_name' => 'Getrude', 'country_code' => '256', 'mobile' => $mobile,
-            'city' => 'Koboko', 'state' => 'West Nile', 'address' => 'Orube Cell',
+            'first_name' => 'TABU', 'last_name' => 'GETRUDE', 'country_code' => '256', 'mobile' => $mobile,
+            'city' => 'KOBOKO', 'state' => 'West Nile', 'address' => 'Orube Cell',
         ])->save();
 
         return $member;

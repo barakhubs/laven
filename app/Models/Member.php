@@ -54,9 +54,11 @@ class Member extends Model {
 
         foreach ($words as $word) {
             $query->where(function ($q) use ($word, $isPhone) {
-                $like = '%' . addcslashes($word, '%_\\') . '%';
+                // LOWER on both sides: the live tables don't all use a
+                // case-insensitive collation, and names are stored in capitals.
+                $like = '%' . addcslashes(mb_strtolower($word), '%_\\') . '%';
                 foreach (['first_name', 'last_name', 'business_name', 'member_no', 'email', 'city', 'state', 'address', 'mobile'] as $column) {
-                    $q->orWhere("members.$column", 'like', $like);
+                    $q->orWhereRaw("LOWER(members.$column) LIKE ?", [$like]);
                 }
 
                 $digits   = preg_replace('/\D/', '', $word);
