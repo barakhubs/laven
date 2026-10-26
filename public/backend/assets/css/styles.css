@@ -4257,3 +4257,36 @@ Payment Gateway
 .local-notification h3{font-size: 16px; font-weight: bold; color: #333333; margin-bottom: 15px;}
 .local-notification h4{font-size: 14px; font-weight: bold; color: #333333; margin-bottom: 15px;}
 .local-notification p{font-size: 14px; line-height: 1.5em; margin-bottom: 15px;}
+
+/* Sticky table headers: the header row stays at the top while a long table
+   scrolls. A table in .table-responsive scrolls inside that box (it has to,
+   for the sideways scroll), so the box is capped at the window's height.
+   A DataTable with scrollX does its own sideways scroll, so its wrapper
+   doesn't clip and its separate header table sticks to the window instead. */
+.table > thead > tr > th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    /* Collapsed borders don't travel with a sticky cell; draw its bottom edge. */
+    box-shadow: inset 0 -1px 0 #dee2e6;
+}
+:where(.table > thead > tr > th) {
+    background-color: #fff;
+}
+.table-responsive {
+    max-height: calc(100vh - 90px);
+}
+.table-responsive:has(.dataTables_scroll) {
+    max-height: none;
+    overflow: visible;
+}
+.dataTables_scrollHead {
+    position: sticky !important; /* DataTables sets position: relative inline */
+    top: 0;
+    z-index: 2;
+    background: #fff;
+}
+@media print {
+    .table > thead > tr > th, .dataTables_scrollHead { position: static !important; box-shadow: none; }
+    .table-responsive { max-height: none; overflow: visible; }
+}
