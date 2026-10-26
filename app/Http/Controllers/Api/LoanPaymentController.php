@@ -125,6 +125,11 @@ class LoanPaymentController extends ApiController
                 'amount'     => (float) ($a->penalty + $a->interest + $a->principal),
                 'still_owes' => (float) ($d['stillOwes'][$a->loan_repayment_id] ?? 0),
             ])->values(),
+            'due_before'      => $d['breakdown']['lines'] ? $d['breakdown']['due'] + [
+                'rate_percent' => $d['breakdown']['rate_percent'],
+                'installments' => $d['breakdown']['lines'],
+            ] : null,
+            'penalty_per_day_after' => $d['breakdown']['penalty_after'],
             'balance'         => (float) $d['owed']['total'],
             'reserve'         => ($reserve['required'] && $reserve['remaining'] > 0) ? [
                 'savings'       => (float) min($reserve['remaining'], $d['owed']['total']),

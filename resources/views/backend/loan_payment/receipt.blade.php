@@ -62,6 +62,26 @@
         <tr><td>{{ _lang('Paid by') }}</td><td class="r">{{ $method }}</td></tr>
     </table>
 
+    @if(! empty($breakdown['lines']))
+    {{-- What the installments this payment reached owed just before it. --}}
+    <div class="rule"></div>
+    <table>
+        <tr><td colspan="2"><strong>{{ _lang('DUE BEFORE PAYMENT') }}</strong></td></tr>
+        @if($breakdown['due']['penalty'] > 0)
+        <tr><td>{{ _lang('Penalty') }}</td><td class="r">{{ decimalPlace($breakdown['due']['penalty'], $cur) }}</td></tr>
+        @foreach($breakdown['lines'] as $line)
+        @if($line['penalty'] > 0)
+        <tr class="small"><td>&nbsp;{{ $line['date'] }}</td><td class="r">{{ $line['days'] }} {{ _lang('days') }}</td></tr>
+        <tr class="small"><td>&nbsp;{{ _lang('Rate') }} {{ (float) $breakdown['rate_percent'] }}%</td><td class="r">{{ decimalPlace($line['rate'], $cur) }}/{{ _lang('day') }}</td></tr>
+        @endif
+        @endforeach
+        @endif
+        <tr><td>{{ _lang('Interest') }}</td><td class="r">{{ decimalPlace($breakdown['due']['interest'], $cur) }}</td></tr>
+        <tr><td>{{ _lang('Principal') }}</td><td class="r">{{ decimalPlace($breakdown['due']['principal'], $cur) }}</td></tr>
+        <tr><td><strong>{{ _lang('Total') }}</strong></td><td class="r"><strong>{{ decimalPlace($breakdown['due']['total'], $cur) }}</strong></td></tr>
+    </table>
+    @endif
+
     <div class="rule"></div>
     <table>
         <tr><td colspan="2"><strong>{{ _lang('AMOUNT PAID') }}</strong></td></tr>
@@ -107,9 +127,14 @@
         @endif
     </table>
 
-    @if(! empty($pausedUntil))
+    @if(! empty($pausedUntil) || ($breakdown['penalty_after'] ?? 0) > 0)
     <div class="rule"></div>
+    @if(! empty($pausedUntil))
     <div class="small">{{ _lang('No late penalty until') }} {{ \Carbon\Carbon::parse($pausedUntil)->format(get_date_format()) }}</div>
+    @endif
+    @if($breakdown['penalty_after'] > 0)
+    <div class="small">{{ ! empty($pausedUntil) ? _lang('Then late penalty') : _lang('Late penalty now') }}: {{ decimalPlace($breakdown['penalty_after'], $cur) }}/{{ _lang('day') }}</div>
+    @endif
     @endif
 
     @if($otherOverdue > 0 || $nextInstalment)

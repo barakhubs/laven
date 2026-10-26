@@ -170,6 +170,37 @@ class PenaltyPauseTest extends TestCase
         $this->get("/admin/loans/{$loan->id}")->assertOk()->assertSee('Penalty paused until');
     }
 
+    public function test_receipt_breaks_down_what_was_due_and_the_penalty_after(): void
+    {
+        [$loan] = $this->loan();
+        $r      = $this->first($loan);
+        $rate   = (float) $r->penalty;
+        $base   = (float) $r->interest + (float) $r->principal_amount;
+        $paidAt = $this->day(-10);
+
+        $owedThen = S::arrears($loan, $paidAt)['overdue']['total'];
+        $amount   = round($owedThen * 0.5, 2);
+        $payment  = S::apply($loan, $amount, $paidAt);
+
+        $check = function () use ($payment, $rate, $base, $owedThen, $amount) {
+            $b = \App\Services\LoanReceiptService::breakdown($payment->fresh());
+            $this->assertEqualsWithDelta($rate * 10, $b['due']['penalty'], 0.05);
+            $this->assertEqualsWithDelta($owedThen, $b['due']['total'], 0.05);
+            $this->assertSame(10, $b['lines'][0]['days']);
+            $this->assertEqualsWithDelta($rate, $b['lines'][0]['rate'], 0.01);
+            $unpaid = $base - ($amount - $rate * 10);
+            $this->assertEqualsWithDelta($rate * $unpaid / $base, $b['penalty_after'], 0.05);
+        };
+        $check();
+
+        $this->get("/admin/loan_payments/{$payment->id}/receipt")->assertOk()
+            ->assertSee('DUE BEFORE PAYMENT')->assertSee('Then late penalty');
+
+        // A later payment doesn't change what the first receipt shows.
+        S::apply($loan->fresh(), 1000, $this->day(-2));
+        $check();
+    }
+
     // ---------------------------------------------------------------- grace periods
 
     public function test_grace_period_stops_penalty_from_today_until_it_ends(): void
