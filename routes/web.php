@@ -41,6 +41,7 @@ use App\Http\Controllers\ExpenseCategoryController;
 use App\Http\Controllers\WithdrawRequestController;
 use App\Http\Controllers\AuditTrailController;
 use App\Http\Controllers\GracePeriodController;
+use App\Http\Controllers\LoanCallController;
 use App\Http\Controllers\TransactionCategoryController;
 use App\Http\Controllers\NotificationTemplateController;
 
@@ -244,6 +245,8 @@ Route::group(['middleware' => ['install']], function () {
                 Route::get('loans/{id}/grace_periods/create', [GracePeriodController::class, 'create'])->name('grace_periods.create');
                 Route::post('loans/{id}/grace_periods', [GracePeriodController::class, 'store'])->name('grace_periods.store');
                 Route::match(['get', 'post'], 'loans/{id}/change_repayment_day', [LoanController::class, 'change_repayment_day'])->name('loans.change_repayment_day');
+                Route::get('loans/{id}/calls/create', [LoanCallController::class, 'create'])->name('loan_calls.create');
+                Route::post('loans/{id}/calls', [LoanCallController::class, 'store'])->name('loan_calls.store');
                 Route::resource('loans', LoanController::class);
 
                 // Loan Collateral Controller

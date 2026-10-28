@@ -812,7 +812,8 @@ class LoanController extends Controller {
      * out the same way as the loan details page: penalty owed as of today,
      * total owed, and how much of it the 30% reserve will cover (so Client
      * Pays matches the loan's Client Pays column). Rows on a grace period
-     * are flagged, and hidden with ?hide_grace=1.
+     * are flagged, and hidden with ?hide_grace=1. Each row shows the client's
+     * last call; clients called recently are greyed out and listed last.
      */
     public function due_payments(Request $request) {
     $filter    = $request->get('filter', 'today');
@@ -936,6 +937,14 @@ class LoanController extends Controller {
         }
 
         return $row;
+    });
+
+    // Each client's latest call; a client called recently is locked so
+    // nobody else calls them (see LoanCall::lockUntil).
+    $lastCalls = \App\Models\LoanCall::latestFor($rows->map(fn ($row) => $row->loan->borrower_id));
+    $rows->each(function ($row) use ($lastCalls) {
+        $row->last_call = $lastCalls->get($row->loan->borrower_id);
+        $row->locked    = $row->last_call && $row->last_call->isLocked();
     });
 
     $onGraceCount = $rows->filter(fn ($row) => $row->grace)->count();

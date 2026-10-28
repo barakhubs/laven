@@ -89,6 +89,7 @@
                     @if($filter === 'overdue')
                     <p class="text-muted mb-0 small">{{ _lang('One row per loan: its oldest missed installment, with totals across all of its missed installments.') }}</p>
                     @endif
+                    <p class="text-muted mb-0 small">{{ _lang('Clients someone has called recently are greyed out and listed last, until the time shown under Last Call.') }}</p>
                     <p class="text-muted mb-0 small">{{ _lang('Penalty is what has built up as of today. Client Pays is the Total Owed less what the 30% reserve will cover at the end of the loan, as on the loan details page.') }}</p>
                 </div>
 
@@ -135,10 +136,12 @@
                                 <th class="text-right">{{ _lang('From 30% Reserve') }}</th>
                                 <th class="text-right">{{ _lang('Client Pays') }}</th>
                                 <th class="text-center">{{ _lang('Status') }}</th>
+                                <th class="call-col">{{ _lang('Last Call') }}</th>
                                 <th class="text-center no-export">{{ _lang('Action') }}</th>
                             </tr>
                         </thead>
                         <tbody>
+                        @php $canCall = auth()->user()->isAdmin() || has_permission('loan_calls.create'); @endphp
                         @foreach($rows as $row)
                         @php
                             $repayment = $row->repayment;
@@ -158,7 +161,7 @@
                                 $member->zip,
                             ]);
                         @endphp
-                        <tr class="{{ $row->grace ? 'table-info' : ($isOverdue ? 'table-danger' : '') }}">
+                        <tr class="{{ $row->locked ? 'table-secondary call-locked' : ($row->grace ? 'table-info' : ($isOverdue ? 'table-danger' : '')) }}">
 
                             <td class="align-middle">{{ $member->member_no }}</td>
 
@@ -244,6 +247,27 @@
                                 @endif
                             </td>
 
+                            <td class="align-middle" data-order="{{ $row->locked ? 1 : 0 }}">
+                                @if($call = $row->last_call)
+                                    <span class="font-weight-semibold">{{ $call->outcomeLabel() }}</span>
+                                    @if($call->promise_date)
+                                        &mdash; {{ _lang('pay on') }} {{ $call->promise_date->format(get_date_format()) }}
+                                    @endif
+                                    <br><small class="text-muted">{{ $call->created_by->name }}, {{ $call->created_at->diffForHumans() }}</small>
+                                    @if($row->locked)
+                                        <br><small class="text-nowrap"><i class="ti-lock export-hidden"></i> {{ _lang('Next call from') }} {{ $call->nextCallLabel() }}</small>
+                                    @endif
+                                @else
+                                    <span class="text-muted">{{ _lang('Not called') }}</span>
+                                @endif
+                                @if($canCall && (! $row->locked || auth()->user()->isAdmin()))
+                                    <br><a href="{{ route('loan_calls.create', $loan->id) }}" class="btn btn-xs {{ $row->locked ? 'btn-outline-secondary' : 'btn-outline-primary' }} ajax-modal export-hidden mt-1"
+                                           data-title="{{ _lang('Log Call') }}: {{ $member->name }}">
+                                        <i class="ti-headphone-alt mr-1"></i>{{ _lang('Log call') }}
+                                    </a>
+                                @endif
+                            </td>
+
                             <td class="align-middle text-center no-export">
                                 <div class="dropdown">
                                     <button class="btn btn-primary btn-xs dropdown-toggle" type="button" data-toggle="dropdown">
@@ -288,7 +312,7 @@
                                 <td class="text-right text-nowrap">
                                     {{ decimalPlace($rows->sum('client_pays'), currency()) }}
                                 </td>
-                                <td colspan="2"></td>
+                                <td colspan="3"></td>
                             </tr>
                         </tfoot>
                     </table>
@@ -303,6 +327,9 @@
 @endsection
 
 @section('js-script')
+<style>
+    #due_payments_table tr.call-locked td { opacity: .6; }
+</style>
 <script>
 (function ($) {
     "use strict";
@@ -318,6 +345,7 @@
     if ($.fn.DataTable.isDataTable($table[0])) {
         var headerText = $table.prev('.report-header').html();
         $table.DataTable().destroy();
+        var callCol = $table.find('thead th.call-col').index();
 
         // Exports leave out the Action column and the on-screen extras
         // (photo, daily penalty rate) marked .export-hidden.
@@ -339,8 +367,10 @@
             bAutoWidth: false,
             ordering: true,
             columnDefs: [
-                { orderable: false, targets: -1 }
+                { orderable: false, targets: [callCol, -1] }
             ],
+            // Clients called recently always go last, whatever column is sorted.
+            orderFixed: { pre: [callCol, 'asc'] },
             lengthChange: true,
             lengthMenu: [[100, 200, 500, -1], [100, 200, 500, '{{ _lang('All') }}']],
             pageLength: 100,
