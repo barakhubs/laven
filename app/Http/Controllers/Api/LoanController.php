@@ -73,6 +73,14 @@ class LoanController extends ApiController
             return $this->error('Loan not found.', 'NOT_FOUND', [], 404);
         }
 
+        // Same figures as the portal's loan page: what is owed today, what the
+        // 30% reserve will cover (last installments first), and the rest.
+        $today    = date('Y-m-d');
+        $reserve  = \App\Services\LoanReserveService::status($loan, $today);
+        $arrears  = LoanRepaymentService::arrears($loan, $today);
+        $owedNow  = collect($arrears['installments'])->mapWithKeys(fn ($due) => [$due['repayment']->id => $due]);
+        $coverage = $loan->status == 1 ? \App\Services\LoanReserveService::coverage($loan, $arrears['installments']) : [];
+
         $schedule = LoanRepayment::where('loan_id', $id)
             ->orderBy('repayment_date', 'asc')
             ->get()
@@ -99,6 +107,11 @@ class LoanController extends ApiController
                         'grace_reason'         => $pause?->type === \App\Models\LoanPenaltyPause::GRACE ? $pause->reason : null,
                     ];
                 })(),
+                // Owed today incl. penalty, the part the reserve covers, and the client's share.
+                'owed_now'         => (float) ($owedNow[$r->id]['total'] ?? 0),
+                'penalty_owed'     => (float) ($owedNow[$r->id]['penalty'] ?? 0),
+                'from_reserve'     => (float) ($coverage[$r->id] ?? 0),
+                'you_pay'          => (float) max(0, round(($owedNow[$r->id]['total'] ?? 0) - ($coverage[$r->id] ?? 0), 2)),
                 'cleared_at'       => $r->cleared_at,
                 'status'           => $r->status ?? 0,
             ]);
@@ -131,6 +144,8 @@ class LoanController extends ApiController
                 'interest_paid'       => (float) $payments->sum('interest'),
                 'penalties_paid'      => (float) $payments->sum('late_penalties'),
                 'reserve_locked'      => \App\Services\LoanReserveService::remaining($loan),
+                'owed_today'          => (float) $reserve['owed'],
+                'client_must_pay'     => ($loan->status == 1 && $reserve['required']) ? (float) $reserve['client_must_pay'] : null,
                 'description'         => $loan->description,
             ],
             'schedule' => $schedule,
