@@ -82,17 +82,20 @@
 							</div>
 						</div>
 
+						{{-- Typed and shown as dd/mm/yyyy; the hidden field sends YYYY-MM-DD. --}}
 						<div class="col-lg-6">
 							<div class="form-group">
-								<label class="control-label">{{ _lang('First Payment Date') }}</label>
-								<input type="date" class="form-control" name="first_payment_date" id="first_payment_date" value="{{ old('first_payment_date') }}" required>
+								<label class="control-label">{{ _lang('Release Date') }}</label>
+								<input type="text" class="form-control dmy-date" id="release_date_display" data-target="#release_date" placeholder="dd/mm/yyyy" autocomplete="off" data-parsley-dmy required>
+								<input type="hidden" name="release_date" id="release_date" value="{{ old('release_date') }}">
 							</div>
 						</div>
 
 						<div class="col-lg-6">
 							<div class="form-group">
-								<label class="control-label">{{ _lang('Release Date') }}</label>
-								<input type="date" class="form-control" name="release_date" id="release_date" value="{{ old('release_date') }}" required>
+								<label class="control-label">{{ _lang('First Payment Date') }}</label>
+								<input type="text" class="form-control dmy-date" id="first_payment_date_display" data-target="#first_payment_date" placeholder="dd/mm/yyyy" autocomplete="off" data-parsley-dmy required>
+								<input type="hidden" name="first_payment_date" id="first_payment_date" value="{{ old('first_payment_date') }}">
 							</div>
 						</div>
 
@@ -242,53 +245,49 @@
 		$('#doc_override_reason_section').toggle(this.checked);
 	});
 
-	$(document).on('change', '#loan_product_id', function(){
-		let firstPaymentDate = $('#first_payment_date').val() ? new Date($('#first_payment_date').val()) : new Date();
-		$.fn.calculateReleaseDate(firstPaymentDate);
+	// Dates are typed or picked as dd/mm/yyyy; each mirrors into its
+	// hidden YYYY-MM-DD field, which is what the form submits.
+	const DMY = 'DD/MM/YYYY';
+
+	// A real calendar date, so 31/02/2026 or 32/10/2026 is caught here and not by the server.
+	window.Parsley.addValidator('dmy', {
+		validateString: value => moment(value, DMY, true).isValid(),
+		messages: { en: "{{ _lang('Enter a valid date as dd/mm/yyyy') }}" },
 	});
 
-	$(document).on('change', '#first_payment_date', function(){
-		$.fn.calculateReleaseDate(new Date($(this).val()));
+	$('.dmy-date').each(function() {
+		const $shown = $(this);
+		const value  = $($shown.data('target')).val();
+		if (value) {
+			$shown.val(moment(value, 'YYYY-MM-DD').format(DMY));
+		}
+		$shown.daterangepicker({
+			singleDatePicker: true,
+			showDropdowns: true,
+			autoApply: true,
+			autoUpdateInput: false,
+			locale: { format: DMY },
+		});
+		$shown.on('apply.daterangepicker', function(ev, picker) {
+			$shown.val(picker.startDate.format(DMY)).trigger('change');
+		});
 	});
 
-	$.fn.calculateReleaseDate = function(currentDate = new Date()) {
-		let json = $('#loan_product_id').find(":selected").data('details');
-		let releaseDate = new Date(currentDate);
+	$(document).on('change', '.dmy-date', function() {
+		const date = moment($(this).val(), DMY, true);
+		$($(this).data('target')).val(date.isValid() ? date.format('YYYY-MM-DD') : '').trigger('change');
+	});
 
-		if (json) {
-            if (typeof json === "string") {
-                json = JSON.parse(details);
-            }
-
-			let term = parseInt(json.term);
-			let period = json.term_period;
-
-			if (!term || !period) {
-				$("#release_date").val("");
-				return;
-			}
-
-			let match = period.match(/(\+?\d+)\s(day|month|year)/);
-
-			if (match) {
-				term = term * parseInt(match[1]);
-				let unit = match[2];
-
-				// Calculate new date based on the unit
-				if (unit === "day") {
-					releaseDate.setDate(releaseDate.getDate() + term);
-				} else if (unit === "month") {
-					releaseDate.setMonth(releaseDate.getMonth() + term);
-				} else if (unit === "year") {
-					releaseDate.setFullYear(releaseDate.getFullYear() + term);
-				}
-
-				// Format date to YYYY-MM-DD for input field
-				$("#first_payment_date").val(currentDate.toISOString().split("T")[0]);
-				$("#release_date").val(releaseDate.toISOString().split("T")[0]);
-			}
-        }
-    };
+	// First payment is due one month after the loan is released; staff can still change it.
+	$(document).on('change', '#release_date', function() {
+		if (! this.value) {
+			return;
+		}
+		const first = moment(this.value, 'YYYY-MM-DD').add(1, 'month');
+		$('#first_payment_date').val(first.format('YYYY-MM-DD'));
+		$('#first_payment_date_display').val(first.format(DMY));
+		$('#first_payment_date_display').data('daterangepicker').setStartDate(first);
+	});
 
 })(jQuery);
 </script>
