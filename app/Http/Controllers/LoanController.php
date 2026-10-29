@@ -344,6 +344,7 @@ class LoanController extends Controller {
             ->get();
 
         $repayments = LoanRepayment::where('loan_id', $loan->id)->orderBy('id', 'asc')->get();
+        $paidInto   = LoanRepayment::paymentsFor($repayments->pluck('id'));
 
         $guarantors = Guarantor::where('loan_id', $loan->id)->get();
 
@@ -363,7 +364,7 @@ class LoanController extends Controller {
             ->get();
         $canGrace = $loan->status == 1 && (auth()->user()->isAdmin() || has_permission('grace_periods.create'));
 
-        return view('backend.loan.view', compact('loan', 'loancollaterals', 'repayments', 'payments', 'guarantors', 'customFields', 'reserve', 'reserveCoverage', 'graces', 'canGrace'));
+        return view('backend.loan.view', compact('loan', 'loancollaterals', 'repayments', 'payments', 'guarantors', 'customFields', 'reserve', 'reserveCoverage', 'graces', 'canGrace', 'paidInto'));
 
     }
 

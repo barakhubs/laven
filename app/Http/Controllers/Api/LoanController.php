@@ -81,9 +81,12 @@ class LoanController extends ApiController
         $owedNow  = collect($arrears['installments'])->mapWithKeys(fn ($due) => [$due['repayment']->id => $due]);
         $coverage = $loan->status == 1 ? \App\Services\LoanReserveService::coverage($loan, $arrears['installments']) : [];
 
-        $schedule = LoanRepayment::where('loan_id', $id)
+        $installments = LoanRepayment::where('loan_id', $id)
             ->orderBy('repayment_date', 'asc')
-            ->get()
+            ->get();
+        $paidInto = LoanRepayment::paymentsFor($installments->pluck('id'));
+
+        $schedule = $installments
             ->map(fn($r) => [
                 'id'               => $r->id,
                 'repayment_date'   => $r->repayment_date,
@@ -114,6 +117,8 @@ class LoanController extends ApiController
                 'you_pay'          => (float) max(0, round(($owedNow[$r->id]['total'] ?? 0) - ($coverage[$r->id] ?? 0), 2)),
                 'cleared_at'       => $r->cleared_at,
                 'status'           => $r->status ?? 0,
+                // Each payment into this installment and its penalty / interest / principal split.
+                'payments'         => $paidInto[$r->id] ?? [],
             ]);
 
         $product = $loan->loan_product;

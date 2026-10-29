@@ -340,6 +340,43 @@ class LoanRepayment extends Model {
     /** @var array|null */
     protected $paymentHistoryCache = null;
 
+    /**
+     * Every payment into each of these installments (oldest first) and what
+     * it put on penalty, interest and principal, keyed by installment id.
+     * One query for the whole schedule.
+     */
+    public static function paymentsFor($repaymentIds): array
+    {
+        return \Illuminate\Support\Facades\DB::table('loan_payment_allocations')
+            ->join('loan_payments', 'loan_payments.id', '=', 'loan_payment_allocations.loan_payment_id')
+            ->whereIn('loan_payment_allocations.loan_repayment_id', collect($repaymentIds)->all())
+            ->orderBy('loan_payments.paid_at')
+            ->orderBy('loan_payments.id')
+            ->select([
+                'loan_payment_allocations.loan_repayment_id',
+                'loan_payments.id as payment_id',
+                'loan_payments.paid_at',
+                'loan_payment_allocations.penalty',
+                'loan_payment_allocations.penalty_waived',
+                'loan_payment_allocations.interest',
+                'loan_payment_allocations.interest_waived',
+                'loan_payment_allocations.principal',
+            ])
+            ->get()
+            ->groupBy('loan_repayment_id')
+            ->map(fn ($rows) => $rows->map(fn ($a) => [
+                'payment_id'      => (int) $a->payment_id,
+                'paid_at'         => \Carbon\Carbon::parse($a->paid_at)->toDateString(),
+                'penalty'         => (float) $a->penalty,
+                'interest'        => (float) $a->interest,
+                'principal'       => (float) $a->principal,
+                'total'           => round((float) $a->penalty + (float) $a->interest + (float) $a->principal, 2),
+                'penalty_waived'  => (float) $a->penalty_waived,
+                'interest_waived' => (float) $a->interest_waived,
+            ])->values()->all())
+            ->all();
+    }
+
     public function getInterestDueAttribute(): float
     {
         return max(0, round((float) $this->interest - (float) $this->interest_paid - (float) $this->interest_waived, 2));

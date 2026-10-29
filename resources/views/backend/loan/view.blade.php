@@ -437,6 +437,11 @@
                               @endif
                               <br><small class="text-info">{{ _lang('Remaining') }}: {{ decimalPlace($repayment->amount_due, currency($loan->currency->name)) }}</small>
                               @endif
+                              @if(! empty($paidInto[$repayment->id]))
+                              @php $paidCount = count($paidInto[$repayment->id]); @endphp
+                              <br><a href="#" class="small" data-toggle="modal" data-target="#installment-payments-{{ $repayment->id }}">
+                                 <i class="fas fa-list-ul mr-1"></i>{{ $paidCount }} {{ $paidCount == 1 ? _lang('payment') : _lang('payments') }}</a>
+                              @endif
                            </td>
                            <td class="text-right">
                               {{ decimalPlace($repayment['principal_amount'], currency($loan->currency->name)) }}
@@ -587,6 +592,72 @@
       </div>
    </div>
 </div>
+
+{{-- Each payment into an installment and what it went to. --}}
+@foreach($repayments as $repayment)
+@if(! empty($paidInto[$repayment->id]))
+@php $rows = $paidInto[$repayment->id]; $cur = currency($loan->currency->name); @endphp
+<div id="installment-payments-{{ $repayment->id }}" class="modal" tabindex="-1" role="dialog">
+   <div class="modal-dialog modal-lg" role="document">
+      <div class="modal-content">
+         <div class="modal-header bg-primary">
+            <h5 class="modal-title mt-0 text-white">{{ _lang('Payments for installment of') }} {{ $repayment->repayment_date }}</h5>
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+               <i class="ti-close text-white"></i>
+            </button>
+         </div>
+         <div class="modal-body">
+            <div class="table-responsive">
+               <table class="table table-bordered table-sm mb-0">
+                  <thead>
+                     <tr>
+                        <th>{{ _lang('Date') }}</th>
+                        <th>{{ _lang('Receipt') }}</th>
+                        <th class="text-right">{{ _lang('Late Penalty') }}</th>
+                        <th class="text-right">{{ _lang('Interest') }}</th>
+                        <th class="text-right">{{ _lang('Principal') }}</th>
+                        <th class="text-right">{{ _lang('Total') }}</th>
+                     </tr>
+                  </thead>
+                  <tbody>
+                     @foreach($rows as $row)
+                     <tr>
+                        <td>{{ \Carbon\Carbon::parse($row['paid_at'])->format(get_date_format()) }}</td>
+                        <td><a href="{{ route('loan_payments.show', $row['payment_id']) }}">#{{ $row['payment_id'] }}</a></td>
+                        <td class="text-right">
+                           {{ decimalPlace($row['penalty'], $cur) }}
+                           @if($row['penalty_waived'] > 0)
+                           <br><small class="text-success">{{ _lang('Waived') }}: {{ decimalPlace($row['penalty_waived'], $cur) }}</small>
+                           @endif
+                        </td>
+                        <td class="text-right">
+                           {{ decimalPlace($row['interest'], $cur) }}
+                           @if($row['interest_waived'] > 0)
+                           <br><small class="text-success">{{ _lang('Waived') }}: {{ decimalPlace($row['interest_waived'], $cur) }}</small>
+                           @endif
+                        </td>
+                        <td class="text-right">{{ decimalPlace($row['principal'], $cur) }}</td>
+                        <td class="text-right"><strong>{{ decimalPlace($row['total'], $cur) }}</strong></td>
+                     </tr>
+                     @endforeach
+                  </tbody>
+                  <tfoot>
+                     <tr>
+                        <th colspan="2">{{ _lang('Total') }}</th>
+                        <th class="text-right">{{ decimalPlace(array_sum(array_column($rows, 'penalty')), $cur) }}</th>
+                        <th class="text-right">{{ decimalPlace(array_sum(array_column($rows, 'interest')), $cur) }}</th>
+                        <th class="text-right">{{ decimalPlace(array_sum(array_column($rows, 'principal')), $cur) }}</th>
+                        <th class="text-right">{{ decimalPlace(array_sum(array_column($rows, 'total')), $cur) }}</th>
+                     </tr>
+                  </tfoot>
+               </table>
+            </div>
+         </div>
+      </div>
+   </div>
+</div>
+@endif
+@endforeach
 @endsection
 @section('js-script')
 <script>
