@@ -345,6 +345,8 @@ class LoanController extends Controller {
 
         $repayments = LoanRepayment::where('loan_id', $loan->id)->orderBy('id', 'asc')->get();
         $paidInto   = LoanRepayment::paymentsFor($repayments->pluck('id'));
+        // Installments are only saved on approval; until then show what approval will create.
+        $projected  = $loan->status == 0 && $repayments->isEmpty() && $loan->loan_product ? $loan->calculateSchedule() : null;
 
         $guarantors = Guarantor::where('loan_id', $loan->id)->get();
 
@@ -364,7 +366,7 @@ class LoanController extends Controller {
             ->get();
         $canGrace = $loan->status == 1 && (auth()->user()->isAdmin() || has_permission('grace_periods.create'));
 
-        return view('backend.loan.view', compact('loan', 'loancollaterals', 'repayments', 'payments', 'guarantors', 'customFields', 'reserve', 'reserveCoverage', 'graces', 'canGrace', 'paidInto'));
+        return view('backend.loan.view', compact('loan', 'loancollaterals', 'repayments', 'payments', 'guarantors', 'customFields', 'reserve', 'reserveCoverage', 'graces', 'canGrace', 'paidInto', 'projected'));
 
     }
 
@@ -521,31 +523,10 @@ class LoanController extends Controller {
         $loan->save();
 
         // Create Loan Repayments
-        $interest_type = $loan->loan_product->interest_type;
-        $calculator = new Calculator(
-            $loan->applied_amount,
-            $loan->getRawOriginal('first_payment_date'),
-            $loan->loan_product->interest_rate,
-            $loan->loan_product->term,
-            $loan->loan_product->term_period,
-            $loan->late_payment_penalties
-        );
+        $schedule   = $loan->calculateSchedule();
+        $repayments = $schedule['repayments'];
 
-        if ($interest_type == 'flat_rate') {
-            $repayments = $calculator->get_flat_rate();
-        } else if ($interest_type == 'fixed_rate') {
-            $repayments = $calculator->get_fixed_rate();
-        } else if ($interest_type == 'mortgage') {
-            $repayments = $calculator->get_mortgage();
-        } else if ($interest_type == 'one_time') {
-            $repayments = $calculator->get_one_time();
-        } else if ($interest_type == 'reducing_amount') {
-            $repayments = $calculator->get_reducing_amount();
-        } else if ($interest_type == 'interest_only') {
-            $repayments = $calculator->get_interest_only();
-        }
-
-        $loan->total_payable = $calculator->payable_amount;
+        $loan->total_payable = $schedule['payable'];
         $loan->save();
 
         foreach ($repayments as $repayment) {

@@ -410,6 +410,44 @@
                         <i class="fas fa-hand-holding-usd mr-1"></i>{{ _lang('Add Repayment') }}</a>
                   </div>
                   @endif
+                  @if($projected)
+                  <div class="alert alert-warning">
+                     <i class="fas fa-info-circle mr-1"></i>{{ _lang('Projected schedule. This loan is pending; the installments are saved when it is approved.') }}
+                  </div>
+                  <table class="table table-bordered report-table">
+                     <thead>
+                        <tr>
+                           <th>{{ _lang("Date") }}</th>
+                           <th class="text-right">{{ _lang("Amount to Pay") }}</th>
+                           <th class="text-right">{{ _lang("Principal Amount") }}</th>
+                           <th class="text-right">{{ _lang("Interest") }}</th>
+                           <th class="text-right">{{ _lang("Late Penalty") }}</th>
+                           <th class="text-right">{{ _lang("Balance") }}</th>
+                        </tr>
+                     </thead>
+                     <tbody>
+                        @foreach($projected['repayments'] as $row)
+                        <tr>
+                           <td>{{ \Carbon\Carbon::parse($row['date'])->format(get_date_format()) }}</td>
+                           <td class="text-right">{{ decimalPlace($row['amount_to_pay'], currency($loan->currency->name)) }}</td>
+                           <td class="text-right">{{ decimalPlace($row['principal_amount'], currency($loan->currency->name)) }}</td>
+                           <td class="text-right">{{ decimalPlace($row['interest'], currency($loan->currency->name)) }}</td>
+                           <td class="text-right">{{ decimalPlace($row['penalty'], currency($loan->currency->name)) }}/ {{ _lang('Day') }}</td>
+                           <td class="text-right">{{ decimalPlace($row['balance'], currency($loan->currency->name)) }}</td>
+                        </tr>
+                        @endforeach
+                     </tbody>
+                     <tfoot>
+                        <tr>
+                           <th>{{ _lang('Total') }}</th>
+                           <th class="text-right">{{ decimalPlace(collect($projected['repayments'])->sum('amount_to_pay'), currency($loan->currency->name)) }}</th>
+                           <th class="text-right">{{ decimalPlace(collect($projected['repayments'])->sum('principal_amount'), currency($loan->currency->name)) }}</th>
+                           <th class="text-right">{{ decimalPlace(collect($projected['repayments'])->sum('interest'), currency($loan->currency->name)) }}</th>
+                           <th colspan="2"></th>
+                        </tr>
+                     </tfoot>
+                  </table>
+                  @else
                   <table class="table table-bordered report-table">
                      <thead>
                         <tr>
@@ -504,6 +542,7 @@
                         @endforeach
                      </tbody>
                   </table>
+                  @endif
 
                   @if($graces->count())
                   <h5 class="mt-4">{{ _lang('Grace Periods') }}</h5>

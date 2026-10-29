@@ -254,5 +254,34 @@ class Loan extends Model {
         return \Carbon\Carbon::parse($value)->format("$date_format $time_format");
     }
 
-}
+    /**
+     * The installments the loan calculator gives for this loan's product,
+     * amount and first payment date. Approval saves these; a pending loan
+     * shows them as the projected schedule.
+     */
+    public function calculateSchedule(): array {
+        $product    = $this->loan_product;
+        $calculator = new \App\Utilities\LoanCalculator(
+            $this->applied_amount,
+            $this->getRawOriginal('first_payment_date'),
+            $product->interest_rate,
+            $product->term,
+            $product->term_period,
+            $this->late_payment_penalties
+        );
 
+        $method = [
+            'flat_rate'       => 'get_flat_rate',
+            'fixed_rate'      => 'get_fixed_rate',
+            'mortgage'        => 'get_mortgage',
+            'one_time'        => 'get_one_time',
+            'reducing_amount' => 'get_reducing_amount',
+            'interest_only'   => 'get_interest_only',
+        ][$product->interest_type] ?? null;
+
+        $repayments = $method ? $calculator->$method() : [];
+
+        return ['repayments' => $repayments, 'payable' => $calculator->payable_amount];
+    }
+
+}
