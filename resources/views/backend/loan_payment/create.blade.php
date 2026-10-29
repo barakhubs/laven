@@ -81,6 +81,7 @@
 									</div>
 								</div>
 								<small class="form-text text-muted">{{ _lang('Record each payment exactly as received. It clears the oldest installment first (penalty, then interest, then principal) and any balance moves on to the next one.') }}</small>
+								<div id="installment_left" class="mt-2"></div>
 							</div>
 						</div>
 
@@ -193,20 +194,84 @@ $(function() {
 		);
 	}
 
-	function renderPlan(plan) {
-		if (! plan) {
-			$("#allocation_preview").html('');
+	function round2(value) {
+		return Math.round(value * 100) / 100;
+	}
+
+	// What each open installment still owes after this payment, and how much
+	// of that the 30% reserve will pay: it covers the last installment first
+	// and works backwards, as LoanReserveService::coverage does.
+	function remainingAfter(json, plan) {
+		var put = {};
+		$.each(plan.lines, function(i, line) {
+			put[line.repayment_id] = line.penalty_waived + line.penalty + line.interest_waived + line.interest + line.principal;
+		});
+
+		var rows = $.map(json.installments, function(inst) {
+			var after = Math.max(0, round2(inst.total - (put[inst.id] || 0)));
+			return { id: inst.id, date: inst.repayment_date, touched: inst.id in put, after: after, reserve: 0, client: after };
+		});
+
+		var reserveLeft = json.reserve.remaining || 0;
+		for (var i = rows.length - 1; i >= 0; i--) {
+			rows[i].reserve = round2(Math.min(reserveLeft, rows[i].after));
+			rows[i].client  = round2(rows[i].after - rows[i].reserve);
+			reserveLeft     = round2(reserveLeft - rows[i].reserve);
+		}
+
+		return rows;
+	}
+
+	// One line under the amount: what is left on the installment the money runs out on.
+	function renderInstallmentLeft(rows, plan) {
+		var touched = $.grep(rows, function(row) { return row.touched; });
+		if (! touched.length || plan.unallocated > 0) {
+			$("#installment_left").html('');
 			return;
 		}
 
+		var row  = touched[touched.length - 1];
+		var text = row.after <= 0.005
+			? '{{ _lang('Clears the installment due') }} ' + row.date + '.'
+			: '{{ _lang('Installment due') }} ' + row.date + ': <strong>' + money(row.after) + '</strong> {{ _lang('left') }}';
+
+		if (row.after > 0.005) {
+			if (row.reserve > 0 && row.client <= 0.005) {
+				text += ', {{ _lang('which the 30% savings will cover.') }}';
+			} else if (row.reserve > 0) {
+				text += '. {{ _lang('The 30% savings cover') }} ' + money(row.reserve) + '; {{ _lang('the client still pays') }} <strong>' + money(row.client) + '</strong>.';
+			} else {
+				text += '.';
+			}
+		}
+
+		$("#installment_left").html('<div class="alert alert-' + (row.client <= 0.005 ? 'success' : 'info') + ' mb-0 py-2">' + text + '</div>');
+	}
+
+	function renderPlan(json) {
+		var plan = json.plan;
+		if (! plan) {
+			$("#allocation_preview, #installment_left").html('');
+			return;
+		}
+
+		var left = {};
+		var after = remainingAfter(json, plan);
+		$.each(after, function(i, row) { left[row.id] = row; });
+		renderInstallmentLeft(after, plan);
+
 		var rows = '';
 		$.each(plan.lines, function(i, line) {
+			var rest = left[line.repayment_id];
 			rows += '<tr><td>' + line.repayment_date + '</td>'
 				+ '<td class="text-right">' + (line.penalty_waived > 0 ? money(line.penalty_waived) : '-') + '</td>'
 				+ '<td class="text-right">' + money(line.penalty) + '</td>'
 				+ '<td class="text-right">' + (line.interest_waived > 0 ? money(line.interest_waived) : '-') + '</td>'
 				+ '<td class="text-right">' + money(line.interest) + '</td>'
 				+ '<td class="text-right">' + money(line.principal) + '</td>'
+				+ '<td class="text-right">' + money(rest.after) + '</td>'
+				+ '<td class="text-right">' + money(rest.client)
+				+ (rest.reserve > 0 ? '<br><small class="text-info">{{ _lang('30% savings') }} ' + money(rest.reserve) + '</small>' : '') + '</td>'
 				+ '<td>' + (line.closes ? '<span class="badge badge-success">{{ _lang('Cleared') }}</span>' : '<span class="badge badge-warning">{{ _lang('Still owes') }}</span>') + '</td></tr>';
 		});
 
@@ -229,7 +294,8 @@ $(function() {
 			+ '<label class="control-label">{{ _lang('This Payment Will Cover') }}</label>'
 			+ '<div class="table-responsive"><table class="table table-sm table-bordered">'
 			+ '<thead><tr><th>{{ _lang('Due Date') }}</th><th class="text-right">{{ _lang('Penalty Waived') }}</th><th class="text-right">{{ _lang('Penalty') }}</th>'
-			+ '<th class="text-right">{{ _lang('Interest Waived') }}</th><th class="text-right">{{ _lang('Interest') }}</th><th class="text-right">{{ _lang('Principal') }}</th><th></th></tr></thead>'
+			+ '<th class="text-right">{{ _lang('Interest Waived') }}</th><th class="text-right">{{ _lang('Interest') }}</th><th class="text-right">{{ _lang('Principal') }}</th>'
+			+ '<th class="text-right">{{ _lang('Left After') }}</th><th class="text-right">{{ _lang('Client Still Pays') }}</th><th></th></tr></thead>'
 			+ '<tbody>' + rows + '</tbody></table></div>'
 		);
 	}
@@ -239,7 +305,7 @@ $(function() {
 	function refresh(resetFields, reloadAccounts) {
 		var loan_id = $("#loan_id").val();
 		if (loan_id == '') {
-			$("#arrears, #allocation_preview").html('');
+			$("#arrears, #allocation_preview, #installment_left").html('');
 			return;
 		}
 
@@ -276,7 +342,7 @@ $(function() {
 					}
 					refresh(false, false);
 				} else {
-					renderPlan(json.plan);
+					renderPlan(json);
 				}
 				updatePayoffHint();
 			}
@@ -298,9 +364,9 @@ $(function() {
 		refresh(true, false);
 	});
 
-	$(document).on('keyup change', '#total_amount, #late_penalties, #interest_charge', refreshSoon);
+	$(document).on('input change', '#total_amount, #late_penalties, #interest_charge', refreshSoon);
 	$(document).on('change', '#start_penalties_now', refreshSoon);
-	$(document).on('keyup change', '#late_penalties, #interest_charge', updatePayoffHint);
+	$(document).on('input change', '#late_penalties, #interest_charge', updatePayoffHint);
 
 	// Opened with ?loan_id= (e.g. from a loan's details page) or after a
 	// failed submit: scripts.js preselects the loan and fires 'change'
