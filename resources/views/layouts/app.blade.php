@@ -285,7 +285,11 @@
 		
 		<!-- Datatable js -->
         <script src="{{ asset('backend/plugins/datatable/datatables.min.js') }}"></script>
-        
+        <script>
+            // Paginated tables show 25 rows unless a table sets its own pageLength.
+            $.extend(true, $.fn.dataTable.defaults, { pageLength: 25 });
+        </script>
+
 		<script src="{{ asset('backend/plugins/dropify/js/dropify.min.js') }}"></script>
 		<script src="{{ asset('backend/plugins/sweet-alert2/js/sweetalert2.min.js') }}"></script>
 		<script src="{{ asset('backend/plugins/select2/js/select2.min.js') }}"></script>

@@ -126,7 +126,7 @@ class MemberController extends Controller {
         $data            = [];
         $data['members'] = Member::where('status', 0)
             ->withoutGlobalScopes(['status'])
-            ->paginate(10);
+            ->paginate(25);
         return view('backend.member.pending_requests', $data);
     }
 
