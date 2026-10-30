@@ -104,10 +104,16 @@ class LoanReserveService
      * Everything the admin needs to decide whether the reserve can be used
      * now: what the loan owes as of $asOf, the reserve, the account balance
      * available to it, and what the client must still pay first.
+     *
+     * $penaltyCharge is the penalty the admin chooses to charge when applying
+     * the reserve; anything below what has built up is waived and no longer
+     * counts as owed. null charges it all.
      */
-    public static function status(Loan $loan, $asOf): array
+    public static function status(Loan $loan, $asOf, ?float $penaltyCharge = null): array
     {
-        $owed      = LoanRepaymentService::arrears($loan, $asOf)['owed']['total'];
+        $arrears   = LoanRepaymentService::arrears($loan, $asOf)['owed'];
+        $waived    = $penaltyCharge === null ? 0 : max(0, round($arrears['penalty'] - max(0, $penaltyCharge), 2));
+        $owed      = round($arrears['total'] - $waived, 2);
         $remaining = self::remaining($loan);
         $available = $loan->debit_account_id ? self::availableForReserve($loan) : 0;
         $usable    = min($remaining, $available);
@@ -118,6 +124,9 @@ class LoanReserveService
             'used'            => self::used($loan),
             'remaining'       => $remaining,
             'available'       => $available,
+            'usable'          => $usable,
+            'penalty'         => $arrears['penalty'],
+            'penalty_waived'  => $waived,
             'owed'            => $owed,
             'client_must_pay' => max(0, round($owed - $usable, 2)),
             'can_apply'       => $loan->status == 1 && $owed > 0 && $owed <= $usable + LoanRepaymentService::EPSILON,
@@ -126,13 +135,14 @@ class LoanReserveService
 
     /**
      * Use the reserve to clear the rest of the loan. Only allowed once the
-     * client has paid everything except what the reserve covers. Debits the
+     * client has paid everything except what the reserve covers, after any
+     * penalty the admin waives ($penaltyCharge, as in status()). Debits the
      * linked savings account and records it as a normal loan payment.
      * Run inside a DB transaction with the loan locked.
      */
-    public static function apply(Loan $loan, $asOf): \App\Models\LoanPayment
+    public static function apply(Loan $loan, $asOf, ?float $penaltyCharge = null): \App\Models\LoanPayment
     {
-        $status = self::status($loan, $asOf);
+        $status = self::status($loan, $asOf, $penaltyCharge);
         if (! $status['can_apply']) {
             throw new \InvalidArgumentException(_lang('The client must first pay') . ' ' . decimalPlace($status['client_must_pay'])
                 . ' ' . _lang('before the 30% reserve can clear the loan.'));
@@ -154,8 +164,10 @@ class LoanReserveService
         $debit->loan_id            = $loan->id;
         $debit->save();
 
-        return LoanRepaymentService::apply($loan, $status['owed'], $asOf, null, [
-            'remarks'        => _lang('Paid from 30% loan reserve'),
+        return LoanRepaymentService::apply($loan, $status['owed'], $asOf, $status['penalty_waived'] > 0 ? round($status['penalty'] - $status['penalty_waived'], 2) : null, [
+            'remarks'        => $status['penalty_waived'] > 0
+                ? _lang('Paid from 30% loan reserve') . ', ' . _lang('penalty waived') . ' ' . decimalPlace($status['penalty_waived'])
+                : _lang('Paid from 30% loan reserve'),
             'transaction_id' => $debit->id,
         ]);
     }

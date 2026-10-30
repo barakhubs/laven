@@ -432,17 +432,21 @@ class LoanController extends Controller {
      * Use the loan's 30% reserve to clear its remaining installments. Only
      * allowed once the client has paid everything except what it covers.
      */
-    public function apply_reserve($id) {
+    public function apply_reserve(Request $request, $id) {
         if (! auth()->user()->isSuperAdmin()) {
             abort(403, 'Only Super Admins can add loan repayments.');
         }
+
+        // Penalty to charge; lowering it below what has built up waives the rest.
+        $request->validate(['late_penalties' => 'nullable|numeric|min:0']);
+        $penaltyCharge = $request->filled('late_penalties') ? (float) $request->late_penalties : null;
 
         DB::beginTransaction();
 
         $loan = Loan::lockForUpdate()->findOrFail($id);
 
         try {
-            $loanpayment = \App\Services\LoanReserveService::apply($loan, date('Y-m-d'));
+            $loanpayment = \App\Services\LoanReserveService::apply($loan, date('Y-m-d'), $penaltyCharge);
         } catch (\InvalidArgumentException $e) {
             DB::rollBack();
             return back()->with('error', $e->getMessage());

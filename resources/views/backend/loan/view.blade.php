@@ -163,14 +163,24 @@
                            @endif
                            <br><strong>{{ _lang('Client must still pay') }}: {{ decimalPlace($reserve['client_must_pay'], currency($loan->currency->name)) }}</strong>
                            @if(auth()->user()->isSuperAdmin())
-                           <form method="post" action="{{ route('loans.apply_reserve', $loan->id) }}" class="mt-2" onsubmit="return confirm('{{ _lang('Pay the remaining') }} {{ decimalPlace($reserve['owed']) }} {{ _lang('from the 30% reserve and close this loan?') }}');">
+                           <form method="post" action="{{ route('loans.apply_reserve', $loan->id) }}" class="mt-2" id="apply-reserve-form"
+                              data-owed="{{ $reserve['owed'] }}" data-penalty="{{ $reserve['penalty'] }}" data-usable="{{ $reserve['usable'] }}" data-loan-active="{{ $loan->status == 1 ? 1 : 0 }}">
                               {{ csrf_field() }}
-                              <button type="submit" class="btn btn-xs btn-success" {{ $reserve['can_apply'] ? '' : 'disabled' }}>
+                              @if($reserve['penalty'] > 0)
+                              <div class="form-group mb-2" style="max-width: 260px;">
+                                 <label class="small mb-1">{{ _lang('Penalty to charge') }} <span class="text-muted">({{ _lang('owed') }} {{ decimalPlace($reserve['penalty'], currency($loan->currency->name)) }})</span></label>
+                                 <input type="number" step="0.01" min="0" max="{{ $reserve['penalty'] }}" class="form-control form-control-sm" name="late_penalties" id="reserve_penalty" value="{{ $reserve['penalty'] }}">
+                                 <small class="text-muted d-block" id="reserve_waive_note"></small>
+                              </div>
+                              @endif
+                              <small class="d-block mb-1" id="reserve_pays_note"></small>
+                              <button type="submit" class="btn btn-xs btn-success" id="apply-reserve-btn" {{ $reserve['can_apply'] ? '' : 'disabled' }}>
                                  <i class="fas fa-piggy-bank mr-1"></i>{{ _lang('Apply 30% Reserve') }}
                               </button>
-                              @if(! $reserve['can_apply'])
-                              <small class="text-muted d-block">{{ _lang('Available once the client has paid everything except what the reserve covers.') }}</small>
-                              @endif
+                              <small class="text-muted {{ $reserve['can_apply'] ? 'd-none' : 'd-block' }}" id="reserve_blocked_note">
+                                 {{ _lang('Available once the client has paid everything except what the reserve covers.') }}
+                                 @if($reserve['penalty'] > 0) {{ _lang('Waiving penalty lowers what is left.') }} @endif
+                              </small>
                            </form>
                            @endif
                            @endif
@@ -712,7 +722,48 @@
    	@if(isset($_GET['tab']))
    	   $('.nav-tabs a[href="#{{ $_GET['tab'] }}"]').tab('show');
    	@endif
-   
+
+   	// Apply 30% Reserve: lowering the penalty waives the rest, so the
+   	// reserve pays less and may be usable sooner.
+   	var $reserve = $('#apply-reserve-form');
+   	if ($reserve.length) {
+   		var owed = parseFloat($reserve.data('owed')) || 0;
+   		var penalty = parseFloat($reserve.data('penalty')) || 0;
+   		var usable = parseFloat($reserve.data('usable')) || 0;
+   		var money = function (v) { return v.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}); };
+   		var pays = function () {
+   			var $in = $('#reserve_penalty');
+   			var raw = $in.length ? $in.val().trim() : '';
+   			var charge = raw === '' ? penalty : Number(raw);
+   			var valid = isFinite(charge) && charge >= 0 && charge <= penalty + 0.005;
+   			$in.toggleClass('is-invalid', ! valid);
+   			var waived = valid ? Math.max(0, Math.round((penalty - charge) * 100) / 100) : 0;
+   			return {valid: valid, waived: waived, total: Math.round((owed - waived) * 100) / 100};
+   		};
+   		var refresh = function () {
+   			var p = pays();
+   			if (! p.valid) {
+   				$('#reserve_waive_note').text('{{ _lang('Enter an amount from 0 to') }} ' + money(penalty));
+   				$('#reserve_pays_note').text('');
+   				$('#apply-reserve-btn').prop('disabled', true);
+   				return;
+   			}
+   			var ok = $reserve.data('loan-active') == 1 && p.total > 0 && p.total <= usable + 0.005;
+   			$('#reserve_waive_note').text(p.waived > 0 ? '{{ _lang('Waived') }}: ' + money(p.waived) : '');
+   			$('#reserve_pays_note').text('{{ _lang('Reserve pays') }}: ' + money(p.total)
+   				+ (ok ? '' : ' · {{ _lang('Client must still pay') }}: ' + money(Math.max(0, p.total - usable))));
+   			$('#apply-reserve-btn').prop('disabled', ! ok);
+   			$('#reserve_blocked_note').toggleClass('d-none', ok).toggleClass('d-block', ! ok);
+   		};
+   		$('#reserve_penalty').on('input change', refresh);
+   		$reserve.on('submit', function () {
+   			var p = pays();
+   			return confirm('{{ _lang('Pay the remaining') }} ' + money(p.total) + ' {{ _lang('from the 30% reserve and close this loan?') }}'
+   				+ (p.waived > 0 ? ' ({{ _lang('penalty waived') }}: ' + money(p.waived) + ')' : ''));
+   		});
+   		refresh();
+   	}
+
    })(jQuery);
 </script>
 @endsection
