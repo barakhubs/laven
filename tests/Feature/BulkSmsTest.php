@@ -198,6 +198,42 @@ class BulkSmsTest extends TestCase
         $this->assertEqualsCanonicalizing($expected, array_merge(...array_column($this->sent, 'numbers')));
     }
 
+    public function test_officer_clients_are_only_that_officers_members_with_an_active_loan(): void
+    {
+        $officer   = User::where('user_type', 'superadmin')->firstOrFail();
+        $other     = $officer->replicate(['email', 'phone']);
+        $other->email = uniqid() . '@example.com';
+        $other->user_type = 'user';
+        $other->save();
+        $borrowers = \App\Models\Loan::withoutGlobalScopes()->where('status', 1)->pluck('borrower_id')->unique();
+        $withLoan  = Member::whereIn('id', $borrowers)->whereNotNull('mobile')->where('mobile', '!=', '')->take(3)->get();
+        $noLoan    = Member::whereNotIn('id', $borrowers)->whereNotNull('mobile')->where('mobile', '!=', '')->firstOrFail();
+        $this->assertCount(3, $withLoan, 'demo data needs 3 members with active loans');
+
+        Member::withoutGlobalScopes()->update(['loan_officer_id' => null]);
+        Member::whereIn('id', [$withLoan[0]->id, $withLoan[1]->id, $noLoan->id])->update(['loan_officer_id' => $officer->id]);
+        Member::where('id', $withLoan[2]->id)->update(['loan_officer_id' => $other->id]);
+        $expected = $withLoan->take(2)->map(fn ($member) => SmsContact::normalize(format_recipient_number($member)))->all();
+        SmsContact::create(['phone' => '+256799999991']);
+
+        $response = $this->get('/admin/bulk_sms')->assertOk()->assertSee($officer->name . ' (2)');
+        $this->assertEquals(3, array_sum($response->viewData('names')["contacts,officer_clients:{$officer->id}"]));
+
+        $this->post('/admin/bulk_sms/send', ['message' => 'Hello {name}', 'recipients' => ['officer_clients']])
+            ->assertSessionHasErrors('loan_officer_id');
+        $this->assertEmpty($this->sent);
+
+        $this->post('/admin/bulk_sms/send', ['message' => 'Hello {name}', 'recipients' => ['officer_clients', 'contacts'], 'loan_officer_id' => $officer->id])
+            ->assertSessionHas('success');
+        $this->assertEqualsCanonicalizing(array_merge($expected, ['+256799999991']), array_merge(...array_column($this->sent, 'numbers')));
+
+        // An officer without active clients reaches nobody.
+        $this->sent = [];
+        $this->post('/admin/bulk_sms/send', ['message' => 'Hello', 'recipients' => ['officer_clients'], 'loan_officer_id' => 999999])
+            ->assertSessionHas('error');
+        $this->assertEmpty($this->sent);
+    }
+
     public function test_staff_cannot_open_bulk_sms(): void
     {
         $admin = User::where('user_type', 'superadmin')->firstOrFail();

@@ -27,6 +27,23 @@
 							<label class="custom-control-label" for="to_loan_clients">{{ _lang('Only members with active loans') }} <span class="text-muted">({{ $counts['loan_clients'] }})</span></label>
 						</div>
 						<div class="custom-control custom-checkbox">
+							<input type="checkbox" class="custom-control-input recipient" id="to_officer_clients" name="recipients[]" value="officer_clients" {{ in_array('officer_clients', $checked) ? 'checked' : '' }} {{ $officers->isEmpty() ? 'disabled' : '' }}>
+							<label class="custom-control-label" for="to_officer_clients">{{ _lang('Only one loan officer\'s clients with active loans') }}</label>
+						</div>
+						@if($officers->isEmpty())
+						<small class="form-text text-muted ml-4 mt-0">{{ _lang('No loan officer has clients assigned yet.') }}</small>
+						@else
+						<div class="ml-4 my-1" id="officer_group">
+							<select class="form-control form-control-sm" name="loan_officer_id" id="loan_officer_id">
+								<option value="">{{ _lang('Choose the loan officer') }}</option>
+								@foreach($officers as $officer)
+								<option value="{{ $officer->id }}" {{ old('loan_officer_id') == $officer->id ? 'selected' : '' }}>{{ $officer->name }} ({{ $counts['officer_clients:' . $officer->id] ?? 0 }})</option>
+								@endforeach
+							</select>
+						</div>
+						@endif
+						@error('loan_officer_id')<small class="form-text text-danger ml-4">{{ $message }}</small>@enderror
+						<div class="custom-control custom-checkbox">
 							<input type="checkbox" class="custom-control-input recipient" id="to_staff" name="recipients[]" value="staff" {{ in_array('staff', $checked) ? 'checked' : '' }}>
 							<label class="custom-control-label" for="to_staff">{{ _lang('Staff users') }} <span class="text-muted">({{ $counts['staff'] }})</span></label>
 						</div>
@@ -144,9 +161,17 @@
 	var onRight    = @json(get_currency_position() == 'right');
 
 	// {name length: people} for the ticked groups, e.g. {"7": 3, "u5": 1, "-": 2}.
+	// An officer's clients are keyed like "officer_clients:5"; one with no
+	// active clients isn't listed and reaches nobody.
 	function nameLengths() {
-		var groups = $('.recipient:checked').map(function () { return this.value; }).get().sort();
-		return groups.length ? names[groups.join(',')] : {};
+		var officer = $('#loan_officer_id').val();
+		var groups = $('.recipient:checked').map(function () {
+			return this.value === 'officer_clients' ? (officer ? 'officer_clients:' + officer : null) : this.value;
+		}).get();
+		if (groups.length !== $('.recipient:checked').length) {
+			return {};
+		}
+		return groups.length ? names[groups.sort().join(',')] || {} : {};
 	}
 
 	function recipientCount() {
@@ -239,19 +264,27 @@
 		refresh();
 	});
 
-	// All members already includes those with loans, so it's one or the other.
-	$('#to_members, #to_loan_clients').on('change', function () {
+	// All members already includes those with loans, which include each
+	// officer's clients, so only one of the three can be ticked.
+	var memberGroups = '#to_members, #to_loan_clients, #to_officer_clients';
+	$(memberGroups).on('change', function () {
 		if (this.checked) {
-			$(this.id === 'to_members' ? '#to_loan_clients' : '#to_members').prop('checked', false);
+			$(memberGroups).not(this).prop('checked', false);
 		}
+		$('#officer_group').toggle($('#to_officer_clients').is(':checked'));
 	});
+	$('#officer_group').toggle($('#to_officer_clients').is(':checked'));
 
 	$('#bulk_message, #sms_unit_cost, #fallback_name').on('input', refresh);
-	$('.recipient').on('change', refresh);
+	$('.recipient, #loan_officer_id').on('change', refresh);
 	refresh();
 
 	$('#bulk_sms_form').on('submit', function () {
 		var count = recipientCount();
+		if ($('#to_officer_clients').is(':checked') && ! $('#loan_officer_id').val()) {
+			alert('{{ _lang('Choose the loan officer') }}');
+			return false;
+		}
 		if (count === 0) {
 			alert('{{ _lang('There are no phone numbers to send to') }}');
 			return false;
