@@ -47,6 +47,7 @@
 						<thead>
 							<tr>
 								<th>{{ _lang('Client') }}</th>
+								<th>{{ _lang('Phone') }}</th>
 								<th class="text-center">{{ _lang('Loans') }}</th>
 								<th>{{ _lang('Loan Type') }}</th>
 								<th class="text-right">{{ _lang('Disbursed') }}</th>
@@ -65,6 +66,7 @@
 									<strong>{{ $row['member']->first_name.' '.$row['member']->last_name }}</strong><br>
 									<small class="text-muted">{{ $row['member']->member_no }}</small>
 								</td>
+								<td class="text-nowrap">{{ format_recipient_number($row['member']) ?? '—' }}</td>
 								<td class="text-center">{{ $row['loans'] }}</td>
 								<td>
 									@forelse($row['loan_types'] as $type)
@@ -102,7 +104,7 @@
 							</tr>
 							@empty
 							<tr>
-								<td colspan="10" class="text-center">{{ _lang('No clients found for this loan officer') }}</td>
+								<td colspan="11" class="text-center">{{ _lang('No clients found for this loan officer') }}</td>
 							</tr>
 							@endforelse
 						</tbody>
@@ -110,6 +112,7 @@
 						<tfoot>
 							<tr class="font-weight-bold">
 								<td>{{ _lang('Total') }}</td>
+								<td></td>
 								<td class="text-center">{{ $totals['loans'] }}</td>
 								<td></td>
 								<td class="text-right">{{ number_format($totals['disbursed'], 2) }}</td>
