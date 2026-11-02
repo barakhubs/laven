@@ -13,7 +13,8 @@ use Illuminate\Support\Facades\Log;
 /**
  * Bulk SMS: one message to every active member, staff user and/or the extra
  * numbers saved on the page. A number that appears in more than one group
- * gets the message once.
+ * gets the message once. {name} in the message becomes each person's first
+ * name, so "Hello Dear {name}" reaches JACKSON MUKASA as "Hello Dear Jackson".
  */
 class BulkSmsController extends Controller {
 
@@ -21,18 +22,36 @@ class BulkSmsController extends Controller {
         $groups   = $this->groups();
         $contacts = SmsContact::orderBy('name')->orderBy('phone')->get();
 
-        // How many different numbers each mix of groups reaches, keyed like
-        // "contacts,members", so the page can say exactly how many will get it.
-        $totals = [];
+        // For each mix of groups (keyed like "contacts,members"), how many
+        // people have a first name of each length, so the page can work out
+        // exactly how many SMS a message with {name} costs. "u7" is a 7-letter
+        // name with special characters; "-" is no name.
+        $names = [];
         foreach ([['members'], ['staff'], ['contacts'], ['members', 'staff'], ['contacts', 'members'], ['contacts', 'staff'], ['contacts', 'members', 'staff']] as $mix) {
-            $totals[implode(',', $mix)] = count(array_unique(array_merge(...array_map(fn ($group) => $groups[$group], $mix))));
+            $lengths = [];
+            foreach ($this->recipients($groups, $mix) as $name) {
+                $key = $name === null ? '-' : (preg_match('/[^\x00-\x7F]/', $name) ? 'u' : '') . mb_strlen($name);
+                $lengths[$key] = ($lengths[$key] ?? 0) + 1;
+            }
+            $names[implode(',', $mix)] = $lengths;
         }
 
         return view('backend.bulk_sms.index', [
-            'counts'   => array_map('count', $groups),
-            'totals'   => $totals,
-            'contacts' => $contacts,
+            'counts'     => array_map('count', $groups),
+            'names'      => $names,
+            'sampleName' => collect($groups['members'])->filter()->first() ?? 'Jackson',
+            'contacts'   => $contacts,
+            'unitCost'   => (float) get_option('sms_unit_cost', 0),
         ]);
+    }
+
+    /** What the gateway charges for one SMS, used for the cost estimate. */
+    public function save_cost(Request $request) {
+        $request->validate(['sms_unit_cost' => 'required|numeric|min:0']);
+
+        update_option('sms_unit_cost', $request->sms_unit_cost);
+
+        return redirect()->route('bulk_sms.index')->with('success', _lang('Cost per SMS saved'));
     }
 
     public function send(Request $request) {
@@ -40,9 +59,10 @@ class BulkSmsController extends Controller {
         @set_time_limit(0);
 
         $request->validate([
-            'message'      => 'required|string|max:459',
-            'recipients'   => 'required|array|min:1',
-            'recipients.*' => 'in:members,staff,contacts',
+            'message'       => 'required|string|max:459',
+            'recipients'    => 'required|array|min:1',
+            'recipients.*'  => 'in:members,staff,contacts',
+            'fallback_name' => 'nullable|string|max:30',
         ], [
             'recipients.required' => _lang('Choose who should receive the message'),
         ]);
@@ -51,28 +71,64 @@ class BulkSmsController extends Controller {
             return back()->withInput()->with('error', _lang('Sorry, SMS Gateway is disabled !'));
         }
 
-        $groups  = array_intersect_key($this->groups(), array_flip($request->recipients));
-        $numbers = array_values(array_unique(array_merge(...array_values($groups))));
+        $recipients = $this->recipients($this->groups(), $request->recipients);
 
-        if (empty($numbers)) {
+        if (empty($recipients)) {
             return back()->withInput()->with('error', _lang('There are no phone numbers to send to'));
         }
+
+        // Numbers grouped by the exact text they get, so people with the same
+        // first name (or everyone, when there's no {name}) go in one batch.
+        $fallback = trim((string) $request->fallback_name);
+        $messages = [];
+        foreach ($recipients as $number => $name) {
+            $text = trim(str_ireplace('{name}', $name ?? $fallback, $request->message));
+            $messages[$text][] = $number;
+        }
+
+        $smsCount = 0;
+        foreach ($messages as $text => $numbers) {
+            $smsCount += count($numbers) * self::smsParts($text);
+        }
+        $cost = $smsCount * (float) get_option('sms_unit_cost', 0);
 
         Log::channel('daily')->info('Bulk SMS: sending', [
             'user_id'    => Auth::id(),
             'recipients' => $request->recipients,
-            'count'      => count($numbers),
+            'count'      => count($recipients),
+            'sms'        => $smsCount,
+            'cost'       => $cost,
         ]);
 
         try {
-            app(SmsHelper::class)->sendMany($numbers, $request->message);
+            $sms = app(SmsHelper::class);
+            foreach ($messages as $text => $numbers) {
+                $sms->sendMany($numbers, $text);
+            }
         } catch (\Exception $e) {
             Log::channel('daily')->error('Bulk SMS: failed', ['error' => $e->getMessage()]);
             return back()->withInput()->with('error', _lang('Sorry, Error Occured !'));
         }
 
-        return redirect()->route('bulk_sms.index')
-            ->with('success', _lang('Message sent to') . ' ' . count($numbers) . ' ' . _lang('phone numbers'));
+        $sent = _lang('Message sent to') . ' ' . count($recipients) . ' ' . _lang('phone numbers') . ' (' . $smsCount . ' SMS';
+        if ($cost > 0) {
+            $sent .= ', ' . _lang('about') . ' ' . decimalPlace($cost, currency());
+        }
+
+        return redirect()->route('bulk_sms.index')->with('success', $sent . ')');
+    }
+
+    /**
+     * How many SMS one person is charged for. Plain text fits 160 characters
+     * in one SMS and 153 per part after that; a message with emoji or other
+     * special characters fits 70, then 67 per part. Same rule as the page.
+     */
+    public static function smsParts(string $message): int {
+        $unicode = preg_match('/[^\x00-\x7F]/', $message);
+        $length  = $unicode ? mb_strlen($message) : strlen($message);
+        [$single, $part] = $unicode ? [70, 67] : [160, 153];
+
+        return $length <= $single ? 1 : (int) ceil($length / $part);
     }
 
     /**
@@ -120,28 +176,61 @@ class BulkSmsController extends Controller {
     }
 
     /**
-     * Phone numbers in each group, in +256... form, without repeats.
+     * Each group's phone numbers in +256... form, mapped to the person's
+     * first name (null when there's no name).
      *
-     * @return array{members: string[], staff: string[], contacts: string[]}
+     * @return array{members: array<string, ?string>, staff: array<string, ?string>, contacts: array<string, ?string>}
      */
     private function groups(): array {
         $members = Member::whereNotNull('mobile')->where('mobile', '!=', '')
-            ->get(['mobile', 'country_code'])
-            ->map(fn ($member) => SmsContact::normalize(format_recipient_number($member)));
+            ->get(['first_name', 'business_name', 'mobile', 'country_code'])
+            ->map(fn ($member) => [SmsContact::normalize(format_recipient_number($member)), self::firstName($member->first_name ?: $member->business_name)]);
 
         $staff = User::where('user_type', '!=', 'customer')->where('status', 1)
             ->whereNotNull('phone')->where('phone', '!=', '')
-            ->pluck('phone')
-            ->map(fn ($phone) => SmsContact::normalize($phone));
+            ->get(['name', 'phone'])
+            ->map(fn ($user) => [SmsContact::normalize($user->phone), self::firstName($user->name)]);
 
-        $contacts = SmsContact::pluck('phone');
+        $contacts = SmsContact::get(['name', 'phone'])
+            ->map(fn ($contact) => [$contact->phone, self::firstName($contact->name)]);
 
-        $clean = fn ($numbers) => $numbers->filter()->unique()->values()->all();
+        // The first name found for a number is kept.
+        $clean = fn ($rows) => $rows->filter(fn ($row) => $row[0] !== null)
+            ->reduce(fn ($numbers, $row) => $numbers + [$row[0] => $row[1]], []);
 
         return [
             'members'  => $clean($members),
             'staff'    => $clean($staff),
             'contacts' => $clean($contacts),
         ];
+    }
+
+    /**
+     * Everyone in the chosen groups, each number once. A member's name is
+     * used over a staff user's, and either over an extra number's.
+     *
+     * @return array<string, ?string>
+     */
+    private function recipients(array $groups, array $chosen): array {
+        $recipients = [];
+        foreach (['members', 'staff', 'contacts'] as $group) {
+            if (! in_array($group, $chosen)) {
+                continue;
+            }
+            foreach ($groups[$group] as $number => $name) {
+                if (! array_key_exists($number, $recipients) || $recipients[$number] === null) {
+                    $recipients[$number] = $name;
+                }
+            }
+        }
+
+        return $recipients;
+    }
+
+    /** "JACKSON PETER" -> "Jackson"; names are often typed in capitals. */
+    public static function firstName(?string $name): ?string {
+        $first = preg_split('/\s+/', trim((string) $name))[0];
+
+        return $first === '' ? null : mb_convert_case(mb_strtolower($first), MB_CASE_TITLE);
     }
 }
