@@ -159,6 +159,10 @@ $upcomming_repayments = request_count('upcomming_repayments', true);
 </li>
 
 <li>
+	<a href="{{ route('bulk_sms.index') }}"><i class="fas fa-sms"></i><span>{{ _lang('Bulk SMS') }}</span></a>
+</li>
+
+<li>
     <a href="{{ route('audit_trails.index') }}"><i class="fas fa-shield-alt text-danger"></i><span>{{ _lang('Audit Trails') }} <span class="badge badge-pill badge-danger" style="font-size:9px;vertical-align:middle;">SA</span></span></a>
 </li>
 

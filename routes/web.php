@@ -7,6 +7,7 @@ use App\Http\Controllers\LoanOfficerController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\BranchController;
+use App\Http\Controllers\BulkSmsController;
 use App\Http\Controllers\MemberController;
 use App\Http\Controllers\PhoneOtpController;
 use App\Http\Controllers\ReportController;
@@ -139,6 +140,12 @@ Route::group(['middleware' => ['install']], function () {
                 Route::resource('notification_templates', NotificationTemplateController::class)->only([
                     'index', 'edit', 'update',
                 ]);
+
+                // Bulk SMS
+                Route::get('bulk_sms', [BulkSmsController::class, 'index'])->name('bulk_sms.index');
+                Route::post('bulk_sms/send', [BulkSmsController::class, 'send'])->name('bulk_sms.send');
+                Route::post('bulk_sms/contacts', [BulkSmsController::class, 'store_contacts'])->name('bulk_sms.store_contacts');
+                Route::delete('bulk_sms/contacts/{id}', [BulkSmsController::class, 'destroy_contact'])->name('bulk_sms.destroy_contact');
 
             });
 

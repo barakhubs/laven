@@ -158,6 +158,10 @@ $upcomming_repayments = request_count('upcomming_repayments', true);
 	</ul>
 </li>
 
+<li>
+	<a href="{{ route('bulk_sms.index') }}"><i class="fas fa-sms"></i><span>{{ _lang('Bulk SMS') }}</span></a>
+</li>
+
 {{-- <li>
 	<a href="javascript: void(0);"><i class="ti-settings"></i><span>{{ _lang('System Settings') }}</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
 	<ul class="nav-second-level" aria-expanded="false">

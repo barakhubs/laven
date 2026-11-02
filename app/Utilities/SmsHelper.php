@@ -37,6 +37,28 @@ class SmsHelper {
 		}
 	}
 
+	/**
+	 * Send one message to many numbers. EgoSMS takes up to 100 numbers per
+	 * request; other gateways get one request per number.
+	 */
+	public function sendMany(array $numbers, $message) {
+		$numbers = array_values(array_filter($numbers, fn ($to) => strlen($to) >= 8));
+		if (empty($numbers)) {
+			return;
+		}
+
+		if (get_option('sms_gateway') == 'egosms') {
+			foreach (array_chunk($numbers, 100) as $chunk) {
+				$this->egoSms($chunk, $message);
+			}
+			return;
+		}
+
+		foreach ($numbers as $to) {
+			$this->send($to, $message);
+		}
+	}
+
 	public function twilio($to, $message) {
 		$account_sid   = get_option('twilio_account_sid');
 		$auth_token    = get_option('twilio_auth_token');
@@ -115,7 +137,7 @@ class SmsHelper {
 		$egosms_sender   = get_option('egosms_sender_id');
 
 		// EgoSMS/CommsSDK expects digits only — strip any leading +
-		$to = ltrim($to, '+');
+		$to = array_map(fn ($number) => ltrim($number, '+'), (array) $to);
 
 		Log::channel('daily')->info('SmsHelper [EgoSMS]: preparing request', [
 			'username' => $egosms_username,
@@ -127,7 +149,7 @@ class SmsHelper {
 			ob_start();
 			$sdk = CommsSDK::authenticate($egosms_username, $egosms_password);
 			$sdk = $sdk->withSenderId($egosms_sender);
-			$response = $sdk->querySendSMS([$to], $message, $egosms_sender, '0');
+			$response = $sdk->querySendSMS($to, $message, $egosms_sender, '0');
 			$sdkOutput = ob_get_clean(); // capture what SDK printed
 
 			Log::channel('daily')->info('SmsHelper [EgoSMS]: SDK stdout captured', [
