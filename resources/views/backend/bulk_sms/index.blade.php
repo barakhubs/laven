@@ -23,6 +23,10 @@
 							<label class="custom-control-label" for="to_members">{{ _lang('All active members') }} <span class="text-muted">({{ $counts['members'] }})</span></label>
 						</div>
 						<div class="custom-control custom-checkbox">
+							<input type="checkbox" class="custom-control-input recipient" id="to_loan_clients" name="recipients[]" value="loan_clients" {{ in_array('loan_clients', $checked) ? 'checked' : '' }}>
+							<label class="custom-control-label" for="to_loan_clients">{{ _lang('Only members with active loans') }} <span class="text-muted">({{ $counts['loan_clients'] }})</span></label>
+						</div>
+						<div class="custom-control custom-checkbox">
 							<input type="checkbox" class="custom-control-input recipient" id="to_staff" name="recipients[]" value="staff" {{ in_array('staff', $checked) ? 'checked' : '' }}>
 							<label class="custom-control-label" for="to_staff">{{ _lang('Staff users') }} <span class="text-muted">({{ $counts['staff'] }})</span></label>
 						</div>
@@ -233,6 +237,13 @@
 		box.focus();
 		box.selectionStart = box.selectionEnd = at + 6;
 		refresh();
+	});
+
+	// All members already includes those with loans, so it's one or the other.
+	$('#to_members, #to_loan_clients').on('change', function () {
+		if (this.checked) {
+			$(this.id === 'to_members' ? '#to_loan_clients' : '#to_members').prop('checked', false);
+		}
 	});
 
 	$('#bulk_message, #sms_unit_cost, #fallback_name').on('input', refresh);

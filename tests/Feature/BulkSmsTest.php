@@ -182,6 +182,22 @@ class BulkSmsTest extends TestCase
         $this->assertEqualsCanonicalizing(array_merge($this->memberNumbers(), ['+256799999991', '+256799999992']), $all);
     }
 
+    public function test_loan_clients_are_only_members_with_an_active_loan(): void
+    {
+        $borrowers = \App\Models\Loan::withoutGlobalScopes()->where('status', 1)->pluck('borrower_id')->unique();
+        $expected  = Member::whereIn('id', $borrowers)->whereNotNull('mobile')->where('mobile', '!=', '')->get()
+            ->map(fn ($member) => SmsContact::normalize(format_recipient_number($member)))
+            ->filter()->unique()->values()->all();
+        $this->assertNotEmpty($expected, 'demo data needs members with active loans');
+        $this->assertLessThan(count($this->memberNumbers()), count($expected), 'demo data needs members without active loans too');
+
+        $this->assertEquals(count($expected), $this->get('/admin/bulk_sms')->assertOk()->viewData('counts')['loan_clients']);
+
+        $this->post('/admin/bulk_sms/send', ['message' => 'Hello {name}', 'recipients' => ['loan_clients']])->assertSessionHas('success');
+
+        $this->assertEqualsCanonicalizing($expected, array_merge(...array_column($this->sent, 'numbers')));
+    }
+
     public function test_staff_cannot_open_bulk_sms(): void
     {
         $admin = User::where('user_type', 'superadmin')->firstOrFail();

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Loan;
 use App\Models\Member;
 use App\Models\SmsContact;
 use App\Models\User;
@@ -11,8 +12,8 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Bulk SMS: one message to every active member, staff user and/or the extra
- * numbers saved on the page. A number that appears in more than one group
+ * Bulk SMS: one message to every active member (or only those with an active
+ * loan), staff user and/or the extra numbers saved on the page. A number that appears in more than one group
  * gets the message once. {name} in the message becomes each person's first
  * name, so "Hello Dear {name}" reaches JACKSON MUKASA as "Hello Dear Jackson".
  */
@@ -27,7 +28,7 @@ class BulkSmsController extends Controller {
         // exactly how many SMS a message with {name} costs. "u7" is a 7-letter
         // name with special characters; "-" is no name.
         $names = [];
-        foreach ([['members'], ['staff'], ['contacts'], ['members', 'staff'], ['contacts', 'members'], ['contacts', 'staff'], ['contacts', 'members', 'staff']] as $mix) {
+        foreach (self::mixes(array_keys($groups)) as $mix) {
             $lengths = [];
             foreach ($this->recipients($groups, $mix) as $name) {
                 $key = $name === null ? '-' : (preg_match('/[^\x00-\x7F]/', $name) ? 'u' : '') . mb_strlen($name);
@@ -61,7 +62,7 @@ class BulkSmsController extends Controller {
         $request->validate([
             'message'       => 'required|string|max:459',
             'recipients'    => 'required|array|min:1',
-            'recipients.*'  => 'in:members,staff,contacts',
+            'recipients.*'  => 'in:members,loan_clients,staff,contacts',
             'fallback_name' => 'nullable|string|max:30',
         ], [
             'recipients.required' => _lang('Choose who should receive the message'),
@@ -176,15 +177,35 @@ class BulkSmsController extends Controller {
     }
 
     /**
+     * Every non-empty mix of the groups, each in alphabetical order like the
+     * page sorts the ticked boxes: ['contacts'], ['contacts', 'members'], ...
+     */
+    private static function mixes(array $groups): array {
+        sort($groups);
+        $mixes = [[]];
+        foreach ($groups as $group) {
+            foreach ($mixes as $mix) {
+                $mixes[] = array_merge($mix, [$group]);
+            }
+        }
+
+        return array_slice($mixes, 1);
+    }
+
+    /**
      * Each group's phone numbers in +256... form, mapped to the person's
-     * first name (null when there's no name).
+     * first name (null when there's no name). loan_clients are the active
+     * members who have an active loan, in every branch.
      *
-     * @return array{members: array<string, ?string>, staff: array<string, ?string>, contacts: array<string, ?string>}
+     * @return array{members: array<string, ?string>, loan_clients: array<string, ?string>, staff: array<string, ?string>, contacts: array<string, ?string>}
      */
     private function groups(): array {
         $members = Member::whereNotNull('mobile')->where('mobile', '!=', '')
-            ->get(['first_name', 'business_name', 'mobile', 'country_code'])
-            ->map(fn ($member) => [SmsContact::normalize(format_recipient_number($member)), self::firstName($member->first_name ?: $member->business_name)]);
+            ->get(['id', 'first_name', 'business_name', 'mobile', 'country_code'])
+            ->map(fn ($member) => [SmsContact::normalize(format_recipient_number($member)), self::firstName($member->first_name ?: $member->business_name), $member->id]);
+
+        $borrowers   = Loan::withoutGlobalScopes()->where('status', 1)->distinct()->pluck('borrower_id')->flip();
+        $loanClients = $members->filter(fn ($row) => $borrowers->has($row[2]));
 
         $staff = User::where('user_type', '!=', 'customer')->where('status', 1)
             ->whereNotNull('phone')->where('phone', '!=', '')
@@ -199,9 +220,10 @@ class BulkSmsController extends Controller {
             ->reduce(fn ($numbers, $row) => $numbers + [$row[0] => $row[1]], []);
 
         return [
-            'members'  => $clean($members),
-            'staff'    => $clean($staff),
-            'contacts' => $clean($contacts),
+            'members'      => $clean($members),
+            'loan_clients' => $clean($loanClients),
+            'staff'        => $clean($staff),
+            'contacts'     => $clean($contacts),
         ];
     }
 
@@ -213,7 +235,7 @@ class BulkSmsController extends Controller {
      */
     private function recipients(array $groups, array $chosen): array {
         $recipients = [];
-        foreach (['members', 'staff', 'contacts'] as $group) {
+        foreach (['members', 'loan_clients', 'staff', 'contacts'] as $group) {
             if (! in_array($group, $chosen)) {
                 continue;
             }
