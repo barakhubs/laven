@@ -43,7 +43,7 @@
 
 			<div class="card-body">
 				<div class="table-responsive">
-					<table class="table table-bordered table-striped">
+					<table class="table table-bordered table-striped" id="officer_clients_table">
 						<thead>
 							<tr>
 								<th>{{ _lang('Client') }}</th>
@@ -56,7 +56,7 @@
 								<th class="text-right">{{ _lang('Fees Earned') }}</th>
 								<th class="text-right">{{ _lang('Interest & Penalties') }}</th>
 								<th class="text-right">{{ _lang('Total Profit Generated') }}</th>
-								<th class="text-center">{{ _lang('Action') }}</th>
+								<th class="text-center no-export">{{ _lang('Action') }}</th>
 							</tr>
 						</thead>
 						<tbody>
@@ -82,7 +82,7 @@
 										$barClass = $rate >= 90 ? 'bg-success' : ($rate >= 50 ? 'bg-warning' : 'bg-danger');
 									@endphp
 									<div class="d-flex align-items-center">
-										<div class="progress flex-grow-1 mr-2" style="height: 8px;">
+										<div class="progress flex-grow-1 mr-2 export-hidden" style="height: 8px;">
 											<div class="progress-bar {{ $barClass }}" role="progressbar" style="width: {{ min($rate, 100) }}%;"></div>
 										</div>
 										<small class="text-nowrap">{{ number_format($rate, 1) }}%</small>
@@ -91,12 +91,12 @@
 								</td>
 								<td class="text-right {{ $row['due'] > 0 ? 'text-danger' : '' }}">
 									{{ number_format($row['due'], 2) }}
-									<br><small class="text-muted">{{ _lang('overdue') }}</small>
+									<br><small class="text-muted export-hidden">{{ _lang('overdue') }}</small>
 								</td>
 								<td class="text-right">{{ number_format($row['fees'], 2) }}</td>
 								<td class="text-right">{{ number_format($row['interest'], 2) }}</td>
 								<td class="text-right"><strong>{{ number_format($row['profit'], 2) }}</strong></td>
-								<td class="text-center">
+								<td class="text-center no-export">
 									<a href="{{ route('members.show', $row['member']->id) }}" class="btn btn-primary btn-xs">
 										{{ _lang('View') }}
 									</a>
@@ -122,12 +122,12 @@
 								</td>
 								<td class="text-right">
 									{{ number_format($totals['due'], 2) }}
-									<br><small class="text-muted font-weight-normal">{{ _lang('overdue') }}</small>
+									<br><small class="text-muted font-weight-normal export-hidden">{{ _lang('overdue') }}</small>
 								</td>
 								<td class="text-right">{{ number_format($totals['fees'], 2) }}</td>
 								<td class="text-right">{{ number_format($totals['interest'], 2) }}</td>
 								<td class="text-right">{{ number_format($totals['profit'], 2) }}</td>
-								<td></td>
+								<td class="no-export"></td>
 							</tr>
 						</tfoot>
 						@endif
@@ -144,4 +144,51 @@
 
 @section('js-script')
 @include('backend.loan_officer._date_filter_script')
+@if(count($rows) > 0)
+<script>
+(function ($) {
+	"use strict";
+
+	// Copy / Excel / PDF / Print of the client list, Total row included.
+	// Exports leave out the Action column and on-screen extras (progress
+	// bar, "overdue" labels) marked .export-hidden.
+	var title = @json(_lang('Clients of') . ' ' . $officer->name . ' — ' . ($date1 && $date2 ? $date1 . ' to ' . $date2 : _lang('All Time')));
+	var clean = function (data) {
+		var $cell = $('<div>').html(data);
+		$cell.find('.export-hidden').remove();
+		$cell.find('br').replaceWith(' ');
+		return $.trim($cell.text().replace(/\s+/g, ' '));
+	};
+	var exportOptions = { columns: ':not(.no-export)', format: { body: clean, footer: clean } };
+
+	$('#officer_clients_table').DataTable({
+		paging: false,
+		ordering: false,
+		info: false,
+		bAutoWidth: false,
+		dom: "<'row'<'col-sm-12 col-md-6'B><'col-sm-12 col-md-6'f>>" + "<'row'<'col-sm-12'tr>>",
+		language: {
+			search: $lang_search,
+			zeroRecords: $lang_no_matching_records_found,
+			buttons: { copy: $lang_copy, excel: $lang_excel, pdf: $lang_pdf, print: $lang_print },
+		},
+		buttons: [
+			{ extend: 'copy', title: title, footer: true, exportOptions: exportOptions },
+			{ extend: 'excel', title: title, footer: true, exportOptions: exportOptions },
+			{ extend: 'pdf', title: title, footer: true, orientation: 'landscape', exportOptions: exportOptions },
+			{
+				extend: 'print',
+				title: title,
+				footer: true,
+				exportOptions: exportOptions,
+				customize: function (win) {
+					$(win.document.body).css('font-size', '10pt').find('table').addClass('compact').css('font-size', 'inherit');
+				},
+			},
+		],
+	});
+
+})(jQuery);
+</script>
+@endif
 @endsection
