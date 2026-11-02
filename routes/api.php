@@ -28,6 +28,9 @@ Route::prefix('v1')->middleware('app.version')->group(function () {
         Route::post('register',        [AuthController::class, 'register'])->name('register');
         Route::post('forgot-password', [AuthController::class, 'forgotPassword'])->name('forgot-password');
         Route::post('reset-password',  [AuthController::class, 'resetPassword'])->name('reset-password');
+        // Members: sign in with a code sent to their phone instead of a password.
+        Route::post('code/send',       [AuthController::class, 'sendLoginCode'])->name('code.send');
+        Route::post('code/verify',     [AuthController::class, 'verifyLoginCode'])->name('code.verify');
     });
 
     Route::prefix('auth')->name('api.auth.')->middleware('auth:sanctum')->group(function () {

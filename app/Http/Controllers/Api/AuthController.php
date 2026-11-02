@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Models\Member;
 use App\Models\User;
 use App\Notifications\TwoFactorCode;
+use App\Services\MemberOtpLogin;
+use App\Services\MemberOtpLoginException;
 use App\Services\PhoneLogin;
 use App\Utilities\Overrider;
 use Illuminate\Http\Request;
@@ -100,6 +102,71 @@ class AuthController extends ApiController
             'two_fa_verified' => $twoFaVerified,
             'user'            => $this->formatUser($user),
         ], $twoFaEnabled ? 'OTP sent to your email address.' : 'Login successful.');
+    }
+
+    // ----------------------------------------------------------------
+    // POST /api/v1/auth/code/send   { phone }
+    // Members only: texts a 6-digit sign-in code to their phone.
+    // ----------------------------------------------------------------
+    public function sendLoginCode(Request $request)
+    {
+        $validator = Validator::make($request->all(), ['phone' => 'required|string|max:30']);
+        if ($validator->fails()) {
+            return $this->error('Validation failed', 'VALIDATION_ERROR', $validator->errors()->toArray());
+        }
+
+        try {
+            $sent = MemberOtpLogin::send(MemberOtpLogin::member($request->phone), $request->ip());
+        } catch (MemberOtpLoginException $e) {
+            return $this->codeError($e);
+        }
+
+        return $this->success($sent, 'We sent a 6-digit code to ' . $sent['sent_to'] . '.');
+    }
+
+    // ----------------------------------------------------------------
+    // POST /api/v1/auth/code/verify   { phone, code, device_name }
+    // Signs the member in; the response is the same as /auth/login's.
+    // ----------------------------------------------------------------
+    public function verifyLoginCode(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'phone'       => 'required|string|max:30',
+            'code'        => 'required|string|max:10',
+            'device_name' => 'required|string|max:191',
+        ]);
+        if ($validator->fails()) {
+            return $this->error('Validation failed', 'VALIDATION_ERROR', $validator->errors()->toArray());
+        }
+
+        try {
+            $user = MemberOtpLogin::verify(MemberOtpLogin::member($request->phone), $request->code);
+        } catch (MemberOtpLoginException $e) {
+            return $this->codeError($e);
+        }
+
+        $user->tokens()->where('name', $request->device_name)->delete();
+        $token = $user->createToken($request->device_name, ['*']);
+        // The code already proved they have the phone, so no second code is needed.
+        $token->accessToken->forceFill(['two_fa_verified' => true])->save();
+
+        return $this->success([
+            'access_token'    => $token->plainTextToken,
+            'token_type'      => 'Bearer',
+            'requires_2fa'    => false,
+            'two_fa_verified' => true,
+            'user'            => $this->formatUser($user),
+        ], 'Login successful.');
+    }
+
+    private function codeError(MemberOtpLoginException $e)
+    {
+        $response = $this->error($e->getMessage(), $e->errorCode, [], $e->status);
+        if ($e->retryAfter) {
+            $response->setData(array_merge($response->getData(true), ['retry_after' => $e->retryAfter]));
+        }
+
+        return $response;
     }
 
     // ----------------------------------------------------------------

@@ -197,6 +197,17 @@
 
 								<div class="col-md-6">
 								  	<div class="form-group">
+										<label class="control-label">{{ _lang('Members Sign In with SMS Code') }}</label>
+										<select class="form-control" name="member_otp_login">
+											<option value="1" {{ get_setting($settings, 'member_otp_login', '1') == '1' ? 'selected' : '' }}>{{ _lang('Enabled') }}</option>
+											<option value="0" {{ get_setting($settings, 'member_otp_login', '1') == '0' ? 'selected' : '' }}>{{ _lang('Disabled') }}</option>
+										</select>
+										<small class="form-text text-muted">{{ _lang('Members can type their phone number and get a code by SMS instead of using a password, on the website and the app. Each code is one SMS. Needs an SMS gateway. Staff always use a password.') }}</small>
+								  	</div>
+								</div>
+
+								<div class="col-md-6">
+								  	<div class="form-group">
 										<label class="control-label">{{ _lang('Penalty Pause After a Payment (days)') }}</label>
 										<input type="number" min="0" max="30" class="form-control" name="penalty_pause_days" value="{{ get_setting($settings, 'penalty_pause_days', 3) }}">
 										<small class="form-text text-muted">{{ _lang('A payment of at least 25% of what is overdue that clears the penalty owed stops penalty for this many days. 0 turns it off. Applies to new payments only.') }}</small>

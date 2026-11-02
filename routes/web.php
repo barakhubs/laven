@@ -21,6 +21,7 @@ use App\Http\Controllers\LanguageController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\GuarantorController;
 use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\Auth\CodeLoginController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\Auth\SocialController;
 use App\Http\Controllers\BankAccountController;
@@ -60,6 +61,11 @@ Route::group(['middleware' => ['install']], function () {
 
     Auth::routes();
     Route::get('/logout', [LoginController::class, 'logout']);
+
+    // Members: sign in with a code sent to their phone instead of a password.
+    Route::post('login/code/send', [CodeLoginController::class, 'send'])->middleware('throttle:10,1')->name('login.code.send');
+    Route::get('login/code', [CodeLoginController::class, 'show'])->name('login.code');
+    Route::post('login/code', [CodeLoginController::class, 'verify'])->middleware('throttle:10,1')->name('login.code.verify');
 
     Route::get('verify_2fa/resend', [TwoFactorController::class, 'resend'])->name('verify_2fa.resend');
     Route::get('verify_2fa', [TwoFactorController::class, 'index'])->name('verify_2fa.index');

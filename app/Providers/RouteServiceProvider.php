@@ -28,7 +28,7 @@ class RouteServiceProvider extends ServiceProvider
             return Limit::perMinute(60)->by($request->user()?->id ?: $request->ip());
         });
 
-        // Sign-in, password reset and email codes: slows password guessing and code spam.
+        // Sign-in, password reset, SMS sign-in codes and email codes: slows password guessing and code spam.
         // 5 tries a minute per account from one address, 20 a minute per address overall.
         RateLimiter::for('auth', function (Request $request) {
             $tooMany = fn (Request $request, array $headers) => response()->json([
@@ -38,7 +38,7 @@ class RouteServiceProvider extends ServiceProvider
             ], 429, $headers);
 
             return [
-                Limit::perMinute(5)->by('auth:' . strtolower((string) $request->input('email', $request->user()?->id)) . '|' . $request->ip())->response($tooMany),
+                Limit::perMinute(5)->by('auth:' . strtolower((string) ($request->input('email') ?? $request->input('login') ?? $request->input('phone') ?? $request->user()?->id)) . '|' . $request->ip())->response($tooMany),
                 Limit::perMinute(20)->by('auth-ip:' . $request->ip())->response($tooMany),
             ];
         });
