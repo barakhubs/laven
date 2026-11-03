@@ -97,6 +97,7 @@
             <li class="nav-item"><a class="nav-link" data-toggle="tab" href="#transaction-history"><i class="ti-view-list-alt"></i>&nbsp;{{ _lang('Transactions') }}</a></li>
             <li class="nav-item"><a class="nav-link" data-toggle="tab" href="#kyc_documents"><i class="ti-files"></i>&nbsp;{{ _lang('KYC Documents') }}</a></li>
             @unless($portal)
+            <li class="nav-item"><a class="nav-link" data-toggle="tab" href="#calls"><i class="ti-headphone-alt"></i>&nbsp;{{ _lang('Calls') }}@if(isset($calls) && $calls->count()) <span class="badge badge-light border">{{ $calls->count() }}</span>@endif</a></li>
             <li class="nav-item"><a class="nav-link" data-toggle="tab" href="#email"><i class="ti-email"></i>&nbsp;{{ _lang('Send Email') }}</a></li>
             <li class="nav-item"><a class="nav-link" data-toggle="tab" href="#sms"><i class="ti-comment-alt"></i>&nbsp;{{ _lang('Send SMS') }}</a></li>
             @else
@@ -566,6 +567,18 @@
             </div>
 
             @unless($portal)
+            {{-- TAB: CALLS (staff only) --}}
+            @if(! $portal && isset($calls))
+            <div id="calls" class="tab-pane">
+                <div class="card">
+                    <div class="card-header"><span class="header-title">{{ _lang('Calls') }}</span></div>
+                    <div class="card-body">
+                        @include('backend.loan_call.partials.history', ['member' => $member, 'loanId' => null])
+                    </div>
+                </div>
+            </div>
+            @endif
+
             {{-- TAB: SEND EMAIL --}}
             <div id="email" class="tab-pane">
                 <div class="card">

@@ -25,6 +25,7 @@
 						<th>{{ _lang('Member No') }}</th>
 						<th>{{ _lang('Member') }}</th>
 						<th class="text-right">{{ _lang('Total Due Amount') }}</th>
+						<th class="no-export">{{ _lang('Last Call') }}</th>
 					</thead>
 					<tbody>
 					@if(isset($report_data))
@@ -33,7 +34,8 @@
 								<td><a href="{{ route('loans.show', $repayment->loan_id) }}" target="_blank">{{ $repayment->loan->loan_id }}</a></td>
 								<td><a href="{{ route('members.show', $repayment->loan->borrower_id) }}" target="_blank">{{ $repayment->loan->borrower->member_no }}</a></td>
 								<td data-search="{{ member_search_text($repayment->loan->borrower) }}">{{ $repayment->loan->borrower->name }}</td>
-								<td class="text-right">{{ decimalPlace($repayment->total_due, currency($repayment->loan->currency->name)) }}</td>						
+								<td class="text-right">{{ decimalPlace($repayment->total_due, currency($repayment->loan->currency->name)) }}</td>
+								<td class="no-export">@include('backend.loan_call.partials.cell', ['status' => $callStatus[$repayment->loan->borrower_id] ?? [], 'memberId' => $repayment->loan->borrower_id, 'loanId' => $repayment->loan_id, 'name' => $repayment->loan->borrower->name])</td>
 							</tr>
 						@endforeach
 					@endif

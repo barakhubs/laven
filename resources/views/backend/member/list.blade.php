@@ -23,6 +23,7 @@
 							<th>{{ _lang('Last Name') }}</th>
 							<th>{{ _lang('Mobile') }}</th>
 							<th>{{ _lang('Loan Summary') }}</th>
+							<th>{{ _lang('Last Call') }}</th>
 						    <th class="text-center">{{ _lang('Action') }}</th>
 					    </tr>
 					</thead>
@@ -52,6 +53,7 @@
 			{ data : 'last_name', name : 'last_name' },
 			{ data : 'mobile', name : 'mobile' },
 			{ data : 'loan_summary', name : 'loan_summary', orderable: false, searchable: false },
+			{ data : 'last_call', name : 'last_call', orderable: false, searchable: false },
 			{ data : "action", name : "action" },
 		],
 		responsive: true,

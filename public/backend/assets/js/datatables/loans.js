@@ -36,6 +36,7 @@
       { data: "duration", name: "duration", "defaultContent": "" },
       { data: "applied_amount", name: "applied_amount" },
       { data: "status", name: "status" },
+      { data: "last_call", name: "last_call", orderable: false, searchable: false },
       { data: "action", name: "action" },
     ],
     responsive: true,

@@ -455,6 +455,7 @@ class LoanOfficerController extends Controller
         return view('backend.loan_officer.show', [
             'officer' => $officer,
             'rows'    => $rows,
+            'callStatus' => \App\Models\LoanCall::statusFor(array_map(fn ($row) => $row['member']->id, $rows)),
             'totals'  => [
                 'loans'         => array_sum(array_column($rows, 'loans')),
                 'disbursed'     => $totalDisbursed,

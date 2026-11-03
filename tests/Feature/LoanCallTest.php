@@ -50,7 +50,7 @@ class LoanCallTest extends TestCase
 
     private function logCall(Loan $loan, array $data)
     {
-        return $this->postJson("/admin/loans/{$loan->id}/calls", $data, ['X-Requested-With' => 'XMLHttpRequest']);
+        return $this->postJson('/admin/calls', $data + ['member_id' => $loan->borrower_id, 'loan_id' => $loan->id], ['X-Requested-With' => 'XMLHttpRequest']);
     }
 
     private function row(Loan $loan)
@@ -129,5 +129,76 @@ class LoanCallTest extends TestCase
         $this->actingAs($staff);
         $this->logCall($loan, ['outcome' => LoanCall::NO_ANSWER]);
         $this->assertSame(0, LoanCall::where('member_id', $loan->borrower_id)->count());
+    }
+
+    private function logGeneralCall(Loan $loan, array $data)
+    {
+        return $this->postJson('/admin/calls', $data + ['member_id' => $loan->borrower_id], ['X-Requested-With' => 'XMLHttpRequest']);
+    }
+
+    public function test_general_call_is_recorded_without_locking_or_unlocking(): void
+    {
+        $loan = $this->loan();
+
+        // A general call never locks...
+        $this->actingAs($this->staff());
+        $this->logGeneralCall($loan, ['outcome' => LoanCall::REACHED, 'note' => 'Welcome call'])->assertJson(['result' => 'success']);
+        $call = LoanCall::where('member_id', $loan->borrower_id)->latest('id')->first();
+        $this->assertSame(LoanCall::GENERAL, $call->type);
+        $this->assertNull($call->loan_id);
+        $this->assertNull($call->locked_until);
+        $this->assertFalse($this->row($loan)->locked);
+        $this->assertSame(LoanCall::REACHED, $this->row($loan)->last_call->outcome);
+
+        // ...collection outcomes aren't allowed on it.
+        $this->logGeneralCall($loan, ['outcome' => LoanCall::PROMISED, 'promise_date' => Carbon::tomorrow()->toDateString()])->assertJson(['result' => 'error']);
+
+        // A collection call locks; a general call after it doesn't end the lock,
+        // and a locked-out staff member can still log one.
+        $this->logCall($loan, ['outcome' => LoanCall::REFUSED])->assertJson(['result' => 'success']);
+        $this->actingAs($this->staff());
+        $this->logCall($loan, ['outcome' => LoanCall::NO_ANSWER])->assertJson(['result' => 'error']);
+        $this->logGeneralCall($loan, ['outcome' => LoanCall::NO_ANSWER])->assertJson(['result' => 'success']);
+        $row = $this->row($loan);
+        $this->assertTrue($row->locked);
+        $this->assertTrue($row->last_call->isGeneral());
+    }
+
+    public function test_a_call_cannot_be_about_someone_elses_loan(): void
+    {
+        $loan  = $this->loan();
+        $other = Loan::withoutGlobalScopes()->where('status', 1)->where('borrower_id', '!=', $loan->borrower_id)->firstOrFail();
+
+        $this->postJson('/admin/calls', ['member_id' => $loan->borrower_id, 'loan_id' => $other->id, 'outcome' => LoanCall::NO_ANSWER], ['X-Requested-With' => 'XMLHttpRequest'])
+            ->assertJson(['result' => 'error']);
+        $this->assertSame(0, LoanCall::where('member_id', $loan->borrower_id)->count());
+    }
+
+    public function test_call_column_and_history_show_on_client_lists_and_details_pages(): void
+    {
+        $loan = $this->loan();
+        $this->logCall($loan, ['outcome' => LoanCall::NO_ANSWER, 'note' => 'Rang twice'])->assertJson(['result' => 'success']);
+        $member = $loan->borrower_id;
+
+        // The popup opens from a loan or from a client.
+        $this->get('/admin/calls/create?loan_id=' . $loan->id, ['X-Requested-With' => 'XMLHttpRequest'])->assertOk()->assertSee('General (not about a loan)');
+        $this->get('/admin/calls/create?member_id=' . $member, ['X-Requested-With' => 'XMLHttpRequest'])->assertOk()->assertSee($loan->loan_id);
+
+        // Details pages: a Calls tab with the history.
+        $this->get("/admin/loans/{$loan->id}?tab=calls")->assertOk()->assertSee('id="calls"', false)->assertSee('Rang twice');
+        $this->get("/admin/members/{$member}?tab=calls")->assertOk()->assertSee('id="calls"', false)->assertSee('Rang twice');
+
+        // Server-side lists carry the call column.
+        $members = $this->getJson('/admin/members/get_table_data?draw=1&start=0&length=100', ['X-Requested-With' => 'XMLHttpRequest'])->assertOk()->json('data');
+        $this->assertStringContainsString('No answer', collect($members)->firstWhere('id', $member)['last_call']);
+        $loans = $this->postJson('/admin/loans/get_table_data', ['draw' => 1, 'start' => 0, 'length' => 100], ['X-Requested-With' => 'XMLHttpRequest'])->assertOk()->json('data');
+        $this->assertStringContainsString('calls/create?loan_id=' . $loan->id, collect($loans)->firstWhere('id', $loan->id)['last_call']);
+
+        // The other lists render with the button (one installment due in 3 days for Upcoming).
+        $next = LoanRepayment::withoutGlobalScopes()->where('loan_id', $loan->id)->where('status', 0)->orderBy('id')->skip(1)->first();
+        LoanRepayment::withoutGlobalScopes()->where('id', $next->id)->update(['repayment_date' => Carbon::today()->addDays(3)->toDateString()]);
+        foreach (['/admin/loans/upcoming_loan_repayments', '/admin/reports/loan_due_report'] as $url) {
+            $this->get($url)->assertOk()->assertSee('Log call');
+        }
     }
 }

@@ -100,6 +100,9 @@
 									<a href="{{ route('members.show', $row['member']->id) }}" class="btn btn-primary btn-xs">
 										{{ _lang('View') }}
 									</a>
+									<div class="text-left mt-1" style="min-width: 140px;">
+										@include('backend.loan_call.partials.cell', ['status' => $callStatus[$row['member']->id] ?? [], 'memberId' => $row['member']->id, 'name' => $row['member']->first_name . ' ' . $row['member']->last_name])
+									</div>
 								</td>
 							</tr>
 							@empty

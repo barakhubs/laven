@@ -30,6 +30,7 @@
 							<th>{{ _lang('Duration') }}</th>
 							<th>{{ _lang('Applied Amount') }}</th>
 							<th>{{ _lang('Status') }}</th>
+							<th>{{ _lang('Last Call') }}</th>
 							<th class="text-center">{{ _lang('Action') }}</th>
 						</tr>
 					</thead>
@@ -43,5 +44,5 @@
 @endsection
 
 @section('js-script')
-<script src="{{ asset('backend/assets/js/datatables/loans.js?v=1.0') }}"></script>
+<script src="{{ asset('backend/assets/js/datatables/loans.js?v=1.1') }}"></script>
 @endsection

@@ -141,7 +141,6 @@
                             </tr>
                         </thead>
                         <tbody>
-                        @php $canCall = auth()->user()->isAdmin() || has_permission('loan_calls.create'); @endphp
                         @foreach($rows as $row)
                         @php
                             $repayment = $row->repayment;
@@ -248,24 +247,7 @@
                             </td>
 
                             <td class="align-middle" data-order="{{ $row->locked ? 1 : 0 }}">
-                                @if($call = $row->last_call)
-                                    <span class="font-weight-semibold">{{ $call->outcomeLabel() }}</span>
-                                    @if($call->promise_date)
-                                        &mdash; {{ _lang('pay on') }} {{ $call->promise_date->format(get_date_format()) }}
-                                    @endif
-                                    <br><small class="text-muted">{{ $call->created_by->name }}, {{ $call->created_at->diffForHumans() }}</small>
-                                    @if($row->locked)
-                                        <br><small class="text-nowrap"><i class="ti-lock export-hidden"></i> {{ _lang('Next call from') }} {{ $call->nextCallLabel() }}</small>
-                                    @endif
-                                @else
-                                    <span class="text-muted">{{ _lang('Not called') }}</span>
-                                @endif
-                                @if($canCall && (! $row->locked || auth()->user()->isAdmin()))
-                                    <br><a href="{{ route('loan_calls.create', $loan->id) }}" class="btn btn-xs {{ $row->locked ? 'btn-outline-secondary' : 'btn-outline-primary' }} ajax-modal export-hidden mt-1"
-                                           data-title="{{ _lang('Log Call') }}: {{ $member->name }}">
-                                        <i class="ti-headphone-alt mr-1"></i>{{ _lang('Log call') }}
-                                    </a>
-                                @endif
+                                @include('backend.loan_call.partials.cell', ['status' => $row->call_status, 'memberId' => $member->id, 'loanId' => $loan->id, 'name' => $member->name])
                             </td>
 
                             <td class="align-middle text-center no-export">

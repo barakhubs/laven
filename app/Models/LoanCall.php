@@ -6,12 +6,20 @@ use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * A call to a client about money due on a loan. While locked_until is in the
- * future the client is greyed out on Due Payments and only an admin can log
- * another call, so two staff don't chase the same person within hours.
+ * A call to a client, logged from any client list.
+ *
+ * A 'collection' call is about money due on a loan. While its locked_until
+ * is in the future the client is greyed out on Due Payments and only an
+ * admin can log another collection call, so two staff don't chase the same
+ * person within hours. A 'general' call (no loan) is only recorded: it
+ * never locks the client, and never ends a lock.
  */
 class LoanCall extends Model
 {
+    const COLLECTION = 'collection';
+    const GENERAL    = 'general';
+
+    const REACHED      = 'reached';
     const PROMISED     = 'promised';
     const NO_ANSWER    = 'no_answer';
     const WRONG_NUMBER = 'wrong_number';
@@ -26,8 +34,18 @@ class LoanCall extends Model
         'locked_until' => 'datetime',
     ];
 
-    public static function outcomes(): array
+    /** Outcomes for a call of $type (collection by default). */
+    public static function outcomes(?string $type = self::COLLECTION): array
     {
+        if ($type === self::GENERAL) {
+            return [
+                self::REACHED      => _lang('Spoke to client'),
+                self::NO_ANSWER    => _lang('No answer'),
+                self::WRONG_NUMBER => _lang('Wrong number'),
+                self::CALL_BACK    => _lang('Call back later'),
+            ];
+        }
+
         return [
             self::PROMISED     => _lang('Promised to pay'),
             self::NO_ANSWER    => _lang('No answer'),
@@ -72,9 +90,25 @@ class LoanCall extends Model
         return $this->belongsTo(User::class, 'created_user_id')->withDefault();
     }
 
+    public function member()
+    {
+        return $this->belongsTo(Member::class, 'member_id')->withoutGlobalScopes()->withDefault();
+    }
+
     public function outcomeLabel(): string
     {
-        return self::outcomes()[$this->outcome] ?? $this->outcome;
+        return (self::outcomes(self::COLLECTION) + self::outcomes(self::GENERAL))[$this->outcome] ?? $this->outcome;
+    }
+
+    public function isGeneral(): bool
+    {
+        return $this->type === self::GENERAL;
+    }
+
+    /** The client's latest collection call: the one that decides the lock. */
+    public static function lockingCallFor($memberId): ?self
+    {
+        return static::with('created_by')->where('member_id', $memberId)->where('type', self::COLLECTION)->orderByDesc('id')->first();
     }
 
     public function isLocked(): bool
@@ -88,18 +122,56 @@ class LoanCall extends Model
         return $this->locked_until->format($this->locked_until->isStartOfDay() ? get_date_format() : get_date_format() . ' ' . get_time_format());
     }
 
-    /** Latest call per member, keyed by member_id. */
-    public static function latestFor($memberIds)
+    /**
+     * Latest call per member, keyed by member_id; $type limits it to
+     * collection or general calls. Two queries for any number of members.
+     */
+    public static function latestFor($memberIds, ?string $type = null)
     {
-        $memberIds = collect($memberIds)->unique()->values();
+        $memberIds = collect($memberIds)->filter()->unique()->values();
         if ($memberIds->isEmpty()) {
             return collect();
         }
 
-        return static::with('created_by')
-            ->whereIn('member_id', $memberIds)
-            ->whereIn('id', static::selectRaw('MAX(id)')->whereIn('member_id', $memberIds)->groupBy('member_id'))
+        return static::with(['created_by', 'loan'])
+            ->whereIn('id', static::selectRaw('MAX(id)')->whereIn('member_id', $memberIds)
+                ->when($type, fn ($q) => $q->where('type', $type))->groupBy('member_id'))
             ->get()
             ->keyBy('member_id');
+    }
+
+    /** statusFor() for one member with lastCall and lastCollectionCall loaded. */
+    public static function statusOf(Member $member): array
+    {
+        $lock = $member->lastCollectionCall;
+
+        return [
+            'last'   => $member->lastCall,
+            'lock'   => $lock && $lock->isLocked() ? $lock : null,
+            'locked' => $lock && $lock->isLocked(),
+        ];
+    }
+
+    /**
+     * What a client list shows in its call column, per member: the latest
+     * call of any kind ('last') and whether a collection call locks them
+     * ('locked', with 'lock' the call that does).
+     */
+    public static function statusFor($memberIds): array
+    {
+        $last  = static::latestFor($memberIds);
+        $locks = static::latestFor($memberIds, self::COLLECTION);
+
+        $status = [];
+        foreach (collect($memberIds)->filter()->unique() as $id) {
+            $lock        = $locks->get($id);
+            $status[$id] = [
+                'last'   => $last->get($id),
+                'lock'   => $lock && $lock->isLocked() ? $lock : null,
+                'locked' => $lock && $lock->isLocked(),
+            ];
+        }
+
+        return $status;
     }
 }

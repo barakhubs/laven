@@ -48,7 +48,7 @@ class LoanController extends Controller {
 
     public function get_table_data(Request $request) {
         $loans = Loan::select('loans.*')
-            ->with('borrower')
+            ->with(['borrower', 'borrower.lastCall.created_by', 'borrower.lastCollectionCall'])
             ->with('currency')
             ->with('loan_product')
             ->orderBy("loans.id", "desc");
@@ -114,7 +114,15 @@ class LoanController extends Controller {
             ->setRowId(function ($loan) {
                 return "row_" . $loan->id;
             })
-            ->rawColumns(['status', 'action'])
+            ->addColumn('last_call', function ($loan) {
+                return view('backend.loan_call.partials.cell', [
+                    'status'   => \App\Models\LoanCall::statusOf($loan->borrower),
+                    'memberId' => $loan->borrower_id,
+                    'loanId'   => $loan->status == 1 ? $loan->id : null,
+                    'name'     => $loan->borrower->name,
+                ])->render();
+            })
+            ->rawColumns(['status', 'action', 'last_call'])
             ->make(true);
     }
 
@@ -377,7 +385,10 @@ class LoanController extends Controller {
             }
         }
 
-        return view('backend.loan.view', compact('loan', 'loancollaterals', 'repayments', 'payments', 'guarantors', 'customFields', 'reserve', 'reserveCoverage', 'graces', 'canGrace', 'paidInto', 'projected', 'verification'));
+        // Every call to this client (this loan's and any others).
+        $calls = \App\Models\LoanCall::with(['created_by', 'loan.currency'])->where('member_id', $loan->borrower_id)->orderByDesc('id')->get();
+
+        return view('backend.loan.view', compact('loan', 'loancollaterals', 'repayments', 'payments', 'guarantors', 'customFields', 'reserve', 'reserveCoverage', 'graces', 'canGrace', 'paidInto', 'projected', 'verification', 'calls'));
 
     }
 
@@ -798,8 +809,9 @@ class LoanController extends Controller {
             ->orderBy('repayment_date')
             ->orderBy('id')
             ->get();
+        $callStatus = \App\Models\LoanCall::statusFor($loanRepayments->map(fn ($r) => $r->loan->borrower_id));
 
-        return view('backend.loan.upcoming_loan_repayments', compact('loanRepayments', 'startDate', 'endDate'));
+        return view('backend.loan.upcoming_loan_repayments', compact('loanRepayments', 'startDate', 'endDate', 'callStatus'));
 
     }
 
@@ -936,12 +948,13 @@ class LoanController extends Controller {
         return $row;
     });
 
-    // Each client's latest call; a client called recently is locked so
-    // nobody else calls them (see LoanCall::lockUntil).
-    $lastCalls = \App\Models\LoanCall::latestFor($rows->map(fn ($row) => $row->loan->borrower_id));
-    $rows->each(function ($row) use ($lastCalls) {
-        $row->last_call = $lastCalls->get($row->loan->borrower_id);
-        $row->locked    = $row->last_call && $row->last_call->isLocked();
+    // Each client's latest call; a client called about money due recently is
+    // locked so nobody else calls them (see LoanCall::lockUntil).
+    $callStatus = \App\Models\LoanCall::statusFor($rows->map(fn ($row) => $row->loan->borrower_id));
+    $rows->each(function ($row) use ($callStatus) {
+        $row->call_status = $callStatus[$row->loan->borrower_id] ?? [];
+        $row->last_call   = $row->call_status['last'] ?? null;
+        $row->locked      = $row->call_status['locked'] ?? false;
     });
 
     $onGraceCount = $rows->filter(fn ($row) => $row->grace)->count();

@@ -22,6 +22,7 @@
                         <th class="text-right">{{ _lang("Late Penalty") }}</th>
                         <th class="text-right">{{ _lang("Balance") }}</th>
                         <th class="text-center">{{ _lang("Status") }}</th>
+                        <th>{{ _lang("Last Call") }}</th>
                     </thead>
                     <tbody>
                     @foreach($loanRepayments as $repayment)
@@ -52,6 +53,9 @@
                             @else
                             {!! xss_clean(show_status(_lang('Paid'),'success')) !!}
                             @endif
+                        </td>
+                        <td>
+                            @include('backend.loan_call.partials.cell', ['status' => $callStatus[$repayment->loan->borrower_id] ?? [], 'memberId' => $repayment->loan->borrower_id, 'loanId' => $repayment->loan_id, 'name' => $repayment->loan->borrower->name])
                         </td>
                     </tr>
                     @endforeach

@@ -48,7 +48,7 @@ class MemberController extends Controller {
             }])
             ->with(['loans' => function ($q) {
                 $q->where('status', 1)->select('id', 'borrower_id', 'total_payable', 'total_paid');
-            }])
+            }, 'lastCall.created_by', 'lastCollectionCall'])
             ->orderBy("members.id", "desc");
 
         return Datatables::eloquent($members)
@@ -118,7 +118,14 @@ class MemberController extends Controller {
             ->setRowId(function ($member) {
                 return "row_" . $member->id;
             })
-            ->rawColumns(['photo', 'first_name', 'last_name', 'loan_summary', 'action'])
+            ->addColumn('last_call', function ($member) {
+                return view('backend.loan_call.partials.cell', [
+                    'status'   => \App\Models\LoanCall::statusOf($member),
+                    'memberId' => $member->id,
+                    'name'     => $member->name,
+                ])->render();
+            })
+            ->rawColumns(['photo', 'first_name', 'last_name', 'loan_summary', 'last_call', 'action'])
             ->make(true);
     }
 
@@ -449,7 +456,9 @@ class MemberController extends Controller {
             ->orderBy("id", "asc")
             ->get();
         if (! $request->ajax()) {
-            return view('backend.member.view', self::profileData($member) + compact('customFields'));
+            $calls = \App\Models\LoanCall::with(['created_by', 'loan.currency'])->where('member_id', $member->id)->orderByDesc('id')->get();
+
+            return view('backend.member.view', self::profileData($member) + compact('customFields', 'calls'));
         } else {
             return view('backend.member.modal.view', compact('member', 'id', 'customFields'));
         }

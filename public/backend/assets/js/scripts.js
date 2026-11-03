@@ -1313,6 +1313,23 @@
     });
   }
 
+  // Report exports leave out columns marked .no-export and on-screen
+  // extras (buttons, hints) marked .export-hidden.
+  var report_export = {
+    columns: ":not(.no-export)",
+    format: {
+      body: function (data) {
+        if (typeof data !== "string" || data.indexOf("export-hidden") === -1) {
+          return data;
+        }
+        var $cell = $("<div>").html(data);
+        $cell.find(".export-hidden").remove();
+        $cell.find("br").replaceWith(" ");
+        return $.trim($cell.text().replace(/\s+/g, " "));
+      },
+    },
+  };
+
   if ($(".report-table").length) {
     $(".report-table").each(function (i, obj) {
 	  var headerText = $(this).prev(".report-header").html();
@@ -1368,11 +1385,12 @@
           );
         },
         buttons: [
-          "copy",
-          "excel",
-          "pdf",
+          { extend: "copy", exportOptions: report_export },
+          { extend: "excel", exportOptions: report_export },
+          { extend: "pdf", exportOptions: report_export },
           {
             extend: "print",
+            exportOptions: report_export,
             title: "",
             customize: function (win) {
               $(win.document.body)

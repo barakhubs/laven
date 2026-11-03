@@ -92,5 +92,15 @@ class Member extends Model {
     public function documents() {
         return $this->hasMany('App\Models\MemberDocument', 'member_id');
     }
+
+    /** Latest call of any kind (see LoanCall). Eager-load it on server-side lists. */
+    public function lastCall() {
+        return $this->hasOne(LoanCall::class, 'member_id')->latestOfMany('id');
+    }
+
+    /** Latest call about money due: the one that decides the call lock. */
+    public function lastCollectionCall() {
+        return $this->hasOne(LoanCall::class, 'member_id')->ofMany(['id' => 'max'], fn ($q) => $q->where('type', LoanCall::COLLECTION));
+    }
 }
 

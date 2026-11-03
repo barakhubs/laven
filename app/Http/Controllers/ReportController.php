@@ -132,6 +132,7 @@ class ReportController extends Controller
             ->where('status', 0)
             ->groupBy('loan_id')
             ->get();
+        $data['callStatus'] = \App\Models\LoanCall::statusFor($data['report_data']->map(fn ($r) => $r->loan->borrower_id));
 
         return view('backend.reports.loan_due_report', $data);
     }

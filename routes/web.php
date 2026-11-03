@@ -259,8 +259,9 @@ Route::group(['middleware' => ['install']], function () {
                 Route::get('loans/{id}/grace_periods/create', [GracePeriodController::class, 'create'])->name('grace_periods.create');
                 Route::post('loans/{id}/grace_periods', [GracePeriodController::class, 'store'])->name('grace_periods.store');
                 Route::match(['get', 'post'], 'loans/{id}/change_repayment_day', [LoanController::class, 'change_repayment_day'])->name('loans.change_repayment_day');
-                Route::get('loans/{id}/calls/create', [LoanCallController::class, 'create'])->name('loan_calls.create');
-                Route::post('loans/{id}/calls', [LoanCallController::class, 'store'])->name('loan_calls.store');
+                // ?loan_id= or ?member_id= (any client list); same names, so the same permission.
+                Route::get('calls/create', [LoanCallController::class, 'create'])->name('loan_calls.create');
+                Route::post('calls', [LoanCallController::class, 'store'])->name('loan_calls.store');
                 Route::resource('loans', LoanController::class);
 
                 // Loan Collateral Controller

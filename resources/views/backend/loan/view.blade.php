@@ -84,6 +84,9 @@
                   }}</a>
                </li>
                <li class="nav-item">
+                  <a class="nav-link" data-toggle="tab" href="#calls">{{ _lang("Calls") }}@if($calls->count()) <span class="badge badge-light border">{{ $calls->count() }}</span>@endif</a>
+               </li>
+               <li class="nav-item">
                   <a class="nav-link"
                      href="{{ route('loans.edit', $loan['id']) }}"
                      >{{ _lang("Edit") }}</a>
@@ -639,6 +642,10 @@
                   @if($verification)
                   @include('backend.loan.partials.verify')
                   @endif
+               </div>
+               <div class="tab-pane fade mt-4" id="calls">
+                  <p class="text-muted small">{{ _lang('Calls to') }} {{ $loan->borrower->name }}. {{ _lang('Calls about other loans or general calls are greyed out.') }}</p>
+                  @include('backend.loan_call.partials.history', ['member' => $loan->borrower, 'loanId' => $loan->status == 1 ? $loan->id : null])
                </div>
             </div>
          </div>
