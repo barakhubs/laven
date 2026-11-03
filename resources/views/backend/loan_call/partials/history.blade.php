@@ -18,6 +18,7 @@
             <th>{{ _lang('About') }}</th>
             <th>{{ _lang('Outcome') }}</th>
             <th>{{ _lang('Promise') }}</th>
+            <th>{{ _lang('Call again') }}</th>
             <th>{{ _lang('Note') }}</th>
             <th>{{ _lang('No calls until') }}</th>
          </tr>
@@ -43,6 +44,7 @@
                -
                @endif
             </td>
+            <td class="text-nowrap {{ $call->callBackDue() && $loop->first ? 'text-danger' : '' }}">{{ $call->call_back_at ? $call->callBackLabel() : '-' }}</td>
             <td>{{ $call->note ?: '-' }}</td>
             <td class="text-nowrap">
                @if($call->locked_until)
@@ -54,7 +56,7 @@
             </td>
          </tr>
          @empty
-         <tr><td colspan="7" class="text-center text-muted">{{ _lang('No calls logged yet.') }}</td></tr>
+         <tr><td colspan="8" class="text-center text-muted">{{ _lang('No calls logged yet.') }}</td></tr>
          @endforelse
       </tbody>
    </table>

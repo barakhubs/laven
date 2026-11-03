@@ -201,4 +201,55 @@ class LoanCallTest extends TestCase
             $this->get($url)->assertOk()->assertSee('Log call');
         }
     }
+
+    public function test_call_again_date_sets_the_lock_and_shows_as_a_reminder(): void
+    {
+        $loan = $this->loan();
+        $this->actingAs($this->staff());
+
+        // "Call back later" needs a date; past dates and times are refused.
+        $this->logCall($loan, ['outcome' => LoanCall::CALL_BACK])->assertJson(['result' => 'error']);
+        $this->logCall($loan, ['outcome' => LoanCall::CALL_BACK, 'call_back_date' => Carbon::yesterday()->toDateString()])->assertJson(['result' => 'error']);
+        $this->logCall($loan, ['outcome' => LoanCall::CALL_BACK, 'call_back_date' => Carbon::today()->toDateString()])->assertJson(['result' => 'error']);
+        $this->logCall($loan, ['outcome' => LoanCall::CALL_BACK, 'call_back_date' => Carbon::today()->addDays(31)->toDateString()])->assertJson(['result' => 'error']);
+        $this->assertSame(0, LoanCall::where('member_id', $loan->borrower_id)->count());
+
+        // On a collection call the chosen time is the lock, in place of the usual wait.
+        $at = Carbon::today()->addDays(4)->setTime(14, 30);
+        $this->logCall($loan, ['outcome' => LoanCall::NO_ANSWER, 'call_back_date' => $at->toDateString(), 'call_back_time' => '14:30'])
+            ->assertJson(['result' => 'success']);
+        $call = LoanCall::where('member_id', $loan->borrower_id)->latest('id')->first();
+        $this->assertEquals($at, $call->call_back_at);
+        $this->assertEquals($at, $call->locked_until);
+        $this->get('/admin/loans/due_payments?filter=overdue')->assertOk()->assertSee('Call again ' . $call->callBackLabel());
+
+        // Once it passes the client is free again and the list flags the call as due.
+        Carbon::setTestNow($at->copy()->addDay());
+        $this->assertFalse($this->row($loan)->locked);
+        $this->get('/admin/loans/due_payments?filter=overdue')->assertOk()->assertSee('Call back due');
+        Carbon::setTestNow();
+
+        // A general call with a date greys the client out until then too. Date only means that day.
+        LoanCall::where('member_id', $loan->borrower_id)->delete();
+        $this->logGeneralCall($loan, ['outcome' => LoanCall::CALL_BACK, 'call_back_date' => Carbon::today()->addDays(2)->toDateString()])->assertJson(['result' => 'success']);
+        $call = LoanCall::where('member_id', $loan->borrower_id)->latest('id')->first();
+        $this->assertEquals(Carbon::today()->addDays(2), $call->call_back_at);
+        $this->assertEquals(Carbon::today()->addDays(2), $call->locked_until);
+        $this->assertTrue($this->row($loan)->locked);
+
+        // Other staff can't log a collection call before then, or move the date earlier.
+        $this->actingAs($this->staff());
+        $this->logCall($loan, ['outcome' => LoanCall::NO_ANSWER])->assertJson(['result' => 'error']);
+        $this->logGeneralCall($loan, ['outcome' => LoanCall::CALL_BACK, 'call_back_date' => Carbon::tomorrow()->toDateString()])->assertJson(['result' => 'error']);
+        // A general call with no date is just recorded and leaves the lock alone.
+        $this->logGeneralCall($loan, ['outcome' => LoanCall::REACHED])->assertJson(['result' => 'success']);
+        $this->assertTrue($this->row($loan)->locked);
+
+        // Shown in the history and the popup.
+        $this->actingAs(User::where('user_type', 'superadmin')->firstOrFail());
+        $this->get("/admin/loans/{$loan->id}?tab=calls")->assertOk()->assertSee($call->callBackLabel());
+        $this->get('/admin/loans/due_payments?filter=overdue')->assertOk()->assertSee('call-locked', false);
+        $this->get('/admin/calls/create?loan_id=' . $loan->id, ['X-Requested-With' => 'XMLHttpRequest'])->assertOk()
+            ->assertSee('Call again on')->assertSee('Call again ' . $call->callBackLabel());
+    }
 }

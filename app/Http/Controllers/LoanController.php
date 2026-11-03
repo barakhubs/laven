@@ -48,7 +48,7 @@ class LoanController extends Controller {
 
     public function get_table_data(Request $request) {
         $loans = Loan::select('loans.*')
-            ->with(['borrower', 'borrower.lastCall.created_by', 'borrower.lastCollectionCall'])
+            ->with(['borrower', 'borrower.lastCall.created_by', 'borrower.lastLockingCall'])
             ->with('currency')
             ->with('loan_product')
             ->orderBy("loans.id", "desc");

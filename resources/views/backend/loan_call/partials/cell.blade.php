@@ -1,6 +1,6 @@
 {{-- A client list's call column: the client's last call and a "Log call" button.
      $status: one entry of LoanCall::statusFor(); $memberId; $loanId (optional, the row's loan);
-     $name (popup title). Everything here is left out of exports except the outcome line. --}}
+     $name (popup title). Exports keep only the outcome and call-again lines. --}}
 @php
    $call   = $status['last'] ?? null;
    $locked = $status['locked'] ?? false;
@@ -13,7 +13,12 @@
          &mdash; {{ _lang('pay on') }} {{ $call->promise_date->format(get_date_format()) }}
       @endif
       <span class="export-hidden"><br><span class="text-muted">{{ $call->created_by->name }}, {{ $call->created_at->diffForHumans() }}{{ $call->isGeneral() ? ' · ' . _lang('General') : '' }}</span></span>
-      @if($locked)
+      @if($call->call_back_at)
+         <br><span class="text-nowrap {{ $call->callBackDue() ? 'text-danger font-weight-semibold' : '' }}"><i class="ti-alarm-clock"></i>
+            {{ $call->callBackDue() ? _lang('Call back due') : _lang('Call again') }} {{ $call->callBackLabel() }}</span>
+      @endif
+      {{-- The lock line, unless it's just the call-back time above again. --}}
+      @if($locked && ! ($status['lock']->is($call) && $call->call_back_at))
          <span class="export-hidden"><br><span class="text-nowrap"><i class="ti-lock"></i> {{ _lang('Next call from') }} {{ $status['lock']->nextCallLabel() }}</span></span>
       @endif
    @else

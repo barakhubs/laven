@@ -48,7 +48,7 @@ class MemberController extends Controller {
             }])
             ->with(['loans' => function ($q) {
                 $q->where('status', 1)->select('id', 'borrower_id', 'total_payable', 'total_paid');
-            }, 'lastCall.created_by', 'lastCollectionCall'])
+            }, 'lastCall.created_by', 'lastLockingCall'])
             ->orderBy("members.id", "desc");
 
         return Datatables::eloquent($members)

@@ -13,6 +13,11 @@ use Illuminate\Database\Eloquent\Model;
  * admin can log another collection call, so two staff don't chase the same
  * person within hours. A 'general' call (no loan) is only recorded: it
  * never locks the client, and never ends a lock.
+ *
+ * Either kind can carry call_back_at, when to call the client again. It
+ * becomes the lock (greyed out until then): on a collection call in place
+ * of the outcome's usual wait, and on a general call it's the only way
+ * that call locks. The lock comes from the latest call that has one.
  */
 class LoanCall extends Model
 {
@@ -32,6 +37,7 @@ class LoanCall extends Model
     protected $casts = [
         'promise_date' => 'date',
         'locked_until' => 'datetime',
+        'call_back_at' => 'datetime',
     ];
 
     /** Outcomes for a call of $type (collection by default). */
@@ -105,10 +111,10 @@ class LoanCall extends Model
         return $this->type === self::GENERAL;
     }
 
-    /** The client's latest collection call: the one that decides the lock. */
+    /** The client's latest call that set a lock: the one that decides it. */
     public static function lockingCallFor($memberId): ?self
     {
-        return static::with('created_by')->where('member_id', $memberId)->where('type', self::COLLECTION)->orderByDesc('id')->first();
+        return static::with('created_by')->where('member_id', $memberId)->whereNotNull('locked_until')->orderByDesc('id')->first();
     }
 
     public function isLocked(): bool
@@ -119,14 +125,32 @@ class LoanCall extends Model
     /** When the next call can be made: just the date when the lock ends at midnight. */
     public function nextCallLabel(): string
     {
-        return $this->locked_until->format($this->locked_until->isStartOfDay() ? get_date_format() : get_date_format() . ' ' . get_time_format());
+        return self::whenLabel($this->locked_until);
+    }
+
+    /** When to call the client again, as chosen when this call was logged. */
+    public function callBackLabel(): string
+    {
+        return self::whenLabel($this->call_back_at);
+    }
+
+    /** The chosen call-back time has come. */
+    public function callBackDue(): bool
+    {
+        return $this->call_back_at && ! $this->call_back_at->isFuture();
+    }
+
+    /** A date, plus the time unless it's midnight (a date-only choice). */
+    public static function whenLabel(Carbon $at): string
+    {
+        return $at->format($at->isStartOfDay() ? get_date_format() : get_date_format() . ' ' . get_time_format());
     }
 
     /**
-     * Latest call per member, keyed by member_id; $type limits it to
-     * collection or general calls. Two queries for any number of members.
+     * Latest call per member, keyed by member_id; $locking limits it to
+     * calls that set a lock. Two queries for any number of members.
      */
-    public static function latestFor($memberIds, ?string $type = null)
+    public static function latestFor($memberIds, bool $locking = false)
     {
         $memberIds = collect($memberIds)->filter()->unique()->values();
         if ($memberIds->isEmpty()) {
@@ -135,15 +159,15 @@ class LoanCall extends Model
 
         return static::with(['created_by', 'loan'])
             ->whereIn('id', static::selectRaw('MAX(id)')->whereIn('member_id', $memberIds)
-                ->when($type, fn ($q) => $q->where('type', $type))->groupBy('member_id'))
+                ->when($locking, fn ($q) => $q->whereNotNull('locked_until'))->groupBy('member_id'))
             ->get()
             ->keyBy('member_id');
     }
 
-    /** statusFor() for one member with lastCall and lastCollectionCall loaded. */
+    /** statusFor() for one member with lastCall and lastLockingCall loaded. */
     public static function statusOf(Member $member): array
     {
-        $lock = $member->lastCollectionCall;
+        $lock = $member->lastLockingCall;
 
         return [
             'last'   => $member->lastCall,
@@ -154,13 +178,13 @@ class LoanCall extends Model
 
     /**
      * What a client list shows in its call column, per member: the latest
-     * call of any kind ('last') and whether a collection call locks them
+     * call of any kind ('last') and whether a call locks them
      * ('locked', with 'lock' the call that does).
      */
     public static function statusFor($memberIds): array
     {
         $last  = static::latestFor($memberIds);
-        $locks = static::latestFor($memberIds, self::COLLECTION);
+        $locks = static::latestFor($memberIds, true);
 
         $status = [];
         foreach (collect($memberIds)->filter()->unique() as $id) {

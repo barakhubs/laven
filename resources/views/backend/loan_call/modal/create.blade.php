@@ -64,6 +64,26 @@
 			</div>
 		</div>
 
+		<div class="form-group mb-1">
+			<label class="control-label">{{ _lang('Call again on') }} <small class="text-muted" id="call_back_optional">({{ _lang('optional') }})</small></label>
+			<div class="row">
+				<div class="col-7">
+					{{-- No min/max: the form validator compares them as numbers. The server checks the range. --}}
+					<input type="date" class="form-control" name="call_back_date" id="call_back_date">
+				</div>
+				<div class="col-5">
+					<input type="time" class="form-control" name="call_back_time" id="call_back_time" title="{{ _lang('Time (optional)') }}">
+				</div>
+			</div>
+			<div class="mt-1">
+				@foreach([[_lang('Later today'), 0, '+3 hours'], [_lang('Tomorrow'), 1, null], [_lang('In 3 days'), 3, null], [_lang('Next week'), 7, null]] as [$label, $days, $time])
+				<button type="button" class="btn btn-xs btn-light border call-back-pick" data-days="{{ $days }}" data-time="{{ $time ? now()->addHours(3)->format('H:i') : '' }}"
+					{{ $time && now()->addHours(3)->isTomorrow() ? 'hidden' : '' }}>{{ $label }}</button>
+				@endforeach
+			</div>
+			<small class="text-muted d-block" id="call_back_help"></small>
+		</div>
+
 		<div class="form-group">
 			<label class="control-label">{{ _lang('Note') }}</label>
 			<textarea class="form-control" name="note" rows="2"></textarea>
@@ -86,6 +106,9 @@
 			@endif
 			<br><span class="text-muted">{{ $call->created_by->name }}, {{ $call->created_at->format(get_date_format() . ' ' . get_time_format()) }},
 				{{ $call->loan_id ? _lang('Loan') . ' ' . $call->loan->loan_id : _lang('General') }}</span>
+			@if($call->call_back_at)
+				<br><span class="{{ $call->callBackDue() ? 'text-danger' : '' }}"><i class="ti-alarm-clock"></i> {{ _lang('Call again') }} {{ $call->callBackLabel() }}</span>
+			@endif
 			@if($call->note)
 				<br>{{ $call->note }}
 			@endif
@@ -102,6 +125,18 @@
 		collection: @json(_lang('About money due: other staff won\'t call this client again for a while.')),
 		general: @json(_lang('Just recorded: does not stop anyone else calling.'))
 	};
+	var callBackHelp = {
+		collection: @json(_lang('The client stays greyed out and nobody else calls before then. Leave blank for the usual wait for this outcome.')),
+		general: @json(_lang('The client stays greyed out and nobody else calls before then. Leave blank to just record the call.'))
+	};
+	var $cbDate = $('#call_back_date'), $cbTime = $('#call_back_time');
+	$('.call-back-pick').on('click', function () {
+		var d = new Date(@json(now()->toDateString()) + 'T00:00:00');
+		d.setDate(d.getDate() + parseInt($(this).data('days'), 10));
+		var pad = function (n) { return (n < 10 ? '0' : '') + n; };
+		$cbDate.val(d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()));
+		$cbTime.val($(this).data('time') || '');
+	});
 	function syncType() {
 		var type = $about.val() ? 'collection' : 'general';
 		$outcome.find('option[data-type]').each(function () {
@@ -112,12 +147,16 @@
 			$outcome.val('');
 		}
 		$('#call_about_help').text(help[type]);
+		$('#call_back_help').text(callBackHelp[type]);
 		syncPromise();
 	}
 	function syncPromise() {
 		var promised = $outcome.val() === '{{ \App\Models\LoanCall::PROMISED }}';
 		$('#call_promise').toggleClass('d-none', ! promised);
 		$('#call_promise [name=promise_date]').prop('required', promised);
+		var callBack = $outcome.val() === '{{ \App\Models\LoanCall::CALL_BACK }}';
+		$cbDate.prop('required', callBack);
+		$('#call_back_optional').toggle(! callBack);
 	}
 	$about.on('change', syncType);
 	$outcome.on('change', syncPromise);

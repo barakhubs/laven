@@ -99,8 +99,8 @@ class Member extends Model {
     }
 
     /** Latest call about money due: the one that decides the call lock. */
-    public function lastCollectionCall() {
-        return $this->hasOne(LoanCall::class, 'member_id')->ofMany(['id' => 'max'], fn ($q) => $q->where('type', LoanCall::COLLECTION));
+    public function lastLockingCall() {
+        return $this->hasOne(LoanCall::class, 'member_id')->ofMany(['id' => 'max'], fn ($q) => $q->whereNotNull('locked_until'));
     }
 }
 

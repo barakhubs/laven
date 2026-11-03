@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Loan;
 use App\Models\LoanCall;
 use App\Models\Member;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -17,6 +18,11 @@ use Illuminate\Validation\Rule;
  * lock is per client, not per loan, so a client with two late loans is only
  * chased once; admins can log one on a locked client, staff can't. A call
  * with no loan is a general call: always allowed, never locks.
+ *
+ * Either can say when to call the client again (date, optional time). That
+ * becomes the lock, so the client stays greyed out until then: on a
+ * collection call in place of the outcome's usual wait, and a general call
+ * with a date locks too. "Call back later" needs one.
  */
 class LoanCallController extends Controller
 {
@@ -51,11 +57,33 @@ class LoanCallController extends Controller
             'promise_date'   => 'required_if:outcome,' . LoanCall::PROMISED . '|nullable|date|after_or_equal:today|before_or_equal:' . now()->addDays(30)->toDateString(),
             'promise_amount' => 'nullable|numeric|min:0',
             'note'           => 'nullable|string|max:1000',
+            'call_back_date' => 'required_if:outcome,' . LoanCall::CALL_BACK . '|nullable|date|after_or_equal:today|before_or_equal:' . now()->addDays(30)->toDateString(),
+            'call_back_time' => 'nullable|date_format:H:i',
         ], [
             'loan_id.in'                   => _lang('Choose one of the client\'s active loans, or General.'),
             'promise_date.required_if'     => _lang('Enter the date the client promised to pay.'),
             'promise_date.before_or_equal' => _lang('The promise date must be within 30 days.'),
+            'call_back_date.required_if'     => _lang('Choose when to call the client again.'),
+            'call_back_date.after_or_equal'  => _lang('The call again date can\'t be in the past.'),
+            'call_back_date.before_or_equal' => _lang('The call again date must be within 30 days.'),
         ]);
+
+        // Midnight when no time is given: the client unlocks at the start of that day.
+        $callBack = null;
+        if ($request->filled('call_back_date')) {
+            try {
+                $callBack = Carbon::parse($request->call_back_date . ' ' . ($request->filled('call_back_time') ? $request->call_back_time : '00:00'));
+            } catch (\Exception $e) {
+                // Bad input: the rules above report it.
+            }
+        }
+        $validator->after(function ($v) use ($callBack, $request) {
+            if ($callBack && $callBack->isToday() && ! $callBack->isFuture()) {
+                $v->errors()->add('call_back_time', $request->filled('call_back_time')
+                    ? _lang('The call again time has already passed.')
+                    : _lang('To call again today, pick a time.'));
+            }
+        });
 
         if ($validator->fails()) {
             return $this->reply($request, 'error', $validator->errors()->all());
@@ -74,6 +102,16 @@ class LoanCallController extends Controller
             }
         }
 
+        // Staff who are locked out can't bring the next call forward with a general call.
+        if ($type === LoanCall::GENERAL && $callBack) {
+            $lock = LoanCall::lockingCallFor($member->id);
+            if ($lock && $lock->isLocked() && ! auth()->user()->isAdmin() && $callBack->lt($lock->locked_until)) {
+                DB::rollBack();
+                return $this->reply($request, 'error', _lang('Already called by') . ' ' . $lock->created_by->name . '. '
+                    . _lang('Choose a call again date from') . ' ' . $lock->nextCallLabel() . ' ' . _lang('or leave it blank.'));
+            }
+        }
+
         $promised = $request->outcome === LoanCall::PROMISED;
 
         $call                  = new LoanCall();
@@ -84,7 +122,8 @@ class LoanCallController extends Controller
         $call->promise_date    = $promised ? $request->promise_date : null;
         $call->promise_amount  = $promised ? $request->promise_amount : null;
         $call->note            = $request->note;
-        $call->locked_until    = $type === LoanCall::COLLECTION ? LoanCall::lockUntil($call->outcome, $call->promise_date) : null;
+        $call->call_back_at    = $callBack;
+        $call->locked_until    = $callBack ?? ($type === LoanCall::COLLECTION ? LoanCall::lockUntil($call->outcome, $call->promise_date) : null);
         $call->created_user_id = auth()->id();
         $call->save();
         DB::commit();
