@@ -635,6 +635,10 @@
                         @endforeach
                      </tbody>
                   </table>
+
+                  @if($verification)
+                  @include('backend.loan.partials.verify')
+                  @endif
                </div>
             </div>
          </div>
@@ -719,6 +723,12 @@
    	    history.pushState({}, null, url + "?tab=" + tab.substring(1));
    	});
    
+   	// Verify figures: turn the arrow on an open payment.
+   	$('#verify-figures').on('show.bs.collapse hide.bs.collapse', '.collapse', function (e) {
+   		e.stopPropagation();
+   		$('[href="#' + this.id + '"] .fa-chevron-right').toggleClass('fa-rotate-90', e.type === 'show');
+   	});
+
    	@if(isset($_GET['tab']))
    	   $('.nav-tabs a[href="#{{ $_GET['tab'] }}"]').tab('show');
    	@endif

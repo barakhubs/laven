@@ -366,7 +366,18 @@ class LoanController extends Controller {
             ->get();
         $canGrace = $loan->status == 1 && (auth()->user()->isAdmin() || has_permission('grace_periods.create'));
 
-        return view('backend.loan.view', compact('loan', 'loancollaterals', 'repayments', 'payments', 'guarantors', 'customFields', 'reserve', 'reserveCoverage', 'graces', 'canGrace', 'paidInto', 'projected'));
+        // "Verify figures" on the Repayments tab. A fault in the checker must
+        // never stop the loan page from opening.
+        $verification = null;
+        if ($repayments->isNotEmpty() || $payments->isNotEmpty()) {
+            try {
+                $verification = \App\Services\LoanVerificationService::verify($loan, date('Y-m-d'));
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        }
+
+        return view('backend.loan.view', compact('loan', 'loancollaterals', 'repayments', 'payments', 'guarantors', 'customFields', 'reserve', 'reserveCoverage', 'graces', 'canGrace', 'paidInto', 'projected', 'verification'));
 
     }
 
