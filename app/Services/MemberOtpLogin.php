@@ -13,9 +13,9 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 /**
- * Members sign in with their phone number and a 6-digit code sent to it by
- * SMS, instead of a password. Staff always use a password. Shared by the web
- * login page and the mobile API.
+ * Staff and clients sign in with their phone number and a 6-digit code sent
+ * to it by SMS, instead of a password (which still works too). Shared by the
+ * web login page and the mobile API.
  *
  * Every code costs an SMS, so sending is limited: one code a minute and five
  * an hour per member, twenty an hour from one address. A code lasts five
@@ -35,8 +35,13 @@ class MemberOtpLogin
         return get_option('member_otp_login', 1) == 1 && get_option('sms_gateway', 'none') != 'none';
     }
 
-    /** The member (with their login) that a typed phone number belongs to. */
-    public static function member(string $phone): Member
+    /**
+     * The login a typed phone number belongs to: a staff login (its own phone
+     * field, or a member record linked to it), or a client's. A client added
+     * without a login gets one here (see ensureLogin). A number on two
+     * different logins is refused: we can't tell which one is meant.
+     */
+    public static function account(string $phone): User
     {
         if (! self::enabled()) {
             throw new MemberOtpLoginException(_lang('Signing in with an SMS code is turned off. Please sign in with your password.'), 'OTP_LOGIN_DISABLED', 403);
@@ -46,26 +51,34 @@ class MemberOtpLogin
             throw new MemberOtpLoginException(_lang('Enter the phone number you registered with, e.g. 0771234567.'), 'INVALID_PHONE');
         }
 
-        // Clients only: members with a client login, or none yet (made on the first code).
-        $members = PhoneLogin::matches(preg_replace('/\D/', '', $phone))
-            ->filter(fn ($member) => ! $member->user->exists || $member->user->user_type == 'customer')
-            ->unique(fn ($member) => $member->user->exists ? 'u' . $member->user_id : 'm' . $member->id)
+        $digits  = preg_replace('/\D/', '', $phone);
+        $members = PhoneLogin::matches($digits);
+
+        // Every saved login with this number: staff by their own phone field, anyone via a member record.
+        $logins = PhoneLogin::staff($digits)
+            ->merge($members->pluck('user')->filter(fn ($u) => $u->exists))
+            ->unique('id')
             ->values();
+        // Clients on file without a login: one is made for them, unless the number already has a login
+        // (e.g. a staff member who is also a client signs in as staff).
+        $withoutLogin = $members->filter(fn ($m) => ! $m->user->exists)->values();
 
-        if ($members->isEmpty()) {
-            throw new MemberOtpLoginException(_lang('No member account uses this phone number. Check the number, or sign in with your password.'), 'NOT_A_MEMBER', 404);
-        }
-
-        if ($members->count() > 1) {
+        if ($logins->count() > 1 || ($logins->isEmpty() && $withoutLogin->count() > 1)) {
             throw new MemberOtpLoginException(_lang('This phone number is linked to more than one account. Please sign in with your email and password instead.'), 'PHONE_AMBIGUOUS');
         }
 
-        $member = $members[0];
-        if ($member->status != 1 || ($member->user->exists && $member->user->status != 1)) {
+        if ($logins->isEmpty() && $withoutLogin->isEmpty()) {
+            throw new MemberOtpLoginException(_lang('No account uses this phone number. Check the number, or sign in with your password.'), 'NOT_A_MEMBER', 404);
+        }
+
+        $user   = $logins->first();
+        $member = $user ? $members->firstWhere('user_id', $user->id) : $withoutLogin->first();
+
+        if (($user && $user->status != 1) || ($member && $member->status != 1)) {
             throw new MemberOtpLoginException(_lang('Your account is not active. Please contact support.'), 'ACCOUNT_INACTIVE', 403);
         }
 
-        return $member;
+        return $user ?? self::ensureLogin($member);
     }
 
     /**
@@ -73,11 +86,11 @@ class MemberOtpLogin
      * for a code: the code proves the phone is theirs. Random password (they
      * can set one later); an email only if theirs is free, else a placeholder.
      */
-    private static function ensureLogin(Member $member): void
+    private static function ensureLogin(Member $member): User
     {
         // user() has withDefault(): an unsaved User means no login (or one that was deleted).
         if ($member->user->exists) {
-            return;
+            return $member->user;
         }
 
         DB::transaction(function () use ($member) {
@@ -105,18 +118,20 @@ class MemberOtpLogin
 
         $member->load('user');
         Log::channel('daily')->info('Member OTP login: created client login', ['member_id' => $member->id, 'user_id' => $member->user_id]);
+
+        return $member->user;
     }
 
     /**
-     * Text a new code to the member. Returns the number it went to (partly
+     * Text a new code to the login's phone. Returns the number it went to (partly
      * hidden) and how long until it expires and a new one can be asked for.
      *
      * @return array{sent_to: string, expires_in: int, resend_in: int}
      */
-    public static function send(Member $member, ?string $ip = null, ?string $phone = null): array
+    public static function send(User $user, ?string $ip = null, ?string $phone = null): array
     {
-        self::ensureLogin($member);
-        $codes  = LoginCode::where('user_id', $member->user_id);
+        $member = $user->member; // withDefault(): empty for staff who aren't clients
+        $codes  = LoginCode::where('user_id', $user->id);
         $latest = (clone $codes)->latest('id')->first();
 
         if ($latest && $latest->created_at->gt(now()->subSeconds(self::RESEND_SECONDS))) {
@@ -131,15 +146,16 @@ class MemberOtpLogin
         }
 
         // To the number they typed (it matched their record), else the one on file.
+        $onFile = $member->exists ? format_recipient_number($member) : $user->phone;
         $number = $phone && PhoneLogin::key($phone)
-            ? PhoneLogin::smsNumber($member, $phone)
-            : (SmsContact::normalize(format_recipient_number($member)) ?? format_recipient_number($member));
+            ? PhoneLogin::smsNumber($member->country_code, $phone)
+            : (SmsContact::normalize($onFile) ?? $onFile);
         $code   = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
 
         // Only the newest code works.
         (clone $codes)->whereNull('used_at')->where('expires_at', '>', now())->update(['expires_at' => now()]);
         $row = LoginCode::create([
-            'user_id'    => $member->user_id,
+            'user_id'    => $user->id,
             'code'       => Hash::make($code),
             'expires_at' => now()->addMinutes(self::EXPIRES_MINUTES),
             'ip'         => $ip,
@@ -151,7 +167,7 @@ class MemberOtpLogin
         try {
             app(SmsHelper::class)->send($number, $message);
         } catch (\Exception $e) {
-            Log::channel('daily')->error('Member OTP login: SMS failed', ['user_id' => $member->user_id, 'error' => $e->getMessage()]);
+            Log::channel('daily')->error('Member OTP login: SMS failed', ['user_id' => $user->id, 'error' => $e->getMessage()]);
             $row->delete();
             throw new MemberOtpLoginException(_lang('We could not send the SMS. Please try again, or sign in with your password.'), 'OTP_SEND_FAILED', 500);
         }
@@ -163,10 +179,10 @@ class MemberOtpLogin
         ];
     }
 
-    /** Check a typed code; returns the member's login when it's right. */
-    public static function verify(Member $member, string $code): User
+    /** Check a typed code; returns the login when it's right. */
+    public static function verify(User $user, string $code): User
     {
-        $row = $member->user->exists ? LoginCode::where('user_id', $member->user_id)->whereNull('used_at')->latest('id')->first() : null;
+        $row = LoginCode::where('user_id', $user->id)->whereNull('used_at')->latest('id')->first();
 
         if (! $row || $row->expires_at->isPast()) {
             throw new MemberOtpLoginException(_lang('This code has expired. Please ask for a new one.'), 'CODE_EXPIRED');
@@ -186,7 +202,7 @@ class MemberOtpLogin
 
         $row->update(['used_at' => now()]);
 
-        return $member->user;
+        return $user;
     }
 
     /** "+256772123456" -> "+25677*****456", so the member knows which phone to check. */

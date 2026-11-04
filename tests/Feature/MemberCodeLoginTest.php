@@ -144,11 +144,6 @@ class MemberCodeLoginTest extends TestCase
     {
         $this->sendCode('0779999999')->assertStatus(404)->assertJsonPath('code', 'NOT_A_MEMBER');
 
-        // Staff sign in with a password, even by phone number.
-        $staff = User::where('user_type', 'superadmin')->firstOrFail();
-        $staff->phone = '0788123123';
-        $staff->save();
-        $this->sendCode('0788123123')->assertJsonPath('code', 'NOT_A_MEMBER');
 
         $this->member->user->status = 0;
         $this->member->user->save();
@@ -289,5 +284,73 @@ class MemberCodeLoginTest extends TestCase
 
         $this->postJson('/api/v1/auth/login', ['login' => '0772555111', 'password' => 'secret123', 'device_name' => 'T'])
             ->assertOk()->assertJsonPath('data.user.email', $this->member->user->email);
+    }
+
+    public function test_staff_sign_in_with_a_code_too(): void
+    {
+        $staff = User::where('user_type', 'superadmin')->firstOrFail();
+        $staff->phone = '+256 788 123 123';
+        $staff->status = 1;
+        $staff->save();
+
+        // On the app: the code goes to the staff member's phone, the token needs no second code.
+        $this->sendCode('0788123123')->assertOk()->assertJsonPath('data.sent_to', '+25678****123');
+        $this->assertEquals('+256788123123', $this->sms[0][0]);
+        $this->verifyCode($this->lastCode(), '788 123 123')->assertOk()
+            ->assertJsonPath('data.user.id', $staff->id)
+            ->assertJsonPath('data.two_fa_verified', true);
+
+        // On the website.
+        LoginCode::where('user_id', $staff->id)->delete();
+        $this->post('/login/code/send', ['phone' => '0788123123'])->assertRedirect(route('login.code'));
+        $this->post('/login/code', ['code' => $this->lastCode()])->assertRedirect();
+        $this->assertAuthenticatedAs($staff);
+        auth()->logout();
+
+        // A staff member who is also on file as a client (no client login): signs in as staff,
+        // and no client login is made.
+        $member = $this->member->replicate();
+        $member->user_id = null;
+        $member->nin = 'STAFF' . uniqid();
+        $member->member_no = 'ST' . uniqid();
+        $member->mobile = '0788123123';
+        $member->status = 1;
+        $member->save();
+        LoginCode::where('user_id', $staff->id)->delete();
+        $this->sendCode('+256788123123')->assertOk();
+        $this->assertSame($staff->id, LoginCode::latest('id')->value('user_id'));
+        $this->assertNull($member->fresh()->user_id);
+
+        // The number on a staff login and on a different client's login: can't tell which.
+        Member::withoutGlobalScopes()->where('id', $this->member->id)->update(['mobile' => '+256788123123']);
+        $this->sendCode('0788123123')->assertJsonPath('code', 'PHONE_AMBIGUOUS');
+        Member::withoutGlobalScopes()->where('id', $this->member->id)->update(['mobile' => '0772555111']);
+
+        // Inactive staff get nothing.
+        $staff->status = 0;
+        $staff->save();
+        LoginCode::where('user_id', $staff->id)->delete();
+        $this->sendCode('0788123123')->assertStatus(403)->assertJsonPath('code', 'ACCOUNT_INACTIVE');
+    }
+
+    public function test_codes_and_passwords_never_reach_the_logs(): void
+    {
+        $log = tempnam(sys_get_temp_dir(), 'smslog');
+        config(['logging.channels.daily' => ['driver' => 'single', 'path' => $log, 'level' => 'debug']]);
+        app('log')->forgetChannel('daily');
+        $this->app->forgetInstance(SmsHelper::class);
+        update_option('sms_gateway', 'none-such');
+
+        $this->sendCode()->assertOk();
+        $code = LoginCode::latest('id')->first();
+        $text = file_get_contents($log);
+        $this->assertStringContainsString('sign-in code', $text);
+        $this->assertStringContainsString('+256772555111', $text, 'the number stays readable');
+        $this->assertDoesNotMatchRegularExpression('/\b\d{6}\b is your/', $text);
+        $this->assertStringContainsString('****** is your', $text);
+
+        $this->assertSame('Your login password to Laven App is: ******', SmsHelper::redact('Your login password to Laven App is: AB3X42'));
+        $this->assertSame('Your OTP code is: ******. Call 0772555111', SmsHelper::redact('Your OTP code is: 123456. Call 0772555111'));
+        @unlink($log);
     }
 }

@@ -197,12 +197,12 @@
 
 								<div class="col-md-6">
 								  	<div class="form-group">
-										<label class="control-label">{{ _lang('Members Sign In with SMS Code') }}</label>
+										<label class="control-label">{{ _lang('Sign In with SMS Code') }}</label>
 										<select class="form-control" name="member_otp_login">
 											<option value="1" {{ get_setting($settings, 'member_otp_login', '1') == '1' ? 'selected' : '' }}>{{ _lang('Enabled') }}</option>
 											<option value="0" {{ get_setting($settings, 'member_otp_login', '1') == '0' ? 'selected' : '' }}>{{ _lang('Disabled') }}</option>
 										</select>
-										<small class="form-text text-muted">{{ _lang('Members can type their phone number and get a code by SMS instead of using a password, on the website and the app. Each code is one SMS. Needs an SMS gateway. Staff always use a password.') }}</small>
+										<small class="form-text text-muted">{{ _lang('Clients and staff can type their phone number and get a code by SMS instead of using a password, on the website and the app. Staff need their phone number saved on their user account. Each code is one SMS. Needs an SMS gateway.') }}</small>
 								  	</div>
 								</div>
 

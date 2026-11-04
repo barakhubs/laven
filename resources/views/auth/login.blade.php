@@ -39,7 +39,7 @@
 							@if ($errors->has('phone'))
 								<span class="invalid-feedback"><strong>{{ $errors->first('phone') }}</strong></span>
 							@endif
-							<small class="form-text text-muted">{{ _lang('For members: we will text a 6-digit code to the phone number you registered with, e.g. 0771234567. Staff sign in with a password.') }}</small>
+							<small class="form-text text-muted">{{ _lang('We will text a 6-digit code to the phone number on your account, e.g. 0771234567.') }}</small>
 						</div>
 						<div class="text-center">
 							<div class="custom-control custom-checkbox mb-3">

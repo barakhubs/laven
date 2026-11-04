@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
-use App\Models\Member;
+use App\Models\User;
 use App\Providers\RouteServiceProvider;
 use App\Services\MemberOtpLogin;
 use App\Services\MemberOtpLoginException;
@@ -11,8 +11,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 /**
- * Members signing in on the website with their phone number and a code sent
- * to it by SMS (see MemberOtpLogin). The number is typed on the login page;
+ * Staff and clients signing in on the website with their phone number and a
+ * code sent to it by SMS (see MemberOtpLogin). The number is typed on the login page;
  * the code is typed on the next page.
  */
 class CodeLoginController extends Controller
@@ -28,8 +28,8 @@ class CodeLoginController extends Controller
         $request->validate(['phone' => 'required|string|max:30']);
 
         try {
-            $member = MemberOtpLogin::member($request->phone);
-            $sent   = MemberOtpLogin::send($member, $request->ip(), $request->phone);
+            $user = MemberOtpLogin::account($request->phone);
+            $sent = MemberOtpLogin::send($user, $request->ip(), $request->phone);
         } catch (MemberOtpLoginException $e) {
             // Waiting to resend: stay on the code page if a code is already out.
             if ($e->errorCode == 'OTP_WAIT' && $request->session()->has('code_login')) {
@@ -40,7 +40,7 @@ class CodeLoginController extends Controller
         }
 
         $request->session()->put('code_login', [
-            'member_id' => $member->id,
+            'user_id'   => $user->id,
             'phone'     => $request->phone,
             'sent_to'   => $sent['sent_to'],
             'remember'  => $request->boolean('remember'),
@@ -64,13 +64,13 @@ class CodeLoginController extends Controller
         $request->validate(['code' => 'required|string|max:10']);
 
         $pending = $request->session()->get('code_login');
-        $member  = $pending ? Member::withoutGlobalScopes()->with('user')->find($pending['member_id']) : null;
-        if (! $member || ! $member->user) {
+        $user    = $pending && isset($pending['user_id']) ? User::find($pending['user_id']) : null;
+        if (! $user || $user->status != 1) {
             return redirect()->route('login', ['with' => 'code']);
         }
 
         try {
-            $user = MemberOtpLogin::verify($member, $request->code);
+            $user = MemberOtpLogin::verify($user, $request->code);
         } catch (MemberOtpLoginException $e) {
             return back()->withErrors(['code' => $e->getMessage()]);
         }

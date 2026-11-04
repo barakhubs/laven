@@ -57,13 +57,31 @@ class PhoneLogin
             return collect();
         }
 
-        $staff = User::with('role')
-            ->whereRaw(self::digitsSql('phone') . ' LIKE ?', ['%' . $key . '%'])
-            ->get()
-            ->filter(fn ($u) => self::holds($u->phone, $key));
+        $staff = self::withPhone($digits);
 
         // user() has withDefault(): members with no login give an empty User, so keep saved ones only.
         return self::matches($digits)->pluck('user')->filter(fn ($u) => $u && $u->exists)->merge($staff)->unique('id')->values();
+    }
+
+    /** Logins that aren't clients (staff, admins) with this number in their own phone field. */
+    public static function staff(string $digits)
+    {
+        return self::withPhone($digits)->where('user_type', '!=', 'customer')->values();
+    }
+
+    /** Every login with this number in its own phone field (users.phone). */
+    private static function withPhone(string $digits)
+    {
+        $key = self::key($digits);
+        if (! $key) {
+            return collect();
+        }
+
+        return User::with('role')
+            ->whereRaw(self::digitsSql('phone') . ' LIKE ?', ['%' . $key . '%'])
+            ->get()
+            ->filter(fn ($u) => self::holds($u->phone, $key))
+            ->values();
     }
 
     /**
@@ -90,10 +108,10 @@ class PhoneLogin
         return false;
     }
 
-    /** Where to text a member on the number they typed: their country code (256 by default) + the 9 digits. */
-    public static function smsNumber(Member $member, string $phone): string
+    /** Where to text the number someone typed: their country code (256 by default) + the 9 digits. */
+    public static function smsNumber(?string $countryCode, string $phone): string
     {
-        $cc = preg_replace('/\D/', '', (string) $member->country_code) ?: '256';
+        $cc = preg_replace('/\D/', '', (string) $countryCode) ?: '256';
 
         return '+' . $cc . self::key($phone);
     }

@@ -9,6 +9,17 @@ use PahappaLimited\CommsSDK\v1\CommsSDK;
 
 class SmsHelper {
 
+	/**
+	 * A message (or gateway reply / error) made safe for the logs: sign-in,
+	 * verification and two-factor codes (4-8 digit runs) and anything after
+	 * "password ...:" are hidden. Phone numbers (9+ digits) stay readable.
+	 */
+	public static function redact($value): string {
+		$text = is_string($value) ? $value : (string) json_encode($value);
+		$text = preg_replace('/(password[^:\n]{0,40}:\s*)\S+/i', '$1******', $text);
+		return preg_replace('/(?<![\d+])\d{4,8}(?!\d)/', '******', $text);
+	}
+
 	public function send($to, $message) {
 		if (strlen($to) < 8) {
 			Log::channel('daily')->warning('SmsHelper: skipped sending, recipient too short', ['to' => $to]);
@@ -19,7 +30,7 @@ class SmsHelper {
 		Log::channel('daily')->info('SmsHelper: attempting to send SMS', [
 			'gateway' => $gateway,
 			'to'      => $to,
-			'message' => $message,
+			'message' => self::redact($message),
 		]);
 
 		if ($gateway == 'twilio') {
@@ -69,7 +80,7 @@ class SmsHelper {
 			$client->messages->create('+' . $to,
 				['from' => $twilio_number, 'body' => $message]);
 		} catch (\Exception $e) {
-			Log::channel('daily')->error('SmsHelper [Twilio] exception', ['error' => $e->getMessage()]);
+			Log::channel('daily')->error('SmsHelper [Twilio] exception', ['error' => self::redact($e->getMessage())]);
 		}
 	}
 
@@ -86,7 +97,7 @@ class SmsHelper {
 				)
 			);
 		} catch (\Exception $e) {
-			Log::channel('daily')->error('SmsHelper [TextMagic] exception', ['error' => $e->getMessage()]);
+			Log::channel('daily')->error('SmsHelper [TextMagic] exception', ['error' => self::redact($e->getMessage())]);
 		}
 	}
 
@@ -153,17 +164,17 @@ class SmsHelper {
 			$sdkOutput = ob_get_clean(); // capture what SDK printed
 
 			Log::channel('daily')->info('SmsHelper [EgoSMS]: SDK stdout captured', [
-				'stdout' => $sdkOutput, // log it so you can see it
+				'stdout' => self::redact($sdkOutput),
 			]);
 			Log::channel('daily')->info('SmsHelper [EgoSMS]: response received', [
-				'response' => json_encode($response),
+				'response' => self::redact($response),
 			]);
 
 		} catch (\Exception $e) {
 			ob_end_clean();
 			Log::channel('daily')->error('SmsHelper [EgoSMS]: exception', [
-				'error' => $e->getMessage(),
-				'trace' => $e->getTraceAsString(),
+				'error' => self::redact($e->getMessage()),
+				'trace' => self::redact($e->getTraceAsString()),
 			]);
 		}
 	}

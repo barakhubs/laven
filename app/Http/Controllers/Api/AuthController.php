@@ -116,7 +116,7 @@ class AuthController extends ApiController
         }
 
         try {
-            $sent = MemberOtpLogin::send(MemberOtpLogin::member($request->phone), $request->ip(), $request->phone);
+            $sent = MemberOtpLogin::send(MemberOtpLogin::account($request->phone), $request->ip(), $request->phone);
         } catch (MemberOtpLoginException $e) {
             return $this->codeError($e);
         }
@@ -140,7 +140,7 @@ class AuthController extends ApiController
         }
 
         try {
-            $user = MemberOtpLogin::verify(MemberOtpLogin::member($request->phone), $request->code);
+            $user = MemberOtpLogin::verify(MemberOtpLogin::account($request->phone), $request->code);
         } catch (MemberOtpLoginException $e) {
             return $this->codeError($e);
         }
