@@ -52,58 +52,82 @@ class PhoneLogin
     /** Every login that has this phone number: clients (via their member record) and staff (users.phone). */
     public static function users(string $digits)
     {
-        $formats = self::formats($digits);
-        $suffix  = '%' . substr($digits, -9);
+        $key = self::key($digits);
+        if (! $key) {
+            return collect();
+        }
 
         $staff = User::with('role')
-            ->where('phone', 'like', $suffix)
+            ->whereRaw(self::digitsSql('phone') . ' LIKE ?', ['%' . $key . '%'])
             ->get()
-            ->filter(fn ($u) => in_array($u->phone, $formats) || in_array(preg_replace('/\D/', '', $u->phone), $formats));
+            ->filter(fn ($u) => self::holds($u->phone, $key));
 
-        return self::matches($digits)->pluck('user')->filter()->merge($staff)->unique('id')->values();
-    }
-
-    /** The ways one phone number can be stored. */
-    private static function formats(string $digits): array
-    {
-        $formats = [$digits, '+' . $digits];
-
-        if (str_starts_with($digits, '0')) {
-            $intl = '256' . substr($digits, 1);
-            array_push($formats, $intl, '+' . $intl, substr($digits, 1));
-        }
-
-        if (str_starts_with($digits, '256') && strlen($digits) === 12) {
-            $bare = substr($digits, 3);
-            array_push($formats, '0' . $bare, $bare, '+' . $digits);
-        }
-
-        return $formats;
+        // user() has withDefault(): members with no login give an empty User, so keep saved ones only.
+        return self::matches($digits)->pluck('user')->filter(fn ($u) => $u && $u->exists)->merge($staff)->unique('id')->values();
     }
 
     /**
-     * Every member with a login whose phone number is this one, whichever way it was stored:
-     *  - as stored (local format, e.g. 0771445200)
-     *  - with the leading 0 replaced by the country code 256 (e.g. 256771445200)
-     *  - with a leading 256 stripped back to the 0771... form
-     * Also matches on country_code + mobile combined (how the form saves it).
+     * What identifies a phone number however it was typed or stored: its last
+     * 9 digits, i.e. without the country code (256, +256, 00256) or leading 0,
+     * spaces or dashes. Null when there are fewer than 9 digits.
+     */
+    public static function key(?string $phone): ?string
+    {
+        $digits = preg_replace('/\D/', '', (string) $phone);
+
+        return strlen($digits) >= 9 ? substr($digits, -9) : null;
+    }
+
+    /** True when a stored phone field (possibly holding two numbers, "0771.. / 0701..") contains the number. */
+    public static function holds(?string $stored, string $key): bool
+    {
+        foreach (preg_split('/[\/,;|&]|\bor\b/i', (string) $stored) as $part) {
+            if (self::key($part) === $key) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** Where to text a member on the number they typed: their country code (256 by default) + the 9 digits. */
+    public static function smsNumber(Member $member, string $phone): string
+    {
+        $cc = preg_replace('/\D/', '', (string) $member->country_code) ?: '256';
+
+        return '+' . $cc . self::key($phone);
+    }
+
+    /** SQL for a column with spaces, dashes, dots, brackets and + taken out. */
+    private static function digitsSql(string $column): string
+    {
+        $sql = $column;
+        foreach ([' ', '-', '.', '(', ')', '+'] as $char) {
+            $sql = "REPLACE({$sql}, '{$char}', '')";
+        }
+
+        return $sql;
+    }
+
+    /**
+     * Every member whose phone number is this one, whichever way it was
+     * stored (0771445200, +256771445200, 256 771 445 200, 0771-445-200,
+     * +2560771445200, or one of two numbers in the field), with their login
+     * loaded. Members without a login are included: the caller decides.
      */
     public static function matches(string $digits)
     {
-        $formats = self::formats($digits);
+        $key = self::key($digits);
+        if (! $key) {
+            return collect();
+        }
 
         return Member::withoutGlobalScopes()
-            ->whereNotNull('user_id')
-            ->where('mobile', 'like', '%' . substr($digits, -9))
+            ->whereRaw(self::digitsSql('mobile') . ' LIKE ?', ['%' . $key . '%'])
             ->with('user')
             ->orderBy('id')
             ->get()
-            ->filter(function ($m) use ($formats) {
-                $full = ltrim($m->country_code ?? '', '+') . ltrim($m->mobile, '0');
-                return in_array($m->mobile, $formats)
-                    || in_array($full, $formats)
-                    || in_array('+' . $full, $formats);
-            })
+            ->filter(fn ($m) => self::holds($m->mobile, $key))
             ->values();
     }
 }

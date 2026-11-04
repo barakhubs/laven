@@ -29,7 +29,7 @@ class CodeLoginController extends Controller
 
         try {
             $member = MemberOtpLogin::member($request->phone);
-            $sent   = MemberOtpLogin::send($member, $request->ip());
+            $sent   = MemberOtpLogin::send($member, $request->ip(), $request->phone);
         } catch (MemberOtpLoginException $e) {
             // Waiting to resend: stay on the code page if a code is already out.
             if ($e->errorCode == 'OTP_WAIT' && $request->session()->has('code_login')) {

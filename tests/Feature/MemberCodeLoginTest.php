@@ -207,4 +207,87 @@ class MemberCodeLoginTest extends TestCase
         $this->get('/login/code')->assertRedirect(route('login', ['with' => 'code']));
         $this->assertEmpty($this->sms);
     }
+
+    /** Every way a number gets saved by staff, against every way a client types it. */
+    public function test_any_way_the_number_was_saved_matches_any_way_it_is_typed(): void
+    {
+        $saved = ['+256772555111', '0772555111', '772555111', '256772555111', '+256 772 555 111', '0772-555-111',
+                  '256 772555111', '+2560772555111', ' 0772555111 ', '0772 555111', '0701000000 / 0772555111', '0772555111, 0701000000'];
+        $typed = ['0772555111', '772555111', '256772555111', '+256772555111', '+256 772 555 111', '0772 555 111',
+                  '+256 0772555111', '00256772555111', '0772-555-111'];
+
+        foreach ($saved as $mobile) {
+            Member::withoutGlobalScopes()->where('id', $this->member->id)->update(['mobile' => $mobile]);
+            foreach ($typed as $phone) {
+                LoginCode::where('user_id', $this->member->user_id)->delete();
+                $this->sms = [];
+                $this->sendCode($phone)->assertOk("saved '$mobile', typed '$phone'");
+                $this->assertEquals('+256772555111', $this->sms[0][0], "saved '$mobile', typed '$phone'");
+                $this->verifyCode($this->lastCode(), $phone)->assertOk()->assertJsonPath('data.user.email', $this->member->user->email);
+            }
+        }
+    }
+
+    public function test_member_added_without_a_login_gets_one_with_their_first_code(): void
+    {
+        $member = $this->member->replicate();
+        $member->user_id = null;
+        $member->nin = 'NOLOGIN' . uniqid();
+        $member->member_no = 'NL' . uniqid();
+        $member->email = $this->member->user->email; // taken by another login: gets a placeholder
+        $member->mobile = '+256 701 234 567';
+        $member->status = 1;
+        $member->save();
+
+        $this->sendCode('0701234567')->assertOk()->assertJsonPath('data.sent_to', '+25670****567');
+        $member->refresh();
+        $this->assertNotNull($member->user_id);
+        $user = User::find($member->user_id);
+        $this->assertSame('customer', $user->user_type);
+        $this->assertSame(1, (int) $user->status);
+        $this->assertSame('member' . $member->id . '@no-email.invalid', $user->email);
+
+        // Asking again doesn't make a second login.
+        LoginCode::where('user_id', $user->id)->delete();
+        $this->sendCode('0701234567')->assertOk();
+        $this->assertSame(1, User::where('email', 'member' . $member->id . '@no-email.invalid')->count());
+
+        $this->verifyCode($this->lastCode(), '+256701234567')->assertOk()->assertJsonPath('data.user.id', $user->id);
+
+        // A login that was deleted is replaced too.
+        $member->refresh();
+        User::whereKey($member->user_id)->delete();
+        $this->sendCode('0701234567')->assertOk();
+        $this->assertNotEquals($user->id, $member->fresh()->user_id);
+    }
+
+    public function test_inactive_or_unknown_members_and_bad_input_get_no_code(): void
+    {
+        $member = $this->member->replicate();
+        $member->user_id = null;
+        $member->nin = 'INACT' . uniqid();
+        $member->member_no = 'IN' . uniqid();
+        $member->mobile = '0703333444';
+        $member->status = 0;
+        $member->save();
+        $this->sendCode('0703333444')->assertStatus(403)->assertJsonPath('code', 'ACCOUNT_INACTIVE');
+        $this->assertNull($member->fresh()->user_id);
+
+        foreach (['', '12345', 'abc', '0772'] as $bad) {
+            $this->sendCode($bad)->assertStatus(422);
+        }
+        // Same last digits, different number.
+        $this->sendCode('0782555111')->assertStatus(404)->assertJsonPath('code', 'NOT_A_MEMBER');
+        $this->assertEmpty($this->sms);
+    }
+
+    public function test_password_sign_in_by_phone_still_works_with_messy_saved_numbers(): void
+    {
+        $this->member->user->password = bcrypt('secret123');
+        $this->member->user->save();
+        Member::withoutGlobalScopes()->where('id', $this->member->id)->update(['mobile' => '+256 772-555-111']);
+
+        $this->postJson('/api/v1/auth/login', ['login' => '0772555111', 'password' => 'secret123', 'device_name' => 'T'])
+            ->assertOk()->assertJsonPath('data.user.email', $this->member->user->email);
+    }
 }

@@ -116,7 +116,7 @@ class AuthController extends ApiController
         }
 
         try {
-            $sent = MemberOtpLogin::send(MemberOtpLogin::member($request->phone), $request->ip());
+            $sent = MemberOtpLogin::send(MemberOtpLogin::member($request->phone), $request->ip(), $request->phone);
         } catch (MemberOtpLoginException $e) {
             return $this->codeError($e);
         }
