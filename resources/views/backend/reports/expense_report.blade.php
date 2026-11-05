@@ -59,7 +59,7 @@
 					</div>
 				</div><!--End Report param-->
 
-				@php $date_format = get_option('date_format','Y-m-d'); @endphp
+				@php $date_format = get_date_format(); @endphp
 				@php $currency = currency(get_base_currency()); @endphp
 
 				<div class="report-header">

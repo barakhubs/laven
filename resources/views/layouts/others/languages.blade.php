@@ -2,7 +2,7 @@
 	var _url = "{{ url('') }}";
 	var _admin_url = "{{ url('admin') }}";
 	var _media_url = "{{ isset($parent_id) ? url('media/get_table_data/'.$parent_id) : url('media/get_table_data') }}";
-	var _date_format = "{{ get_option('date_format','Y-m-d') }}";
+	var _date_format = "{{ get_date_format() }}";
 	var _backend_direction = "{{ get_option('backend_direction','ltr') }}";
 	var _currency = "{{ currency(get_base_currency()) }}";
 	var _base_currency_id = "{{ base_currency_id() }}";

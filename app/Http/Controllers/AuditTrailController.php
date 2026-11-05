@@ -87,7 +87,7 @@ class AuditTrailController extends Controller
             ->editColumn('created_at', function ($log) {
                 return $log->created_at
                     ? '<span title="' . $log->created_at . '">'
-                        . \Carbon\Carbon::parse($log->created_at)->format('d M Y, H:i:s') . '</span>'
+                        . \Carbon\Carbon::parse($log->created_at)->format(get_date_format() . ' H:i:s') . '</span>'
                     : '—';
             })
             ->addColumn('detail_btn', function ($log) {

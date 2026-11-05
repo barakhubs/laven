@@ -82,11 +82,11 @@
 							</div>
 						</div>
 
-						{{-- Typed and shown as dd/mm/yyyy; the hidden field sends YYYY-MM-DD. --}}
+						{{-- Typed and shown as dd-mm-yyyy; the hidden field sends YYYY-MM-DD. --}}
 						<div class="col-lg-6">
 							<div class="form-group">
 								<label class="control-label">{{ _lang('Release Date') }}</label>
-								<input type="text" class="form-control dmy-date" id="release_date_display" data-target="#release_date" placeholder="dd/mm/yyyy" autocomplete="off" data-parsley-dmy required>
+								<input type="text" class="form-control dmy-date" id="release_date_display" data-target="#release_date" placeholder="dd-mm-yyyy" autocomplete="off" data-parsley-dmy required>
 								<input type="hidden" name="release_date" id="release_date" value="{{ old('release_date') }}">
 							</div>
 						</div>
@@ -94,7 +94,7 @@
 						<div class="col-lg-6">
 							<div class="form-group">
 								<label class="control-label">{{ _lang('First Payment Date') }}</label>
-								<input type="text" class="form-control dmy-date" id="first_payment_date_display" data-target="#first_payment_date" placeholder="dd/mm/yyyy" autocomplete="off" data-parsley-dmy required>
+								<input type="text" class="form-control dmy-date" id="first_payment_date_display" data-target="#first_payment_date" placeholder="dd-mm-yyyy" autocomplete="off" data-parsley-dmy required>
 								<input type="hidden" name="first_payment_date" id="first_payment_date" value="{{ old('first_payment_date') }}">
 							</div>
 						</div>
@@ -245,14 +245,14 @@
 		$('#doc_override_reason_section').toggle(this.checked);
 	});
 
-	// Dates are typed or picked as dd/mm/yyyy; each mirrors into its
+	// Dates are typed or picked as dd-mm-yyyy; each mirrors into its
 	// hidden YYYY-MM-DD field, which is what the form submits.
-	const DMY = 'DD/MM/YYYY';
+	const DMY = 'DD-MM-YYYY';
 
 	// A real calendar date, so 31/02/2026 or 32/10/2026 is caught here and not by the server.
 	window.Parsley.addValidator('dmy', {
 		validateString: value => moment(value, DMY, true).isValid(),
-		messages: { en: "{{ _lang('Enter a valid date as dd/mm/yyyy') }}" },
+		messages: { en: "{{ _lang('Enter a valid date as dd-mm-yyyy') }}" },
 	});
 
 	$('.dmy-date').each(function() {

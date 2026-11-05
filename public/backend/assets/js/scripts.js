@@ -348,15 +348,7 @@
   $(".dropify").dropify();
 
   /** Init DateTimepicker **/
-  $(".datetimepicker").daterangepicker({
-    timePicker: true,
-    timePicker24Hour: true,
-    singleDatePicker: true,
-    showDropdowns: true,
-    locale: {
-      format: "YYYY-MM-DD HH:mm",
-    },
-  });
+  init_dmy_fields();
 
   //Form validation
   if ($(".validate").length) {
@@ -543,15 +535,7 @@
         }
 
         /** Init DateTimepicker **/
-        $(".datetimepicker").daterangepicker({
-          timePicker: true,
-          timePicker24Hour: true,
-          singleDatePicker: true,
-          showDropdowns: true,
-          locale: {
-            format: "YYYY-MM-DD HH:mm",
-          },
-        });
+        init_dmy_fields();
 
         $(".float-field").keypress(function (event) {
           if (
@@ -714,6 +698,7 @@
 
         /** Init Datepicker **/
         init_datepicker();
+        init_dmy_fields();
 
         $(".float-field").on("keypress", function (event) {
           if (
@@ -1605,6 +1590,150 @@ function init_datepicker() {
 
   /** End Datepicker **/
 }
+
+/**
+ * Date fields are shown and typed as dd-mm-yyyy (dd-mm-yyyy hh:mm for
+ * .datetimepicker). The real input becomes hidden and keeps YYYY-MM-DD
+ * (YYYY-MM-DD HH:mm): that is what forms submit and page scripts read, so
+ * their .val(), change handlers and required toggles keep working.
+ */
+function init_dmy_fields() {
+  // Declared in here: the main block above calls this before later top-level vars are set.
+  var DMY_DATE = "DD-MM-YYYY";
+  // What people may type; the first of each is how it is shown.
+  var DMY_TYPED = {
+    date: [DMY_DATE, "D-M-YYYY", "DD/MM/YYYY", "D/M/YYYY", "DD.MM.YYYY"],
+    datetime: [DMY_DATE + " HH:mm", DMY_DATE + " H:mm", "D-M-YYYY HH:mm", "DD/MM/YYYY HH:mm", DMY_DATE, "D-M-YYYY", "DD/MM/YYYY", "D/M/YYYY"],
+  };
+
+  if (!$.fn.daterangepicker || typeof moment === "undefined") {
+    return;
+  }
+
+  if (window.Parsley && window.Parsley.addValidator && !init_dmy_fields.validatorAdded) {
+    init_dmy_fields.validatorAdded = true;
+    window.Parsley.addValidator("dmyDate", {
+      requirementType: "string",
+      validateString: function (value, kind) {
+        return moment($.trim(value), DMY_TYPED[kind] || DMY_TYPED.date, true).isValid();
+      },
+      messages: { en: "Enter the date as dd-mm-yyyy" },
+    });
+  }
+
+  $('input[type="date"], input.datetimepicker').each(function () {
+    var real = this;
+    var $real = $(this);
+    if ($real.data("dmyShown")) {
+      return;
+    }
+
+    var withTime = $real.hasClass("datetimepicker");
+    var typed = withTime ? DMY_TYPED.datetime : DMY_TYPED.date;
+    var shownFormat = typed[0];
+    var realFormat = withTime ? "YYYY-MM-DD HH:mm" : "YYYY-MM-DD";
+
+    var $shown = $('<input type="text" autocomplete="off">')
+      .addClass(($real.attr("class") || "").replace(/\bdatetimepicker\b/, "").trim())
+      .attr("placeholder", withTime ? "dd-mm-yyyy hh:mm" : "dd-mm-yyyy")
+      .attr("data-parsley-dmy-date", withTime ? "datetime" : "date");
+    if ($real.attr("style")) {
+      $shown.attr("style", $real.attr("style"));
+    }
+    if ($real.attr("title")) {
+      $shown.attr("title", $real.attr("title"));
+    }
+    if (real.id) {
+      $shown.attr("id", real.id + "_shown");
+    }
+
+    var syncAttributes = function () {
+      $shown.prop("required", $real.prop("required"));
+      $shown.prop("disabled", $real.prop("disabled"));
+      $shown.prop("readonly", $real.prop("readonly"));
+    };
+
+    var realToShown = function () {
+      var m = real.value ? moment(real.value, ["YYYY-MM-DD HH:mm:ss", "YYYY-MM-DD HH:mm", "YYYY-MM-DD"], true) : null;
+      $shown.val(m && m.isValid() ? m.format(shownFormat) : "");
+      var picker = $shown.data("daterangepicker");
+      if (picker && m && m.isValid()) {
+        picker.setStartDate(m);
+        picker.setEndDate(m);
+      }
+    };
+
+    var shownToReal = function () {
+      var before = real.value;
+      var text = $.trim($shown.val());
+      var m = text ? moment(text, typed, true) : null;
+      if (!text) {
+        real.value = "";
+      } else if (m.isValid()) {
+        real.value = m.format(realFormat);
+        $shown.val(m.format(shownFormat));
+      } else {
+        real.value = ""; // left as typed so the validator flags it
+      }
+      if (real.value !== before) {
+        $real.trigger("change");
+      }
+    };
+
+    $real.data("dmyShown", $shown).data("dmySync", realToShown);
+    $shown.insertBefore($real);
+    real.type = "hidden";
+    syncAttributes();
+
+    if (window.MutationObserver) {
+      new MutationObserver(syncAttributes).observe(real, {
+        attributes: true,
+        attributeFilter: ["required", "disabled", "readonly"],
+      });
+    }
+
+    var options = {
+      singleDatePicker: true,
+      showDropdowns: true,
+      autoUpdateInput: false,
+      autoApply: !withTime,
+      timePicker: withTime,
+      timePicker24Hour: true,
+      locale: { format: shownFormat },
+    };
+    if ($real.attr("min")) {
+      options.minDate = moment($real.attr("min"), "YYYY-MM-DD");
+    }
+    if ($real.attr("max")) {
+      options.maxDate = moment($real.attr("max"), "YYYY-MM-DD");
+    }
+    $shown.daterangepicker(options);
+
+    $shown.on("apply.daterangepicker", function (ev, picker) {
+      $shown.val(picker.startDate.format(shownFormat));
+      shownToReal();
+    });
+    $shown.on("change", shownToReal);
+
+    realToShown();
+  });
+}
+
+// Setting the hidden real field with jQuery's .val() also updates what is shown.
+(function () {
+  var previous = $.valHooks.hidden;
+  $.valHooks.hidden = {
+    set: function (elem, value) {
+      var sync = $(elem).data("dmySync");
+      if (sync) {
+        elem.value = value == null ? "" : value;
+        sync();
+        return true;
+      }
+      return previous && previous.set ? previous.set(elem, value) : undefined;
+    },
+  };
+})();
 
 function showRole(elem) {
   if ($(elem).val() == "") {

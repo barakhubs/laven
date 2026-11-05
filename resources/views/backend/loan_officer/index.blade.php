@@ -13,9 +13,9 @@
 	<i class="fas fa-percentage mr-2"></i>
 	<div>
 		@if($date1 && $date2)
-			{{ _lang('"Disbursement Share" reflects the selected date range') }} {{ $share_start }} &rarr; {{ $share_end }}.
+			{{ _lang('"Disbursement Share" reflects the selected date range') }} {{ date(get_date_format(), strtotime($share_start)) }} &rarr; {{ date(get_date_format(), strtotime($share_end)) }}.
 		@else
-			{{ _lang('"Disbursement Share" is a live projection for') }} {{ $share_start }} &rarr; {{ $share_end }} {{ _lang('to date — the split each officer would get if disbursement happened right now.') }}
+			{{ _lang('"Disbursement Share" is a live projection for') }} {{ date(get_date_format(), strtotime($share_start)) }} &rarr; {{ date(get_date_format(), strtotime($share_end)) }} {{ _lang('to date — the split each officer would get if disbursement happened right now.') }}
 		@endif
 	</div>
 </div>
@@ -82,7 +82,7 @@
 						<div class="text-uppercase" style="font-size: 11px; letter-spacing: .05em; color: #8a6d1f; font-weight: 700;">
 							{{ _lang('Top Performer') }}
 							@if($date1 && $date2)
-								&mdash; {{ $date1 }} &rarr; {{ $date2 }}
+								&mdash; {{ date(get_date_format(), strtotime($date1)) }} &rarr; {{ date(get_date_format(), strtotime($date2)) }}
 							@else
 								&mdash; {{ _lang('All Time') }}
 							@endif
@@ -107,7 +107,7 @@
 			<div class="card-header">
 				<span class="panel-title">{{ _lang('Loan Officer Performance') }}</span>
 				@if($date1 && $date2)
-				<span class="badge badge-light ml-2">{{ $date1 }} &rarr; {{ $date2 }}</span>
+				<span class="badge badge-light ml-2">{{ date(get_date_format(), strtotime($date1)) }} &rarr; {{ date(get_date_format(), strtotime($date2)) }}</span>
 				@else
 				<span class="badge badge-light ml-2">{{ _lang('All Time') }}</span>
 				@endif
@@ -126,7 +126,7 @@
 								<th class="text-right">{{ _lang('Fees Earned') }}</th>
 								<th class="text-right">{{ _lang('Interest & Penalties') }}</th>
 								<th class="text-right">{{ _lang('Total Profit Generated') }}</th>
-								<th style="min-width: 110px;" title="{{ _lang('Based on') }} {{ $share_start }} &rarr; {{ $share_end }}">
+								<th style="min-width: 110px;" title="{{ _lang('Based on') }} {{ date(get_date_format(), strtotime($share_start)) }} &rarr; {{ date(get_date_format(), strtotime($share_end)) }}">
 									{{ _lang('Disbursement Share') }}
 									<i class="fas fa-info-circle text-muted" style="font-size: 11px;"></i>
 								</th>

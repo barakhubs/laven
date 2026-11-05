@@ -35,7 +35,7 @@
 			<div class="card-header">
 				<span class="panel-title">{{ _lang('Client Performance') }}</span>
 				@if($date1 && $date2)
-				<span class="badge badge-light ml-2">{{ $date1 }} &rarr; {{ $date2 }}</span>
+				<span class="badge badge-light ml-2">{{ date(get_date_format(), strtotime($date1)) }} &rarr; {{ date(get_date_format(), strtotime($date2)) }}</span>
 				@else
 				<span class="badge badge-light ml-2">{{ _lang('All Time') }}</span>
 				@endif

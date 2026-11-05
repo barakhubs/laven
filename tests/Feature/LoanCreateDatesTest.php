@@ -16,7 +16,7 @@ class LoanCreateDatesTest extends TestCase
 
         $this->get('/admin/loans/create')->assertOk()
             ->assertSeeInOrder(['id="release_date_display"', 'id="first_payment_date_display"'], false)
-            ->assertSee('placeholder="dd/mm/yyyy"', false)
+            ->assertSee('placeholder="dd-mm-yyyy"', false)
             // The form still posts YYYY-MM-DD from hidden fields.
             ->assertSee('<input type="hidden" name="release_date" id="release_date" value="">', false)
             ->assertSee('<input type="hidden" name="first_payment_date" id="first_payment_date" value="">', false);

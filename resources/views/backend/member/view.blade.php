@@ -541,7 +541,7 @@
                                 <tr>
                                     <td>{{ $document->name }}</td>
                                     <td><a target="_blank" href="{{ asset('uploads/documents/'.$document->document) }}"><i class="ti-file mr-1"></i>{{ $document->document }}</a></td>
-                                    <td>{{ date('d M, Y H:i', strtotime($document->created_at)) }}</td>
+                                    <td>{{ date(get_date_format() . ' ' . get_time_format(), strtotime($document->getRawOriginal('created_at'))) }}</td>
                                     @unless($portal)
                                     <td class="text-center">
                                         <span class="dropdown">

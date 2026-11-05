@@ -2,7 +2,7 @@
 
 @section('content')
 
-@php $date_format = get_option('date_format','Y-m-d'); @endphp
+@php $date_format = get_date_format(); @endphp
 
 <div class="row">
 	<div class="col-lg-8 offset-lg-2">

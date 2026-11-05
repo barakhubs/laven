@@ -56,7 +56,7 @@
 			<div class="card-body">
 				<h5>{{ _lang('Simulated Net Profit') }}</h5>
 				<h4 class="pt-1 mb-0"><b>{{ decimalPlace($net_profit, $currency) }}</b></h4>
-				<small>{{ $start_date }} &rarr; {{ $end_date }}</small>
+				<small>{{ date(get_date_format(), strtotime($start_date)) }} &rarr; {{ date(get_date_format(), strtotime($end_date)) }}</small>
 			</div>
 		</div>
 	</div>

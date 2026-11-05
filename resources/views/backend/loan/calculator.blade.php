@@ -125,7 +125,7 @@
 							<tbody>
 								@foreach($table_data as $td)
 								<tr>
-									<td>{{ date('d/m/Y',strtotime($td['date'])) }}</td>
+									<td>{{ date(get_date_format(), strtotime($td['date'])) }}</td>
 									<td class="text-right">{{ decimalPlace($td['principal_amount']) }}</td>
 									<td class="text-right">{{ decimalPlace($td['interest']) }}</td>
 									<td class="text-right">{{ decimalPlace($td['penalty']) }}/ {{ _lang('Day') }}</td>

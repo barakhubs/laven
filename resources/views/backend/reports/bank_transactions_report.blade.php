@@ -72,7 +72,7 @@
 					</div>
 				</div><!--End Report param-->
 
-				@php $date_format = get_option('date_format','Y-m-d'); @endphp
+				@php $date_format = get_date_format(); @endphp
 
 				<div class="report-header">
 				   <img src="{{ get_logo() }}" class="logo"/>

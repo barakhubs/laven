@@ -8,7 +8,7 @@
 				<span class="panel-title">{{ _lang('Cash In Hand') }}</span>
 			</div>
 			<div class="card-body">
-				@php $date_format = get_option('date_format','Y-m-d'); @endphp
+				@php $date_format = get_date_format(); @endphp
 				@php $currency = get_base_currency(); @endphp
 				@php $cash_in_hand = []; @endphp
 

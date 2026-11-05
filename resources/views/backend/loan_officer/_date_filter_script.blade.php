@@ -14,7 +14,7 @@
 			startDate: start,
 			endDate: end,
 			autoUpdateInput: hasFilter,
-			locale: { format: 'YYYY-MM-DD', cancelLabel: '{{ _lang("Clear") }}' },
+			locale: { format: 'DD-MM-YYYY', cancelLabel: '{{ _lang("Clear") }}' },
 			ranges: {
 				'{{ _lang("Today") }}': [moment(), moment()],
 				'{{ _lang("Yesterday") }}': [moment().subtract(1, 'days'), moment().subtract(1, 'days')],
@@ -28,7 +28,7 @@
 		});
 
 		$('#loan_officer_daterange').on('apply.daterangepicker', function(ev, picker) {
-			$(this).val(picker.startDate.format('YYYY-MM-DD') + ' - ' + picker.endDate.format('YYYY-MM-DD'));
+			$(this).val(picker.startDate.format('DD-MM-YYYY') + ' - ' + picker.endDate.format('DD-MM-YYYY'));
 			$('#date1').val(picker.startDate.format('YYYY-MM-DD'));
 			$('#date2').val(picker.endDate.format('YYYY-MM-DD'));
 		});
