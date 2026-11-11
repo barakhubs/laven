@@ -170,6 +170,12 @@ Route::group(['middleware' => ['install']], function () {
 
             });
 
+            /** Client loan statement: anyone who can view loans or members (checked in the controller). **/
+            Route::group(['prefix' => 'admin'], function () {
+                Route::get('members/{id}/loan_statement', [LoanController::class, 'statement'])->name('loans.statement');
+                Route::get('members/{id}/loan_statement.pdf', [LoanController::class, 'statement_pdf'])->name('loans.statement_pdf');
+            });
+
             /** Dynamic Permission Routes **/
             Route::group(['middleware' => ['permission'], 'prefix' => 'admin'], function () {
 
@@ -339,6 +345,8 @@ Route::group(['middleware' => ['install']], function () {
                 Route::get('loans/payments/{id}/receipt.pdf', [App\Http\Controllers\Customer\LoanController::class, 'payment_receipt_pdf'])->name('loans.payment_receipt_pdf');
                 Route::match(['get', 'post'], 'loans/payment/{loan_id}', [App\Http\Controllers\Customer\LoanController::class, 'loan_payment'])->name('loans.loan_payment');
                 Route::get('loans/my_loans', [App\Http\Controllers\Customer\LoanController::class, 'index'])->name('loans.my_loans');
+                Route::get('loans/statement', [App\Http\Controllers\Customer\LoanController::class, 'statement'])->name('loans.my_statement');
+                Route::get('loans/statement.pdf', [App\Http\Controllers\Customer\LoanController::class, 'statement_pdf'])->name('loans.my_statement_pdf');
 
                 // Deposit Money
                 Route::match(['get', 'post'], 'deposit/manual_deposit/{id}', [App\Http\Controllers\Customer\DepositController::class, 'manual_deposit'])->name('deposit.manual_deposit');

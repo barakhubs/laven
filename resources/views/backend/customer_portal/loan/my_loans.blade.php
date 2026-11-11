@@ -6,7 +6,10 @@
 		<div class="card">
 			<div class="card-header d-flex justify-content-between align-items-center">
 				<span class="panel-title">{{ _lang('My Loans') }}</span>
-				<a class="btn btn-primary btn-xs float-right" href="{{ route('loans.apply_loan') }}"><i class="ti-plus"></i>&nbsp;{{ _lang('Apply Loan') }}</a>
+				<span>
+				<a class="btn btn-outline-primary btn-xs mr-1" href="{{ route('loans.my_statement') }}"><i class="ti-receipt"></i>&nbsp;{{ _lang('My Statement') }}</a>
+				<a class="btn btn-primary btn-xs" href="{{ route('loans.apply_loan') }}"><i class="ti-plus"></i>&nbsp;{{ _lang('Apply Loan') }}</a>
+				</span>
 			</div>
 
 			<div class="card-body">

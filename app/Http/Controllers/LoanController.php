@@ -398,6 +398,45 @@ class LoanController extends Controller {
      * period. GET shows the form (and a preview once a date is chosen); POST
      * applies it.
      */
+    /**
+     * A client's loan statement: every payment and where it went, in plain
+     * words, to print, download as PDF or share. ?loan_id= limits it to one loan.
+     */
+    public function statement(Request $request, $id) {
+        [$member, $loans] = $this->statementLoans($request, $id);
+        $query = array_filter(['loan_id' => $request->query('loan_id')]);
+
+        return view('backend.loan.statement', \App\Services\LoanStatementService::data($member, $loans) + [
+            'pdfUrl'  => route('loans.statement_pdf', [$member->id] + $query),
+            'actions' => [_lang('Back') => $request->filled('loan_id') ? route('loans.show', $request->loan_id) : route('members.show', $member->id)],
+        ]);
+    }
+
+    public function statement_pdf(Request $request, $id) {
+        [$member, $loans] = $this->statementLoans($request, $id);
+        $pdf = \App\Services\LoanStatementService::pdf(\App\Services\LoanStatementService::data($member, $loans));
+
+        return response($pdf, 200, [
+            'Content-Type'        => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="' . \App\Services\LoanStatementService::filename($member) . '"',
+        ]);
+    }
+
+    /** The member and the loans their statement covers; staff need to be able to view loans or members. */
+    private function statementLoans(Request $request, $id): array {
+        $user = auth()->user();
+        if ($user->user_type == 'customer' || (! $user->isAdmin() && ! has_permission('loans.show') && ! has_permission('members.show'))) {
+            abort(403, _lang('Permission denied !'));
+        }
+
+        $member = \App\Models\Member::withoutGlobalScopes(['status'])->findOrFail($id);
+        $loans  = $member->loans()->with(['loan_product', 'currency'])
+            ->when($request->filled('loan_id'), fn ($q) => $q->where('loans.id', $request->loan_id))
+            ->get();
+
+        return [$member, $loans];
+    }
+
     public function change_repayment_day(Request $request, $id) {
         if (! auth()->user()->isSuperAdmin()) {
             abort(403, 'Only Super Admins can change repayment dates.');

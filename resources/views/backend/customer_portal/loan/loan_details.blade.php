@@ -4,8 +4,11 @@
 <div class="col-lg-12">
     <div class="card">
 
-        <div class="card-header">
+        <div class="card-header d-flex align-items-center">
             <span class="panel-title">{{ _lang('Loan Details') }}</span>
+            @if(in_array($loan->status, [1, 2]))
+            <a class="btn btn-outline-primary btn-xs ml-auto" href="{{ route('loans.my_statement', ['loan_id' => $loan->id]) }}"><i class="ti-receipt"></i>&nbsp;{{ _lang('Statement') }}</a>
+            @endif
         </div>
 
         <div class="card-body">

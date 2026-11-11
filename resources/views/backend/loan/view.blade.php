@@ -5,6 +5,12 @@
       <div class="card">
          <div class="card-header d-sm-flex align-items-center justify-content-between">
             <div class="panel-title">{{ _lang('View Loan Details') }}</div>
+            @if(in_array($loan->status, [1, 2]))
+            <div class="ml-sm-auto mr-1">
+               <a class="btn btn-outline-primary btn-xs" href="{{ route('loans.statement', [$loan->borrower_id, 'loan_id' => $loan->id]) }}">
+                  <i class="fas fa-file-invoice mr-1"></i>{{ _lang('Statement') }}</a>
+            </div>
+            @endif
             @if($loan->status == 1 && auth()->user()->isSuperAdmin())
             <div>
                <a class="btn btn-outline-info btn-xs mr-1" href="{{ route('grace_periods.create', $loan->id) }}">

@@ -291,10 +291,11 @@
                 <div class="card">
                     <div class="card-header d-flex align-items-center">
                         <span class="header-title">{{ _lang('Loan Summary') }}</span>
+                        <a href="{{ $portal ? route('loans.my_statement') : route('loans.statement', $member->id) }}" class="btn btn-xs btn-outline-primary ml-auto mr-1"><i class="ti-receipt mr-1"></i>{{ _lang('Loan Statement') }}</a>
                         @if($portal)
-                        <a href="{{ route('loans.loan_products') }}" class="btn btn-xs btn-primary ml-auto"><i class="ti-plus mr-1"></i>{{ _lang('Apply for a Loan') }}</a>
+                        <a href="{{ route('loans.loan_products') }}" class="btn btn-xs btn-primary"><i class="ti-plus mr-1"></i>{{ _lang('Apply for a Loan') }}</a>
                         @else
-                        <a href="{{ route('loans.create') }}" class="btn btn-xs btn-primary ml-auto"><i class="ti-plus mr-1"></i>{{ _lang('New Loan') }}</a>
+                        <a href="{{ route('loans.create') }}" class="btn btn-xs btn-primary"><i class="ti-plus mr-1"></i>{{ _lang('New Loan') }}</a>
                         @endif
                     </div>
                     <div class="card-body">

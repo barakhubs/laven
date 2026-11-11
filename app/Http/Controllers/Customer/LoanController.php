@@ -375,6 +375,40 @@ class LoanController extends Controller
     }
 
     /**
+     * The client's own loan statement (all their loans, or ?loan_id= one).
+     */
+    public function statement(Request $request)
+    {
+        $member = auth()->user()->member;
+        $query  = array_filter(['loan_id' => $request->query('loan_id')]);
+
+        return view('backend.loan.statement', \App\Services\LoanStatementService::data($member, $this->ownLoans($request)) + [
+            'pdfUrl'  => route('loans.my_statement_pdf', $query),
+            'actions' => [_lang('Back') => route('loans.my_loans')],
+        ]);
+    }
+
+    public function statement_pdf(Request $request)
+    {
+        $member = auth()->user()->member;
+        $pdf    = \App\Services\LoanStatementService::pdf(\App\Services\LoanStatementService::data($member, $this->ownLoans($request)));
+
+        return response($pdf, 200, [
+            'Content-Type'        => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="' . \App\Services\LoanStatementService::filename($member) . '"',
+        ]);
+    }
+
+    private function ownLoans(Request $request)
+    {
+        return Loan::withoutGlobalScopes()
+            ->where('borrower_id', auth()->user()->member->id)
+            ->when($request->filled('loan_id'), fn ($q) => $q->where('id', $request->loan_id))
+            ->with(['loan_product', 'currency'])
+            ->get();
+    }
+
+    /**
      * The same receipt as a 58mm-wide PDF download.
      */
     public function payment_receipt_pdf($id)
