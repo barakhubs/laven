@@ -61,6 +61,33 @@ class LoanStatementTest extends TestCase
         $this->assertEqualsWithDelta((float) $loan->total_payable - $paidOff, collect($rows)->last()['balance'], 0.01);
     }
 
+    public function test_statement_shows_days_late_and_what_the_30_percent_savings_cover(): void
+    {
+        [$loan, $p1, $p2] = $this->loanWithPayments();
+
+        $s    = \App\Services\LoanStatementService::data($loan->borrower, collect([$loan]))['sections'][0];
+        $rows = collect($s['rows'])->keyBy('receipt');
+        // The first installment fell due 10 days ago; paid 5 days late, then today (10 days late).
+        $this->assertSame(5, $rows[$p1->id]['days_late']);
+        $this->assertSame(10, $rows[$p2->id]['days_late']);
+
+        $owed = \App\Services\LoanRepaymentService::arrears($loan, date('Y-m-d'));
+        if ($owed['overdue']['count'] > 0) {
+            $this->assertSame(10, $s['days_overdue']);
+        }
+
+        if (\App\Services\LoanReserveService::required($loan)) {
+            $sv = $s['savings'];
+            $this->assertEqualsWithDelta($owed['owed']['total'], $sv['before'], 0.01);
+            $this->assertEqualsWithDelta($sv['before'] - $sv['covers'], $sv['after'], 0.01);
+            $this->assertEqualsWithDelta(min(\App\Services\LoanReserveService::usable($loan), $sv['before']), $sv['covers'], 0.01);
+            $this->get(route('loans.statement', $loan->borrower_id))->assertOk()
+                ->assertSee('30% SAVINGS')->assertSee('before', false)->assertSee('after 30% savings', false);
+        } else {
+            $this->assertNull($s['savings']);
+        }
+    }
+
     public function test_statement_downloads_as_pdf_and_can_be_limited_to_one_loan(): void
     {
         [$loan] = $this->loanWithPayments();

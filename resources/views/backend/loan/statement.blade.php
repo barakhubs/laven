@@ -40,10 +40,14 @@
         .pay .r { text-align: right; white-space: nowrap; }
         .pay tfoot td { font-weight: bold; border-top: 2px solid #ccd3e0; border-bottom: none; }
         .small { font-size: 10px; color: #666; }
-        .left { margin-top: 8px; padding: 8px; border: 1px solid #dde3ee; background: #fafbfd; }
+        .left { page-break-inside: avoid; margin-top: 8px; padding: 8px; border: 1px solid #dde3ee; background: #fafbfd; }
         .left td { padding: 2px 0; }
         .left .big { font-size: 15px; font-weight: bold; }
         .red { color: #b00020; }
+        .savings { border-color: #b9d8c4; background: #f4faf6; }
+        .box-title { font-weight: bold; color: #17803d; margin-bottom: 4px; }
+        .rule { border-top: 1px dashed #b9c3d6; margin: 3px 0; }
+        .late { color: #b00020; }
         .green { color: #17803d; }
         .foot { margin-top: 24px; font-size: 10px; color: #666; border-top: 1px solid #dde3ee; padding-top: 6px; }
         .bar { text-align: center; margin: 0 0 14px; }
@@ -127,7 +131,8 @@
             <tbody>
                 @forelse($s['rows'] as $row)
                 <tr>
-                    <td class="d">{{ $row['date'] }}<br><span class="small">{{ $row['method'] }} &middot; #{{ $row['receipt'] }}</span></td>
+                    <td class="d">{{ $row['date'] }}<br><span class="small">{{ $row['method'] }} &middot; #{{ $row['receipt'] }}</span>
+                        <br><span class="small {{ $row['days_late'] > 0 ? 'late' : '' }}">{{ $row['days_late'] > 0 ? $row['days_late'] . ' ' . ($row['days_late'] == 1 ? _lang('day late') : _lang('days late')) : _lang('On time') }}</span></td>
                     <td class="r"><strong>{{ decimalPlace($row['amount'], $cur) }}</strong></td>
                     <td class="r">{{ $row['penalty'] > 0 ? decimalPlace($row['penalty'], $cur) : '-' }}</td>
                     <td class="r">{{ decimalPlace($row['interest'], $cur) }}</td>
@@ -160,17 +165,53 @@
                 @if($loan->status == 2)
                 <tr><td class="big green">{{ _lang('This loan is fully paid. Thank you.') }}</td></tr>
                 @else
-                <tr><td>{{ _lang('Still to pay today') }}@if($s['owed']['penalty'] > 0) <span class="small">({{ _lang('includes late fee') }} {{ decimalPlace($s['owed']['penalty'], $cur) }})</span>@endif</td>
-                    <td style="text-align:right" class="big">{{ decimalPlace($s['owed']['total'], $cur) }}</td></tr>
                 @if($s['overdue']['total'] > 0)
-                <tr><td class="red">{{ _lang('Overdue now') }}</td><td style="text-align:right" class="red"><strong>{{ decimalPlace($s['overdue']['total'], $cur) }}</strong></td></tr>
+                <tr><td class="red"><strong>{{ _lang('Overdue now') }}</strong>
+                    &middot; {{ $s['days_overdue'] }} {{ $s['days_overdue'] == 1 ? _lang('day late') : _lang('days late') }}
+                    @if($s['overdue']['count'] > 1)<span class="small">({{ $s['overdue']['count'] }} {{ _lang('payments missed') }})</span>@endif</td>
+                    <td style="text-align:right" class="red big">{{ decimalPlace($s['overdue']['total'], $cur) }}</td></tr>
+                @else
+                <tr><td class="green"><strong>{{ _lang('Nothing overdue') }}</strong></td><td></td></tr>
                 @endif
                 @if($s['next'])
-                <tr><td>{{ _lang('Next payment') }}: {{ $s['next']['date'] }}</td><td style="text-align:right"><strong>{{ decimalPlace($s['next']['amount'], $cur) }}</strong></td></tr>
+                <tr><td>{{ _lang('Next payment') }}: <strong>{{ $s['next']['date'] }}</strong>
+                    @if($s['next']['covered'] > 0)<br><span class="small">{{ _lang('30% savings cover') }} {{ decimalPlace($s['next']['covered'], $cur) }}; {{ _lang('client pays') }} {{ decimalPlace($s['next']['pays'], $cur) }}</span>@endif</td>
+                    <td style="text-align:right"><strong>{{ decimalPlace($s['next']['amount'], $cur) }}</strong></td></tr>
                 @endif
+                @unless($s['savings'])
+                <tr><td>{{ _lang('Still to pay') }}@if($s['owed']['penalty'] > 0) <span class="small">({{ _lang('includes late fee') }} {{ decimalPlace($s['owed']['penalty'], $cur) }})</span>@endif</td>
+                    <td style="text-align:right" class="big">{{ decimalPlace($s['owed']['total'], $cur) }}</td></tr>
+                @endunless
                 @endif
             </table>
         </div>
+
+        @if($loan->status == 1 && $s['savings'])
+        @php $sv = $s['savings']; @endphp
+        <div class="left savings">
+            <div class="box-title">{{ _lang('30% SAVINGS') }}</div>
+            <table>
+                <tr><td>{{ _lang('Set aside when the loan was given') }}</td><td style="text-align:right">{{ decimalPlace($sv['set_aside'], $cur) }}</td></tr>
+                @if($sv['used'] > 0)
+                <tr><td>{{ _lang('Already used on this loan') }}</td><td style="text-align:right">{{ decimalPlace($sv['used'], $cur) }}</td></tr>
+                @endif
+                <tr><td>{{ _lang('Still held for this loan') }}</td><td style="text-align:right"><strong>{{ decimalPlace($sv['held'], $cur) }}</strong></td></tr>
+                <tr><td colspan="2"><div class="rule"></div></td></tr>
+                <tr><td>{{ _lang('Total still to pay') }} <strong>{{ _lang('before') }}</strong> {{ _lang('30% savings') }}
+                    @if($s['owed']['penalty'] > 0)<br><span class="small">{{ _lang('includes late fee') }} {{ decimalPlace($s['owed']['penalty'], $cur) }}</span>@endif</td>
+                    <td style="text-align:right"><strong>{{ decimalPlace($sv['before'], $cur) }}</strong></td></tr>
+                <tr><td>{{ _lang('Less 30% savings') }}</td><td style="text-align:right">- {{ decimalPlace($sv['covers'], $cur) }}</td></tr>
+                <tr><td class="big">{{ _lang('Client pays') }} {{ _lang('after') }} {{ _lang('30% savings') }}</td>
+                    <td style="text-align:right" class="big">{{ decimalPlace($sv['after'], $cur) }}</td></tr>
+            </table>
+            <div class="small" style="margin-top:4px">
+                {{ _lang('The 30% savings pay the last installments of the loan, once everything else is paid. They do not pay overdue amounts.') }}
+                @if($sv['usable'] < $sv['held'] - 0.01)
+                {{ _lang('Only') }} {{ decimalPlace($sv['usable'], $cur) }} {{ _lang('is in the savings account now, so only that much can be used.') }}
+                @endif
+            </div>
+        </div>
+        @endif
     </div>
     @empty
     <p class="muted" style="margin-top:18px">{{ _lang('This client has no running or paid loans yet.') }}</p>

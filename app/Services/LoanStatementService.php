@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Loan;
 use App\Models\LoanPayment;
 use App\Models\Member;
+use Carbon\Carbon;
 use Dompdf\Dompdf;
 use Dompdf\Options;
 use Illuminate\Support\Collection;
@@ -32,7 +33,7 @@ class LoanStatementService
 
             $payments = LoanPayment::withoutGlobalScopes()
                 ->where('loan_id', $loan->id)
-                ->with('transaction')
+                ->with(['transaction', 'allocations.repayment'])
                 ->orderByRaw('DATE(paid_at), id')
                 ->get();
 
@@ -50,10 +51,21 @@ class LoanStatementService
                 $paidAt = $payment->getRawOriginal('paid_at');
                 $date   = $paidAt && ! str_starts_with($paidAt, '0000') ? $payment->paid_at : optional($payment->created_at)->format(get_date_format());
 
+                // How late it was: days past the due date of the oldest installment it paid.
+                $paidDay  = $paidAt && ! str_starts_with($paidAt, '0000') ? Carbon::parse($paidAt)->startOfDay() : optional($payment->created_at)->copy()?->startOfDay();
+                $daysLate = 0;
+                foreach ($payment->allocations as $allocation) {
+                    $due = $allocation->repayment->exists ? $allocation->repayment->getRawOriginal('repayment_date') : null;
+                    if ($paidDay && $due && ! str_starts_with($due, '0000') && $paidDay->gt(Carbon::parse($due))) {
+                        $daysLate = max($daysLate, (int) Carbon::parse($due)->startOfDay()->diffInDays($paidDay));
+                    }
+                }
+
                 $rows[] = [
                     'date'      => $date ?: '-',
                     'receipt'   => $payment->id,
                     'method'    => self::method($payment),
+                    'days_late' => $daysLate,
                     'amount'    => (float) $payment->total_amount,
                     'penalty'   => (float) $payment->late_penalties,
                     'interest'  => $interest,
@@ -67,14 +79,46 @@ class LoanStatementService
             }
 
             // What is owed today (late fees included) and the next payment due.
-            $owed = ['penalty' => 0, 'total' => 0];
-            $next = null;
+            // and, where the loan has the 30% savings, what that covers and
+            // what the client pays themselves.
+            $owed        = ['penalty' => 0, 'total' => 0];
+            $next        = null;
+            $daysOverdue = 0;
+            $savings     = null;
             if ($loan->status == 1) {
-                $arrears  = LoanRepaymentService::arrears($loan, $today);
-                $owed     = $arrears['owed'];
-                $overdue  = $arrears['overdue'];
+                $arrears     = LoanRepaymentService::arrears($loan, $today);
+                $owed        = $arrears['owed'];
+                $overdue     = $arrears['overdue'];
+                $daysOverdue = (int) collect($arrears['installments'])->where('overdue', true)->max('days_late');
+
+                // The savings pay the LAST installments, so the next one is
+                // the client's unless the savings reach back that far.
+                $coverage = LoanReserveService::coverage($loan, $arrears['installments']);
                 $upcoming = collect($arrears['installments'])->first(fn ($due) => ! $due['overdue']);
-                $next     = $upcoming ? ['date' => $upcoming['repayment']->repayment_date, 'amount' => $upcoming['total']] : null;
+                if ($upcoming) {
+                    $covered = (float) ($coverage[$upcoming['repayment']->id] ?? 0);
+                    $next    = [
+                        'date'    => $upcoming['repayment']->repayment_date,
+                        'amount'  => $upcoming['total'],
+                        'covered' => $covered,
+                        'pays'    => max(0, round($upcoming['total'] - $covered, 2)),
+                    ];
+                }
+
+                if (LoanReserveService::required($loan)) {
+                    $held    = LoanReserveService::remaining($loan);
+                    $usable  = LoanReserveService::usable($loan);
+                    $covers  = round(min($usable, $owed['total']), 2);
+                    $savings = [
+                        'set_aside' => LoanReserveService::target($loan),
+                        'used'      => LoanReserveService::used($loan),
+                        'held'      => $held,
+                        'usable'    => $usable,
+                        'covers'    => $covers,
+                        'before'    => $owed['total'],
+                        'after'     => max(0, round($owed['total'] - $covers, 2)),
+                    ];
+                }
             }
 
             $sections[] = [
@@ -88,6 +132,8 @@ class LoanStatementService
                 'owed'     => $owed,
                 'overdue'  => $overdue ?? ['count' => 0, 'total' => 0],
                 'next'     => $next,
+                'days_overdue' => $daysOverdue,
+                'savings'  => $savings,
             ];
         }
 
