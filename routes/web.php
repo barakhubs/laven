@@ -163,6 +163,9 @@ Route::group(['middleware' => ['install']], function () {
                 Route::get('audit_trails/data', [AuditTrailController::class, 'get_table_data'])->name('audit_trails.data');
                 Route::get('audit_trails/export', [AuditTrailController::class, 'export'])->name('audit_trails.export');
 
+                // Grace periods: super admins only (give, and end early).
+                Route::get('loans/{id}/grace_periods/create', [GracePeriodController::class, 'create'])->name('grace_periods.create');
+                Route::post('loans/{id}/grace_periods', [GracePeriodController::class, 'store'])->name('grace_periods.store');
                 Route::post('grace_periods/{id}/end', [GracePeriodController::class, 'end'])->name('grace_periods.end');
 
             });
@@ -256,8 +259,6 @@ Route::group(['middleware' => ['install']], function () {
                 Route::get('loans/reject/{id}', [LoanController::class, 'reject'])->name('loans.reject');
                 Route::get('loans/filter/{status?}', [LoanController::class, 'index'])->name('loans.filter')->where('status', '[A-Za-z]+');
                 Route::post('loans/{id}/apply_reserve', [LoanController::class, 'apply_reserve'])->name('loans.apply_reserve');
-                Route::get('loans/{id}/grace_periods/create', [GracePeriodController::class, 'create'])->name('grace_periods.create');
-                Route::post('loans/{id}/grace_periods', [GracePeriodController::class, 'store'])->name('grace_periods.store');
                 Route::match(['get', 'post'], 'loans/{id}/change_repayment_day', [LoanController::class, 'change_repayment_day'])->name('loans.change_repayment_day');
                 // ?loan_id= or ?member_id= (any client list); same names, so the same permission.
                 Route::get('calls/create', [LoanCallController::class, 'create'])->name('loan_calls.create');

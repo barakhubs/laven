@@ -372,7 +372,7 @@ class LoanController extends Controller {
             ->with(['repayments', 'created_by', 'ended_by_user'])
             ->orderByDesc('starts_on')->orderByDesc('id')
             ->get();
-        $canGrace = $loan->status == 1 && (auth()->user()->isAdmin() || has_permission('grace_periods.create'));
+        $canGrace = $loan->status == 1 && auth()->user()->isSuperAdmin();
 
         // "Verify figures" on the Repayments tab. A fault in the checker must
         // never stop the loan page from opening.

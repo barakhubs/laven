@@ -343,7 +343,7 @@ class PenaltyPauseTest extends TestCase
         $this->assertEqualsWithDelta($r->penaltyAccrued($this->day(-1)) + (float) $r->penalty, $r->penaltyAccrued($this->day(0)), 0.01);
     }
 
-    public function test_staff_need_the_grace_permission(): void
+    public function test_only_super_admins_can_give_grace(): void
     {
         [$loan, $open] = $this->loan();
         $staff = User::where('user_type', 'superadmin')->first()->replicate(['email']);
@@ -357,9 +357,24 @@ class PenaltyPauseTest extends TestCase
         $this->actingAs($staff)->post("/admin/loans/{$loan->id}/grace_periods", ['days' => 3, 'reason' => 'x', 'repayment_ids' => [$open[0]->id]]);
         $this->assertSame(0, LoanPenaltyPause::where('loan_id', $loan->id)->count());
 
+        // Not even with the old permission: grace periods are super admin only.
         \App\Models\AccessControl::forceCreate(['role_id' => $role->id, 'permission' => 'grace_periods.create']);
         $staff = $staff->fresh();
         $this->actingAs($staff)->post("/admin/loans/{$loan->id}/grace_periods", ['days' => 3, 'reason' => 'x', 'repayment_ids' => [$open[0]->id], 'include_upcoming' => 0]);
+        $this->assertSame(0, LoanPenaltyPause::where('loan_id', $loan->id)->count());
+
+        // Nor a plain admin.
+        $admin = $staff->replicate(['email']);
+        $admin->user_type = 'admin';
+        $admin->email = 'admin-' . uniqid() . '@example.com';
+        $admin->save();
+        $this->actingAs($admin)->get("/admin/loans/{$loan->id}/grace_periods/create")->assertStatus(302);
+        $this->actingAs($admin)->get("/admin/loans/{$loan->id}")->assertDontSee('Add Grace Period');
+        $this->actingAs($admin)->post("/admin/loans/{$loan->id}/grace_periods", ['days' => 3, 'reason' => 'x', 'repayment_ids' => [$open[0]->id], 'include_upcoming' => 0]);
+        $this->assertSame(0, LoanPenaltyPause::where('loan_id', $loan->id)->count());
+
+        // A super admin can.
+        $this->actingAs($this->admin)->post("/admin/loans/{$loan->id}/grace_periods", ['days' => 3, 'reason' => 'x', 'repayment_ids' => [$open[0]->id], 'include_upcoming' => 0]);
         $this->assertSame(1, LoanPenaltyPause::where('loan_id', $loan->id)->count());
     }
 
