@@ -299,6 +299,16 @@ class LoanRepaymentService
             ])]);
         }
 
+        // An installment a reschedule closed can't be reopened: what it still
+        // owed has already moved to the new plan.
+        $rescheduled = LoanRepayment::withoutGlobalScopes()
+            ->whereIn('id', $allocations->pluck('loan_repayment_id'))
+            ->whereNotNull('closed_by_reschedule_id')
+            ->exists();
+        if ($rescheduled) {
+            throw new \InvalidArgumentException(_lang('This payment was made before the loan was rescheduled, so it can no longer be deleted.'));
+        }
+
         foreach ($allocations as $allocation) {
             $repayment = LoanRepayment::withoutGlobalScopes()->lockForUpdate()->find($allocation->loan_repayment_id);
             if (! $repayment) {

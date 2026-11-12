@@ -347,7 +347,12 @@ class LoanPaymentController extends Controller
         $loan        = Loan::lockForUpdate()->findOrFail($loanpayment->loan_id);
         $transaction = Transaction::find($loanpayment->transaction_id);
 
-        LoanRepaymentService::reverse($loan, $loanpayment);
+        try {
+            LoanRepaymentService::reverse($loan, $loanpayment);
+        } catch (\InvalidArgumentException $e) {
+            DB::rollBack();
+            return back()->with('error', $e->getMessage());
+        }
 
         // The payment row is gone by now, so the Transaction deleting hook
         // finds nothing to reverse and the loan isn't adjusted twice.

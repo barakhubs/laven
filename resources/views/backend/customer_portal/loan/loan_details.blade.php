@@ -282,6 +282,8 @@
                                     @elseif($repayment['status'] == 0 && date('Y-m-d') <= $repayment->getRawOriginal('repayment_date'))
                                         {!! xss_clean(show_status(_lang('Unpaid'),'warning')) !!}
                                         @include('backend.loan.partials.penalty_pause')
+                                    @elseif($repayment->is_rescheduled)
+                                        {!! xss_clean(show_status(_lang('Rescheduled'),'secondary')) !!}
                                     @else
                                         {!! xss_clean(show_status(_lang('Paid'),'success')) !!}
                                     @endif

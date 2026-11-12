@@ -117,6 +117,10 @@ class LoanController extends ApiController
                 'you_pay'          => (float) max(0, round(($owedNow[$r->id]['total'] ?? 0) - ($coverage[$r->id] ?? 0), 2)),
                 'cleared_at'       => $r->cleared_at,
                 'status'           => $r->status ?? 0,
+                // Closed by a reschedule (status 1): what it still owed moved to the new installments.
+                'rescheduled'      => $r->is_rescheduled,
+                'moved_amount'     => round((float) $r->principal_moved + (float) $r->interest_moved, 2),
+                'penalty_carried'  => (float) $r->penalty_carried,
                 // Each payment into this installment and its penalty / interest / principal split.
                 'payments'         => $paidInto[$r->id] ?? [],
             ]);

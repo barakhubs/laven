@@ -176,12 +176,21 @@ class Loan extends Model {
         $active      = static::where('currency_id', $currencyId)->where('status', 1);
 
         $total  = (float) (clone $active)->selectRaw("$outstanding as total")->value('total');
+        // Overdue, or rescheduled and not yet paying on time under the new
+        // plan (a reschedule makes a loan look current straight away).
+        $rescheduled = LoanReschedule::atRiskLoanIds();
         $atRisk = (float) (clone $active)
-            ->whereHas('repayments', fn ($q) => $q->where('status', 0)->where('repayment_date', '<', date('Y-m-d')))
+            ->where(fn ($q) => $q
+                ->whereHas('repayments', fn ($q) => $q->where('status', 0)->where('repayment_date', '<', date('Y-m-d')))
+                ->orWhereIn('loans.id', $rescheduled ?: [0]))
             ->selectRaw("$outstanding as total")
             ->value('total');
 
         return $total > 0 ? round(($atRisk / $total) * 100, 1) : 0;
+    }
+
+    public function reschedules() {
+        return $this->hasMany(LoanReschedule::class, 'loan_id');
     }
 
     public function payments() {

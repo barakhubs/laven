@@ -266,6 +266,7 @@ Route::group(['middleware' => ['install']], function () {
                 Route::get('loans/filter/{status?}', [LoanController::class, 'index'])->name('loans.filter')->where('status', '[A-Za-z]+');
                 Route::post('loans/{id}/apply_reserve', [LoanController::class, 'apply_reserve'])->name('loans.apply_reserve');
                 Route::match(['get', 'post'], 'loans/{id}/change_repayment_day', [LoanController::class, 'change_repayment_day'])->name('loans.change_repayment_day');
+                Route::match(['get', 'post'], 'loans/{id}/reschedule', [LoanController::class, 'reschedule'])->name('loans.reschedule');
                 // ?loan_id= or ?member_id= (any client list); same names, so the same permission.
                 Route::get('calls/create', [LoanCallController::class, 'create'])->name('loan_calls.create');
                 Route::post('calls', [LoanCallController::class, 'store'])->name('loan_calls.store');

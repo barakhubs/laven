@@ -17,6 +17,8 @@
                   <i class="fas fa-pause-circle mr-1"></i>{{ _lang('Add Grace Period') }}</a>
                <a class="btn btn-outline-secondary btn-xs mr-1" href="{{ route('loans.change_repayment_day', $loan->id) }}">
                   <i class="far fa-calendar-alt mr-1"></i>{{ _lang('Change Repayment Day') }}</a>
+               <a class="btn btn-outline-warning btn-xs mr-1" href="{{ route('loans.reschedule', $loan->id) }}">
+                  <i class="fas fa-random mr-1"></i>{{ _lang('Reschedule Loan') }}</a>
                <a class="btn btn-primary btn-xs" href="{{ route('loan_payments.create', ['loan_id' => $loan->id]) }}">
                   <i class="fas fa-hand-holding-usd mr-1"></i>{{ _lang('Add Repayment') }}</a>
             </div>
@@ -477,8 +479,8 @@
                      </thead>
                      <tbody>
                         @foreach($repayments as $repayment)
-                        <tr>
-                           <td>{{ $repayment->repayment_date }}</td>
+                        <tr class="{{ $repayment->is_rescheduled ? 'text-muted' : '' }}">
+                           <td>{{ $repayment->repayment_date }}@if($repayment->is_rescheduled)<br><span class="badge badge-secondary">{{ _lang('Rescheduled') }}</span>@endif</td>
                            <td class="text-right">
                               {{ decimalPlace($repayment['amount_to_pay'], currency($loan->currency->name)) }}
                               @if($repayment['status'] == 0 && ($repayment->interest_paid + $repayment->principal_paid + $repayment->penalty_paid) > 0)
@@ -547,14 +549,66 @@
                               @elseif($repayment['status'] == 0 && date('Y-m-d') <= $repayment->getRawOriginal('repayment_date'))
                               {!! xss_clean(show_status(_lang('Unpaid'),'warning')) !!}
                               @include('backend.loan.partials.penalty_pause')
+                              @elseif($repayment->is_rescheduled)
+                              {!! xss_clean(show_status(_lang('Rescheduled'),'secondary')) !!}
+                              @if($repayment->principal_moved + $repayment->interest_moved > 0)
+                              <br><small class="text-muted">{{ _lang('Moved to new plan') }}: {{ decimalPlace($repayment->principal_moved + $repayment->interest_moved, currency($loan->currency->name)) }}</small>
+                              @endif
                               @else
                               {!! xss_clean(show_status(_lang('Paid'),'success')) !!}
+                              @endif
+                              @if($repayment->penalty_carried > 0)
+                              <br><small class="text-muted">{{ _lang('Includes earlier penalty') }}: {{ decimalPlace($repayment->penalty_carried, currency($loan->currency->name)) }}</small>
                               @endif
                            </td>
                         </tr>
                         @endforeach
                      </tbody>
                   </table>
+                  @endif
+
+                  @if($reschedules->count())
+                  <h5 class="mt-4">{{ _lang('Reschedules') }}</h5>
+                  <div class="table-responsive">
+                     <table class="table table-bordered table-sm">
+                        <thead>
+                           <tr>
+                              <th>{{ _lang('Date') }}</th>
+                              <th>{{ _lang('New Plan') }}</th>
+                              <th class="text-right">{{ _lang('Owed Before') }}</th>
+                              <th class="text-right">{{ _lang('Owed After') }}</th>
+                              <th class="text-right">{{ _lang('Extra Interest') }}</th>
+                              <th>{{ _lang('Amount &amp; Waivers') }}</th>
+                              <th>{{ _lang('Reason') }}</th>
+                              <th>{{ _lang('By') }}</th>
+                           </tr>
+                        </thead>
+                        <tbody>
+                           @foreach($reschedules as $r)
+                           <tr>
+                              <td class="text-nowrap">{{ $r->rescheduled_on->format(get_date_format()) }}</td>
+                              <td>{{ $r->installments }} {{ $r->installments == 1 ? _lang('installment') : _lang('installments') }}, {{ _lang('first due') }} {{ $r->first_date->format(get_date_format()) }}</td>
+                              <td class="text-right">{{ decimalPlace($r->old_total, currency($loan->currency->name)) }}</td>
+                              <td class="text-right">{{ decimalPlace($r->new_total, currency($loan->currency->name)) }}</td>
+                              <td class="text-right">{{ decimalPlace($r->extra_interest, currency($loan->currency->name)) }}</td>
+                              <td class="text-nowrap">
+                                 {{ _lang('Rescheduled') }} {{ decimalPlace($r->amount, currency($loan->currency->name)) }}
+                                 @if($r->penalty_waived > 0)<br><small class="text-muted">{{ _lang('Penalty waived') }} {{ decimalPlace($r->penalty_waived, currency($loan->currency->name)) }}</small>@endif
+                                 @if($r->interest_waived > 0)<br><small class="text-muted">{{ _lang('Interest waived') }} {{ decimalPlace($r->interest_waived, currency($loan->currency->name)) }}</small>@endif
+                              </td>
+                              <td>{{ $r->reason }}</td>
+                              <td>{{ $r->created_by->name ?? '-' }}</td>
+                           </tr>
+                           @endforeach
+                        </tbody>
+                     </table>
+                  </div>
+                  @php $latestReschedule = $reschedules->first(); @endphp
+                  @if($latestReschedule->isAtRisk())
+                  <div class="alert alert-warning small">
+                     <i class="fas fa-exclamation-triangle mr-1"></i>{{ _lang('Counted as at risk in reports until the client makes') }} {{ $latestReschedule->paymentsNeeded() }} {{ _lang('on-time payments under the new plan') }} ({{ $latestReschedule->onTimePayments() }} {{ _lang('so far') }}).
+                  </div>
+                  @endif
                   @endif
 
                   @if($graces->count())

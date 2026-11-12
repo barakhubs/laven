@@ -108,6 +108,10 @@ class LoanReceiptService
 
             if ($paidAt->gt($dueDate)) {
                 $unpaidAfter  = max(0, $base - $allocated($upTo, 'interest') - $allocated($upTo, 'principal') - $legacy['interest'] - $legacy['principal']);
+                // Moved to a new plan by a reschedule on or before this payment.
+                if ($repayment->closed_by_reschedule_id && $repayment->cleared_at && \Carbon\Carbon::parse($repayment->cleared_at)->lte($paidAt)) {
+                    $unpaidAfter = max(0, $unpaidAfter - (float) $repayment->principal_moved - (float) $repayment->interest_moved);
+                }
                 $perDayAfter += (float) $repayment->penalty * $unpaidAfter / $base;
             }
 

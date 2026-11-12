@@ -63,6 +63,11 @@ class ReconcileLoanSchedules extends Command
                 continue;
             }
 
+            // A rescheduled loan's installments were set deliberately; don't re-spread them.
+            if (\App\Models\LoanReschedule::where('loan_id', $loan->id)->exists()) {
+                continue;
+            }
+
             $result = $this->reconcileLoan($loan, $dryRun);
             if ($result) {
                 $changed++;

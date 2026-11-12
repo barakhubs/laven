@@ -71,12 +71,18 @@ class LoanRepayment extends Model {
 
     /**
      * Late penalty still owed on this installment as of $asOf: what has
-     * accrued (see penaltyAccrued) less what payments covered and what staff
-     * waived.
+     * accrued (see penaltyAccrued) less what payments covered, what staff
+     * waived, and what a reschedule moved to the new installments.
      */
     public function penaltyDue($asOf): float
     {
-        return max(0, round($this->penaltyAccrued($asOf) - (float) $this->penalty_paid - (float) $this->penalty_waived, 2));
+        return max(0, round($this->penaltyAccrued($asOf) - (float) $this->penalty_paid - (float) $this->penalty_waived - (float) $this->penalty_moved, 2));
+    }
+
+    /** Closed by a reschedule: what it still owed moved to new installments. */
+    public function getIsRescheduledAttribute(): bool
+    {
+        return $this->closed_by_reschedule_id !== null;
     }
 
     /**
@@ -87,8 +93,17 @@ class LoanRepayment extends Model {
      * after they're made. A payment counts from the day after its date.
      * Days inside a penalty pause (grace period, or the pause after a
      * qualifying payment) cost nothing; see LoanPenaltyPause.
+     *
+     * Penalty kept owed by a reschedule (penalty_carried) is owed in full
+     * from the start and never grows.
      */
     public function penaltyAccrued($asOf): float
+    {
+        return round((float) $this->penalty_carried + $this->lateDaysPenalty($asOf), 2);
+    }
+
+    /** The day-by-day part of penaltyAccrued(). */
+    protected function lateDaysPenalty($asOf): float
     {
         $dueDate = \Carbon\Carbon::parse($this->getRawOriginal('repayment_date'))->startOfDay();
         $asOf    = \Carbon\Carbon::parse($asOf)->startOfDay();
@@ -318,12 +333,14 @@ class LoanRepayment extends Model {
 
     /**
      * Principal + interest paid to this installment, by payment date (oldest
-     * first), from the payment allocations. Cached on the instance.
+     * first), from the payment allocations. What a reschedule moved off it
+     * counts as paid on the day of the reschedule, so penalty stops there.
+     * Cached on the instance.
      */
     public function paymentHistory(): array
     {
         if ($this->paymentHistoryCache === null) {
-            $this->paymentHistoryCache = \Illuminate\Support\Facades\DB::table('loan_payment_allocations')
+            $history = \Illuminate\Support\Facades\DB::table('loan_payment_allocations')
                 ->join('loan_payments', 'loan_payments.id', '=', 'loan_payment_allocations.loan_payment_id')
                 ->where('loan_payment_allocations.loan_repayment_id', $this->id)
                 ->groupBy('loan_payments.paid_at')
@@ -332,6 +349,15 @@ class LoanRepayment extends Model {
                 ->pluck('amount', 'paid_at')
                 ->map(fn ($amount) => (float) $amount)
                 ->all();
+
+            $moved = (float) $this->principal_moved + (float) $this->interest_moved;
+            if ($this->closed_by_reschedule_id && $moved > 0 && $this->cleared_at) {
+                $on = \Carbon\Carbon::parse($this->cleared_at)->toDateString();
+                $history[$on] = ($history[$on] ?? 0) + $moved;
+                ksort($history);
+            }
+
+            $this->paymentHistoryCache = $history;
         }
 
         return $this->paymentHistoryCache;
@@ -379,12 +405,12 @@ class LoanRepayment extends Model {
 
     public function getInterestDueAttribute(): float
     {
-        return max(0, round((float) $this->interest - (float) $this->interest_paid - (float) $this->interest_waived, 2));
+        return max(0, round((float) $this->interest - (float) $this->interest_paid - (float) $this->interest_waived - (float) $this->interest_moved, 2));
     }
 
     public function getPrincipalDueAttribute(): float
     {
-        return max(0, round((float) $this->principal_amount - (float) $this->principal_paid, 2));
+        return max(0, round((float) $this->principal_amount - (float) $this->principal_paid - (float) $this->principal_moved, 2));
     }
 
     /**
@@ -393,7 +419,7 @@ class LoanRepayment extends Model {
      */
     public function getAmountDueAttribute(): float
     {
-        return max(0, round((float) $this->amount_to_pay - (float) $this->interest_paid - (float) $this->interest_waived - (float) $this->principal_paid, 2));
+        return max(0, round((float) $this->amount_to_pay - (float) $this->interest_paid - (float) $this->interest_waived - (float) $this->principal_paid - (float) $this->interest_moved - (float) $this->principal_moved, 2));
     }
 
     /**
@@ -404,7 +430,7 @@ class LoanRepayment extends Model {
      */
     public static function amountDueSql(string $table = 'loan_repayments'): string
     {
-        return "GREATEST({$table}.amount_to_pay - {$table}.interest_paid - {$table}.interest_waived - {$table}.principal_paid, 0)";
+        return "GREATEST({$table}.amount_to_pay - {$table}.interest_paid - {$table}.interest_waived - {$table}.principal_paid - {$table}.interest_moved - {$table}.principal_moved, 0)";
     }
 
     /**
@@ -419,7 +445,7 @@ class LoanRepayment extends Model {
             ->forCurrentLoanDomain()
             ->where('repayment_date', '<', date('Y-m-d'))
             ->when($from, fn ($q) => $q->where('repayment_date', '>=', $from))
-            ->selectRaw('COALESCE(SUM(interest_paid + principal_paid), 0) as paid, COALESCE(SUM(amount_to_pay - interest_waived), 0) as owed')
+            ->selectRaw('COALESCE(SUM(interest_paid + principal_paid), 0) as paid, COALESCE(SUM(amount_to_pay - interest_waived - interest_moved - principal_moved), 0) as owed')
             ->first();
 
         return $totals->owed > 0 ? round(($totals->paid / $totals->owed) * 100, 1) : 0;

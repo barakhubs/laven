@@ -374,6 +374,8 @@ class LoanController extends Controller {
             ->get();
         $canGrace = $loan->status == 1 && auth()->user()->isSuperAdmin();
 
+        $reschedules = \App\Models\LoanReschedule::with('created_by')->where('loan_id', $loan->id)->orderByDesc('id')->get();
+
         // "Verify figures" on the Repayments tab. A fault in the checker must
         // never stop the loan page from opening.
         $verification = null;
@@ -388,7 +390,7 @@ class LoanController extends Controller {
         // Every call to this client (this loan's and any others).
         $calls = \App\Models\LoanCall::with(['created_by', 'loan.currency'])->where('member_id', $loan->borrower_id)->orderByDesc('id')->get();
 
-        return view('backend.loan.view', compact('loan', 'loancollaterals', 'repayments', 'payments', 'guarantors', 'customFields', 'reserve', 'reserveCoverage', 'graces', 'canGrace', 'paidInto', 'projected', 'verification', 'calls'));
+        return view('backend.loan.view', compact('loan', 'loancollaterals', 'repayments', 'payments', 'guarantors', 'customFields', 'reserve', 'reserveCoverage', 'graces', 'canGrace', 'paidInto', 'projected', 'verification', 'calls', 'reschedules'));
 
     }
 
@@ -487,6 +489,90 @@ class LoanController extends Controller {
         \App\Utilities\CreditScoreCalculator::recalculate($loan);
 
         return redirect()->route('loans.show', $loan->id)->with('success', _lang('Repayment dates updated. Next installment due') . ' ' . $lines[0]['new']);
+    }
+
+    /**
+     * Reschedule a loan: spread what the client still owes over a new set of
+     * installments (LoanRescheduleService). GET shows the form and, once
+     * filled in, the new plan next to the old one; POST saves it.
+     */
+    public function reschedule(Request $request, $id) {
+        if (! auth()->user()->isSuperAdmin()) {
+            abort(403, 'Only Super Admins can reschedule loans.');
+        }
+
+        $loan = Loan::findOrFail($id);
+        if ($loan->status != 1) {
+            return redirect()->route('loans.show', $loan->id)->with('error', _lang('Only active loans can be rescheduled.'));
+        }
+
+        if ($request->isMethod('get')) {
+            $input = [
+                'first_date'     => $request->query('first_date'),
+                'installments'   => $request->query('installments'),
+                'amount'         => $request->query('amount'),
+                'reason'         => $request->query('reason'),
+                'notify_client'  => $request->query('notify_client', $request->has('first_date') ? 0 : 1),
+            ];
+            $plan  = null;
+            $error = null;
+            if ($input['first_date'] && $input['installments'] && is_numeric($input['amount'])) {
+                try {
+                    $plan = \App\Services\LoanRescheduleService::preview($loan, $input['first_date'], (int) $input['installments'], (float) $input['amount']);
+                } catch (\InvalidArgumentException $e) {
+                    $error = $e->getMessage();
+                }
+            }
+            $arrears     = \App\Services\LoanRepaymentService::arrears($loan, date('Y-m-d'));
+            $reschedules = \App\Models\LoanReschedule::where('loan_id', $loan->id)->count();
+            $alert_col   = 'col-lg-10 offset-lg-1';
+
+            return view('backend.loan.reschedule', compact('loan', 'input', 'plan', 'error', 'arrears', 'reschedules', 'alert_col'));
+        }
+
+        $request->validate([
+            'first_date'     => 'required|date',
+            'installments'   => 'required|integer|min:1|max:120',
+            'amount'         => 'required|numeric|gt:0',
+            'reason'         => 'required|string|max:1000',
+        ]);
+
+        DB::beginTransaction();
+        $loan = Loan::lockForUpdate()->findOrFail($id);
+
+        try {
+            $reschedule = \App\Services\LoanRescheduleService::apply($loan, $request->first_date, (int) $request->installments, (float) $request->amount, $request->reason);
+        } catch (\InvalidArgumentException $e) {
+            DB::rollBack();
+            return back()->withInput()->with('error', $e->getMessage());
+        }
+
+        \App\Models\AuditLog::log('updated', 'Loan', $loan->id, $loan->loan_id . ' (' . $loan->borrower->name . ')',
+            ['installments' => LoanRepayment::withoutGlobalScopes()->where('closed_by_reschedule_id', $reschedule->id)->count(), 'owed' => $reschedule->old_total, 'last_due_date' => $reschedule->old_end_date->toDateString()],
+            ['installments' => $reschedule->installments, 'owed' => $reschedule->new_total, 'first_due_date' => $reschedule->first_date->toDateString(), 'extra_interest' => $reschedule->extra_interest, 'amount_rescheduled' => $reschedule->amount, 'interest_waived' => $reschedule->interest_waived, 'penalty_kept' => $reschedule->penalty_kept, 'penalty_waived' => $reschedule->penalty_waived],
+            'Rescheduled loan: ' . $reschedule->reason);
+
+        DB::commit();
+
+        \App\Utilities\CreditScoreCalculator::recalculate($loan);
+
+        $message = _lang('Loan rescheduled.');
+        if ($request->boolean('notify_client')) {
+            $phone = format_recipient_number($loan->borrower);
+            if (get_option('sms_gateway', 'none') == 'none' || ! $phone) {
+                $message .= ' ' . _lang('The client was not sent an SMS (no SMS gateway or phone number).');
+            } else {
+                try {
+                    (new \App\Utilities\SmsHelper())->send($phone, \App\Services\LoanRescheduleService::smsText($loan, $reschedule));
+                    $reschedule->update(['client_notified' => true]);
+                    $message .= ' ' . _lang('The client was sent the new plan by SMS.');
+                } catch (\Exception $e) {
+                    $message .= ' ' . _lang('The SMS to the client could not be sent.');
+                }
+            }
+        }
+
+        return redirect()->route('loans.show', [$loan->id, 'tab' => 'schedule'])->with('success', $message);
     }
 
     /**
